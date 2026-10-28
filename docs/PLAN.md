@@ -280,7 +280,45 @@ Exactly-once behavior is guaranteed only for TapRig request handling. Third-part
 apps may not provide transactional side effects, so irreversible retries require
 evidence or an explicit recovery policy.
 
+### User-built scripts
+
+Repeated workflows are first-class TapRig automations. A user can create one by:
+
+- recording manual phone actions;
+- describing the workflow to the built-in agent;
+- selecting a successful run and choosing “Make script”; or
+- editing the declarative automation directly.
+
+A script declares inputs, compatible apps/device capabilities, typed steps,
+checkpoints, outputs, and failure behavior. It is inspectable, versioned, and
+testable. Example invocations:
+
+```text
+taprig scripts run reply-known-dms --device phone-1
+taprig scripts run post-reel --input video=launch.mp4 --fleet social
+```
+
+Scripts execute deterministically without model calls while their preconditions
+and checkpoints hold. A mismatch can stop, ask the user, or hand control to the
+agent according to the script's recovery policy.
+
+Internally, user scripts, bundled skills, and learned candidate skills use one
+automation schema and executor. Their origin and trust differ:
+
+- **user script:** owner-authored or explicitly saved; immediately available
+  under the owner's policy;
+- **bundled skill:** shipped and tested by the project;
+- **learned candidate:** proposed from traces and unavailable for automatic use
+  until it passes promotion requirements.
+
+The first format is a declarative action graph, not arbitrary plugin code. Shell
+actions remain explicit typed steps with their own policy and trace.
+
 ## 7. Agent runtime
+
+The reasoning, prompting, knowledge, recovery, and evaluation design is specified
+in [AGENT_ARCHITECTURE.md](AGENT_ARCHITECTURE.md). This section defines its
+system-level boundary.
 
 ### Loop
 
@@ -385,6 +423,9 @@ taprig approve|deny            approval response
 taprig takeover <device>       manual-control lease
 taprig ui                      open/print the graphical UI
 taprig export <run-id>         portable trace and artifacts
+taprig scripts list|show       inspect saved automations
+taprig scripts run <name>      run a saved automation
+taprig scripts create          record/describe/import an automation
 ```
 
 Interactive slash commands include `/devices`, `/use`, `/fleet`, `/model`,
@@ -543,6 +584,7 @@ execute and verify reversible actions, and take over manually.
 - [ ] Provider configuration and model profiles.
 - [ ] Built-in observe/decide/execute/verify/recover loop.
 - [ ] Questions, approvals, budgets, artifacts, and replay.
+- [ ] User script creation, inspection, testing, and deterministic execution.
 - [ ] Full main workspace and onboarding.
 - [ ] MCP adapter.
 
