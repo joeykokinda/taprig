@@ -619,6 +619,50 @@ Baseline routing:
 Fallback chains are finite. A cheap model that fails repeatedly can cost more
 than one strong call, so the router optimizes expected cost to verified success.
 
+### Finding the cheap-model breaking point
+
+TapRig does not choose the device model from reputation or one demo. It builds a
+per-task-class cost/reliability frontier.
+
+For every candidate model/profile, run the same versioned tasks with the same
+devices, app versions, initial states, tools, budgets, and completion verifiers.
+Measure:
+
+- task and checkpoint success;
+- cost per verified success, including failed/recovery calls;
+- model calls and escalations;
+- latency;
+- invalid decisions and tool-schema failures;
+- recovery success and repeated-state loops;
+- failure taxonomy distribution.
+
+The cheapest model is eligible for a task class only when it meets that class's
+measured reliability requirement. The router escalates using observable signals,
+not the cheap model's self-reported confidence:
+
+- invalid or repeatedly repaired decision schema;
+- ambiguous grounding;
+- failed checkpoint or weak completion evidence;
+- unchanged state after an asserted action;
+- repeated state/action cycle;
+- visual-only surface outside the model's evaluated capability;
+- exhausted local recovery budget;
+- task consequence or coordinator complexity above the evaluated tier.
+
+A practical initial split is:
+
+- strong model: task specification, multi-device decomposition, global replans,
+  ambiguous user intent, and escalated recovery;
+- cheap model: narrow semantic decisions on one phone with strong deterministic
+  verification;
+- no model: preflight repair, exact tools, verified scripts, waits, assertions,
+  batching, and normal retries;
+- vision model: selected inaccessible frames/regions only.
+
+As evidence grows, routing may specialize by app, task class, state novelty, and
+available verifier. A learned router is permitted only after it beats the rules
+on a held-out suite without hiding failure cost.
+
 ## 15. Multi-device reasoning
 
 ### Independent

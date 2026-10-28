@@ -222,6 +222,39 @@ Reads may be concurrent when safe. Mutations remain ordered. Human takeover
 revokes the agent lease, invalidates the observation generation, and requires a
 fresh observation before agent execution resumes.
 
+### Zero-touch preflight and remediation
+
+After one-time enrollment, normal operation should not require touching the
+phone. Before assigning work, TapRig checks and, where authorized, repairs:
+
+- ADB/driver/video health;
+- awake, unlocked, orientation, and foreground state;
+- battery/charging and thermal state;
+- Wi-Fi/mobile connectivity, DNS, and internet reachability;
+- captive portal and airplane-mode state;
+- required app installation/version/permissions;
+- keyboard/input-method readiness;
+- storage required for task artifacts.
+
+Remediation prefers exact Android operations, then semantic Settings navigation.
+If information is missing, TapRig asks one specific question and continues from
+the same checkpoint. Example:
+
+```text
+Phone 2 has no internet and sees networks Purdue, PAL3.0, and rex-home.
+Which network should it join? I will request its password only if required.
+```
+
+Credentials are passed as secret values directly to the executor. They are not
+placed in model context, event text, screenshots retained by default, or normal
+logs. TapRig stores them only when the owner explicitly chooses an encrypted
+credential store.
+
+Zero-touch operation cannot precede Android trust enrollment: enabling developer
+options/USB debugging, accepting the host RSA key, and satisfying a lock or
+biometric challenge may require physical presence. TapRig must name these as
+platform trust boundaries rather than looping or pretending to repair them.
+
 ## 6. Execution system
 
 ### Observation
@@ -495,6 +528,26 @@ model calls, approvals, and append-only normalized events. Large screenshots,
 recordings, UI dumps, and exports live under the data directory and are
 referenced by content metadata.
 
+Cross-session context is stored by type and authority, not as one growing chat
+transcript:
+
+- explicit user preferences and decisions;
+- device identity, capabilities, affinity, and health history;
+- versioned app cards and compatibility evidence;
+- user scripts, bundled skills, candidate skills, and performance history;
+- task/run event logs, checkpoints, outputs, and failure classifications;
+- model-routing and cost outcomes;
+- artifact metadata and retention policy.
+
+Live phone state is always refreshed before action; a previous session's screen
+snapshot is historical evidence, never current authority. Secrets are referenced
+through a credential store and are not copied into general memory. The context
+builder retrieves only records relevant to the current task/app/device and keeps
+their provenance.
+
+Materialized run state makes resume fast. The append-only event trace remains the
+source for replay, audit, and rebuilding derived state after a crash.
+
 Core event families:
 
 ```text
@@ -557,6 +610,27 @@ daemon restart, and partial broadcast failure.
 
 All published benchmark claims include task definitions, device/app versions,
 model configuration, raw traces, and failure classifications.
+
+### Known weaknesses to measure, not hide
+
+- Device enrollment, locks, biometrics, CAPTCHAs, DRM, and hardware confirmation
+  can require a person or remain unavailable.
+- Accessibility state is incomplete in games, video, canvas, some WebViews, and
+  poorly implemented apps, forcing slower visual perception.
+- OEM Android variants and USB/driver/hub behavior create hardware-specific
+  failures.
+- App updates invalidate selectors, app cards, and scripts until compatibility
+  is re-verified.
+- External side effects such as a sent message or published post may be hard to
+  verify transactionally and unsafe to retry blindly.
+- Cheap-model reliability and escalation thresholds are unknown until TapRig's
+  eval suite measures them.
+- Fleet broadcast can amplify one bad plan, so per-device verification and drift
+  isolation are mandatory.
+- Stored screens, messages, credentials, and run traces create a sensitive local
+  data boundary that needs retention controls and threat modeling.
+- Continuous multi-device video can exhaust USB bandwidth, encoder capacity,
+  memory, and power before model inference becomes the bottleneck.
 
 ## 14. Build roadmap
 
