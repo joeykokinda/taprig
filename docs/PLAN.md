@@ -375,6 +375,13 @@ A coordinator creates a task DAG with typed inputs, outputs, dependencies, and
 device requirements. Work units run on leased devices. Barriers aggregate
 results. Failures retry, compensate, reassign, or stop according to task policy.
 
+The coordinator is the sole user-facing agent. It receives compact device and
+work-unit summaries rather than full UI state. Each assigned phone has an
+isolated lightweight device-agent context, and deterministic execution can
+complete known scripts without invoking a device model. See the agent-tree and
+orchestrator decision cycle in
+[AGENT_ARCHITECTURE.md](AGENT_ARCHITECTURE.md#6-agent-tree-and-context-boundaries).
+
 ## 9. Daemon, remote access, and interfaces
 
 ### Daemon

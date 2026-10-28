@@ -145,7 +145,119 @@ One logical session per assigned device/work unit. Responsibilities:
 A device actor still serializes mutations. Multiple logical agents cannot race
 for the same phone.
 
-## 6. Receding-horizon planning
+## 6. Agent tree and context boundaries
+
+TapRig is a durable actor tree, not one model conversation pretending to be a
+fleet manager.
+
+```text
+User
+  |
+  v
+Session orchestrator
+  |-- Work unit A -> Phone 1 device agent -> deterministic executor
+  |-- Work unit B -> Phone 2 device agent -> deterministic executor
+  |-- Work unit C -> Phone 3 device agent -> deterministic executor
+  |-- Broadcast D -> Phones 4-6 cohort
+  |                    |-- local mapper/executor on Phone 4
+  |                    |-- local mapper/executor on Phone 5
+  |                    `-- local mapper/executor on Phone 6
+  `-- optional background job: propose/test an automation
+```
+
+The **session orchestrator** is the only agent the user talks to. It owns:
+
+- the task specification and user decisions;
+- device inventory summaries, capabilities, affinity, and leases;
+- the task graph and work-unit dependencies;
+- global budgets and selected policy;
+- progress, exceptions, aggregation, and final completion evidence;
+- questions that must reach the user.
+
+It does not receive full UI trees, frame streams, or every local action. For each
+phone it sees a compact summary:
+
+```text
+phone-2: ready, X 11.4.0, work=reply-known-dms,
+checkpoint=conversation-open, cost=$0.004, exception=none
+```
+
+A **device agent** receives only:
+
+- its work unit and completion condition;
+- its device capabilities and local policy;
+- the current observation/diff;
+- relevant app card and automation candidates;
+- recent local evidence and its remaining local budget.
+
+It returns checkpoint results, outputs, evidence references, cost, and typed
+exceptions. It does not return its entire prompt/transcript to the orchestrator.
+
+Most device nodes are dormant most of the time. A known script plus deterministic
+executor may complete a work unit without a device-model call. A model wakes for
+novel semantic choice, mismatch, or recovery. “One device agent per phone” means
+isolated state and authority, not one continuously running expensive model per
+phone.
+
+### Orchestrator decision cycle
+
+For each user request, the orchestrator follows this explicit process:
+
+1. **Specify:** extract goal, constraints, completion conditions, policy, and
+   budget; ask only if a material choice is missing.
+2. **Inventory:** read device readiness, capabilities, installed/foreground apps,
+   affinity, leases, and current work.
+3. **Retrieve:** find matching user scripts, bundled skills, app cards, and exact
+   system tools.
+4. **Route:** decide whether the task is local/direct, independent, broadcast,
+   or coordinated.
+5. **Decompose:** create the smallest work graph with typed inputs, outputs,
+   dependencies, device requirements, and verifiers.
+6. **Assign:** lease eligible devices and send each device agent a bounded work
+   unit.
+7. **Supervise:** consume checkpoint summaries and exceptions rather than local
+   action streams.
+8. **Adapt:** reassign, split, retry, recover, ask the user, or propose an
+   automation/tool change when evidence requires it.
+9. **Aggregate:** combine structured device outputs and run the global verifier.
+10. **Complete:** report results and evidence, release leases, and optionally
+    offer to save a successful novel workflow as a script.
+
+The orchestrator emits schema-validated commands, not free-form instructions:
+
+- `ask_user`
+- `assign_work`
+- `start_broadcast`
+- `wait_for_dependencies`
+- `revise_graph`
+- `cancel_work`
+- `propose_automation`
+- `propose_tool_extension`
+- `complete`
+
+### Missing knowledge versus missing capability
+
+TapRig distinguishes three cases:
+
+1. **A matching script exists.** Bind parameters, check compatibility and
+   preconditions, then execute and verify it.
+2. **No script exists, but existing primitives can perform the task.** The device
+   agent explores with short reversible batches, completes the task, and the
+   orchestrator may offer “Save this as a script?” afterward. The user should not
+   have to build a script before completing a one-off task.
+3. **A required primitive capability is absent.** The orchestrator reports the
+   exact gap. In developer mode it may start a separate tool-builder job that
+   proposes code, tests it against a fake/emulator/authorized device, and asks the
+   owner to review/install it. Ordinary task execution never silently writes and
+   runs new privileged code.
+
+A **tool** is a trusted primitive implemented by TapRig or an installed extension
+(for example semantic observation, tap, intent, file transfer, or a new sensor
+bridge). A **script/skill** is a declarative composition of existing tools. This
+terminology prevents every unfamiliar workflow from being misdiagnosed as a
+missing system capability.
+
+## 7. Receding-horizon planning
 
 TapRig uses three planning horizons:
 
@@ -180,7 +292,7 @@ Action batch
 After the batch, TapRig observes again. A stable reusable skill may execute a
 longer batch because each internal checkpoint is already known and verified.
 
-## 7. Context construction
+## 8. Context construction
 
 The context builder, not the model, owns what enters a decision call. It assembles
 the smallest sufficient decision packet:
@@ -205,7 +317,7 @@ document is data, not TapRig instruction. The context labels its source and
 keeps it outside trusted policy/task sections. A screen saying “ignore previous
 instructions” has no authority over the agent.
 
-## 8. Decision contract
+## 9. Decision contract
 
 Every model decision is structured and schema-validated. It chooses exactly one:
 
@@ -221,7 +333,7 @@ once locally or through a bounded retry; it never guesses an action from prose.
 The model can propose selectors and expectations. The executor resolves selectors,
 checks generations and capabilities, performs actions, and verifies effects.
 
-## 9. Action-surface router
+## 10. Action-surface router
 
 The router ranks candidate surfaces by expected reliability, latency, and cost:
 
@@ -251,7 +363,7 @@ Each routing decision records:
 The first implementation may use rules. Learned routing is considered only
 after enough labeled outcomes exist to beat the rules in held-out evaluation.
 
-## 10. Execution and verification
+## 11. Execution and verification
 
 The agent never equates “tool returned without throwing” with success.
 
@@ -280,7 +392,7 @@ last resort because it can agree with its own mistaken plan.
 Task completion uses task-level conditions, not merely the success of the final
 tap.
 
-## 11. Recovery ladder
+## 12. Recovery ladder
 
 Recovery is bounded and typed. For an ordinary failed step:
 
@@ -302,7 +414,7 @@ For irreversible third-party actions, absence of confirmation is not proof of
 absence. TapRig verifies before retrying and otherwise stops for policy/user
 resolution.
 
-## 12. Memory and skills
+## 13. Memory and skills
 
 TapRig has three memory scopes.
 
@@ -459,7 +571,7 @@ Only action outcomes and errors relevant to the current local intent.
 Actions supported by this device/runtime mode.
 ```
 
-The model returns the structured decision contract from section 8. Provider
+The model returns the structured decision contract from section 9. Provider
 tool-calling or constrained JSON may carry the schema, but TapRig validates it
 independently before execution.
 
@@ -481,7 +593,7 @@ verified trace
 This keeps “learning” inspectable. Bad model guesses remain run-local instead of
 poisoning future tasks.
 
-## 13. Model routing
+## 14. Model routing
 
 Model selection is a policy over task and state, not a user-visible quality
 label alone.
@@ -507,7 +619,7 @@ Baseline routing:
 Fallback chains are finite. A cheap model that fails repeatedly can cost more
 than one strong call, so the router optimizes expected cost to verified success.
 
-## 14. Multi-device reasoning
+## 15. Multi-device reasoning
 
 ### Independent
 
@@ -528,7 +640,7 @@ device requirements, dependencies, verifier, retry/compensation policy, and
 budget. The coordinator sees structured summaries and evidence, not every raw
 device event.
 
-## 15. Human interaction
+## 16. Human interaction
 
 The agent asks a question when:
 
@@ -542,7 +654,7 @@ Questions are concise, preserve the run, and identify what continues after the
 answer. A user can pause, steer, take over, return control, or stop at any time.
 After manual control, the agent discards stale state and observes again.
 
-## 16. Observability
+## 17. Observability
 
 Every decision cycle records:
 
@@ -560,7 +672,7 @@ TapRig does not require or expose private chain-of-thought. Explanations are
 short decision summaries generated for the trace. Sensitive artifact retention
 is configurable.
 
-## 17. Evaluation
+## 18. Evaluation
 
 ### Levels
 
@@ -606,7 +718,7 @@ Report success, cost per success, model calls, latency, recovery, and failure
 distribution. Do not improve a headline metric by silently changing tasks,
 devices, app versions, or completion criteria.
 
-## 18. Initial algorithm
+## 19. Initial algorithm
 
 The first agent should be simple enough to inspect:
 
@@ -643,7 +755,7 @@ router is included initially. Add one only when a named failure class and an
 ablation demonstrate that it improves verified utility enough to justify its
 cost and complexity.
 
-## 19. Improvement loop
+## 20. Improvement loop
 
 1. Run the fixed eval suite and real dogfood tasks.
 2. Classify failures from traces.
@@ -658,7 +770,7 @@ cost and complexity.
 This is the mechanism for making TapRig's agent “the best possible.” Architecture
 is a hypothesis; the eval system decides whether it survives.
 
-## 20. Implementation order
+## 21. Implementation order
 
 1. Core contracts and deterministic state transitions.
 2. Fake device and scripted fake model for end-to-end loop tests.
