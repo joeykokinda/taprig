@@ -208,6 +208,14 @@ Safe deterministic repairs run without a model. The device agent handles novel
 OEM UI or ambiguous state. Repeated unchanged state terminates the remediation
 instead of looping.
 
+Device unlock is a remediation, not an agent prompt. During enrollment, the
+owner may configure a PIN/password as a scoped secret reference for one device.
+The executor wakes the display, opens the credential surface, dereferences and
+enters the secret locally, then verifies keyguard dismissal. The agent and event
+log see only whether an unlock credential is available and whether verification
+succeeded. TapRig does not automate biometrics, and some devices may require
+physical presence before ADB is available after reboot.
+
 ## 7. Cross-app workflows
 
 A work unit may span multiple applications and system surfaces. The device agent

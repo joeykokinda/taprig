@@ -652,7 +652,7 @@ without Android or model dependencies.
 
 ### M1 — one-phone control vertical slice
 
-- [ ] Discover and classify USB ADB devices.
+- [x] Discover and classify USB ADB devices.
 - [ ] Start one device actor with health/reconnect behavior.
 - [ ] Integrate pinned scrcpy video and raw input.
 - [ ] Build the first Android driver observation/action protocol.

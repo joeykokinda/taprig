@@ -38,7 +38,8 @@ MCP integration, and programmatic API.
 
 ## Status
 
-TapRig is pre-alpha. It does not yet control a device.
+TapRig is pre-alpha. It can discover and classify USB ADB devices with
+`npm run taprig -- devices`; phone control is not implemented yet.
 
 ## License
 
