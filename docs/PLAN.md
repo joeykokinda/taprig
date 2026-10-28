@@ -197,6 +197,11 @@ Cheapest reliable surface first:
 
 ## 5. Device system
 
+The full device digital twin, diagnostics, remediation, cross-app workflow,
+credential, and authentication-challenge design is specified in
+[DEVICE_RUNTIME.md](DEVICE_RUNTIME.md). This section defines its system-level
+ownership.
+
 ### Device registry
 
 - Watches ADB devices continuously rather than polling per request.

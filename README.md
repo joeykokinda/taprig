@@ -18,7 +18,9 @@ TapRig is being built around four promises:
 
 The project is in architecture and foundation work. See
 [the canonical build plan](docs/PLAN.md) and
-[the built-in agent architecture](docs/AGENT_ARCHITECTURE.md).
+[the built-in agent architecture](docs/AGENT_ARCHITECTURE.md). Device modeling,
+diagnostics, remediation, and cross-app authentication are specified in the
+[device runtime design](docs/DEVICE_RUNTIME.md).
 
 ## Intended experience
 
