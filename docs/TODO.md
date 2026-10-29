@@ -6,12 +6,12 @@ This is the ordered product queue. The canonical architecture remains in
 ## Current estimate
 
 - Foundation/runtime: **70%**
-- Physical Android control: **25%**
+- Physical Android control: **35%**
 - Agent loop: **5%**
 - Fleet orchestration: **5%**
 - Desktop application: **5%**
-- Public website/distribution: **30%**
-- Complete launch-ready product: **20–25%**
+- Public website/distribution: **45%**
+- Complete launch-ready product: **25%**
 
 Percentages describe demonstrated functionality, not lines of code.
 
@@ -21,8 +21,8 @@ Percentages describe demonstrated functionality, not lines of code.
 - [x] Track identity, boot, keyguard, disconnect, and reconnect state.
 - [x] Execute raw key, tap, swipe, and app-launch actions.
 - [x] Unlock a real PIN-protected phone through the scoped credential broker.
-- [ ] Add foreground activity and screen-state observations to the device actor.
-- [ ] Add screenshot capture and artifact retention.
+- [x] Add foreground activity and screen-state observations to the device actor.
+- [x] Add screenshot capture and artifact retention.
 - [ ] Integrate pinned scrcpy video and manual takeover.
 - [ ] Build the TapRig Android semantic/accessibility driver.
 - [ ] Execute and verify a semantic action batch on physical hardware.

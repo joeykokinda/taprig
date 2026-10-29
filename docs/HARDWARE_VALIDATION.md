@@ -27,6 +27,10 @@ Verified results:
    credential broker, unlocked locally, and verified fresh keyguard fields
    `showing=false` and `mIsShowing=false`.
 8. Credential audit output contained metadata only and did not contain the PIN.
+9. The device actor reported `screenState=awake` and Motorola Launcher as the
+   foreground package/activity after a TapRig HOME action.
+10. TapRig retained a mode-0600 screenshot artifact, validated as a 720 x 1600
+    RGBA PNG (750,588 bytes) without overwriting an existing path.
 
 Still unverified on this device:
 
