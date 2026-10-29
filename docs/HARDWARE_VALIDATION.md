@@ -41,10 +41,14 @@ Verified results:
 13. The Android semantic adapter repeated that flow as an idempotent typed action
     batch, rejecting stale input and marking the step verified only after fresh
     post-action evidence reached the Settings root.
+14. From the Settings root, TapRig associated the non-clickable `System` child
+    label with its clickable parent row, executed the typed tap batch, and
+    verified the System page from fresh `Languages` and `Keyboard` semantics.
+    The verified step took 2.75 seconds with UIAutomator polling.
 
 Still unverified on this device:
 
-- event-driven accessibility transport and parent/child label association;
+- event-driven accessibility transport to replace UIAutomator polling latency;
 - browser live-stream transport and manual takeover leases;
 - reliable text entry beyond numeric PIN;
 - app launch, taps, and swipes through task-level postcondition verification;
