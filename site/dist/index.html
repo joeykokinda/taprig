@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="TapRig is the open-source local control plane that gives AI agents reliable hands on real Android phones."
+    />
+    <title>TapRig — Give agents a phone</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="./app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="masthead">
+      <a class="wordmark" href="#top" aria-label="TapRig home">
+        <span class="mark" aria-hidden="true">T<span>R</span></span>
+        <span>TAPRIG</span>
+      </a>
+      <div class="mast-meta" aria-hidden="true">
+        <span>LOCAL DEVICE CONTROL</span>
+        <span>ANDROID / ADB / AGENTS</span>
+      </div>
+      <nav aria-label="Primary navigation">
+        <a href="#system">SYSTEM</a>
+        <a href="#evidence">EVIDENCE</a>
+        <a href="#status">STATUS</a>
+        <a href="https://github.com/joeykokinda/taprig">GITHUB ↗</a>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section class="hero" id="top">
+        <div class="eyebrow"><span>OPEN SOURCE</span><span>LOCAL FIRST</span><span>PRE-ALPHA / 0.0.0</span></div>
+        <h1>GIVE AGENTS<br /><em>A PHONE.</em></h1>
+        <div class="hero-bottom">
+          <p class="lede">
+            Plug in an Android device. Type a task. TapRig discovers, diagnoses, unlocks,
+            operates, verifies, and coordinates the phone from one inspectable local runtime.
+          </p>
+          <div class="hero-actions">
+            <a class="button button-solid" href="https://github.com/joeykokinda/taprig">VIEW SOURCE <span>↗</span></a>
+            <a class="button" href="#download">DOWNLOAD STATUS <span>↓</span></a>
+          </div>
+        </div>
+      </section>
+
+      <section class="ticker" aria-label="Current capabilities">
+        <div>01 / USB DISCOVERY</div>
+        <div>02 / DEVICE ACTORS</div>
+        <div>03 / VERIFIED PIN UNLOCK</div>
+        <div>04 / TYPED RAW ACTIONS</div>
+        <div>05 / LOCAL AUTHENTICATED API</div>
+      </section>
+
+      <section class="exhibit" id="system">
+        <header class="section-head">
+          <div><span>EXHIBIT A</span><span>CONTROL ROOM</span></div>
+          <p>INTERACTIVE PRODUCT PREVIEW — SIMULATED DATA, REAL TAPRIG CONTRACTS</p>
+        </header>
+
+        <div class="control-room">
+          <aside class="device-rail">
+            <div class="rail-head"><span>DEVICES</span><b>03</b></div>
+            <button class="device active" type="button" data-device="MOTO G PLAY" data-state="READY">
+              <span class="status-dot"></span>
+              <span><b>MOTO G PLAY</b><small>ZY22L2TMS5 · READY</small></span>
+              <span>01</span>
+            </button>
+            <button class="device" type="button" data-device="PIXEL 8" data-state="RUNNING">
+              <span class="status-dot pulse"></span>
+              <span><b>PIXEL 8</b><small>4B181 · RUNNING</small></span>
+              <span>02</span>
+            </button>
+            <button class="device" type="button" data-device="A15" data-state="OFFLINE">
+              <span class="status-dot hollow"></span>
+              <span><b>GALAXY A15</b><small>R9X33 · OFFLINE</small></span>
+              <span>03</span>
+            </button>
+            <dl class="device-facts">
+              <div><dt>ANDROID</dt><dd>14 / API 34</dd></div>
+              <div><dt>TRANSPORT</dt><dd>USB ADB</dd></div>
+              <div><dt>KEYGUARD</dt><dd>DISMISSED</dd></div>
+              <div><dt>DRIVER</dt><dd>RAW / V0</dd></div>
+            </dl>
+          </aside>
+
+          <div class="phone-stage">
+            <div class="stage-label"><span>LIVE VIEW / 720 × 1600</span><span id="selected-device">MOTO G PLAY · READY</span></div>
+            <div class="phone-shell" role="img" aria-label="Illustrated Android phone preview">
+              <div class="phone-speaker"></div>
+              <div class="phone-screen">
+                <div class="screen-status"><span>12:42</span><span>◒ 5G ▰</span></div>
+                <div class="screen-agent">
+                  <div class="agent-glyph">TR</div>
+                  <p>PHONE READY</p>
+                  <small class="screen-meta">LAST VERIFIED 0.8S AGO</small>
+                </div>
+                <div class="app-grid" aria-hidden="true">
+                  <span>◉</span><span>✦</span><span>◫</span><span>⌁</span>
+                </div>
+                <div class="gesture-bar"></div>
+              </div>
+            </div>
+            <div class="stage-controls"><button type="button">TAKE OVER</button><button type="button">SCREENSHOT</button><button type="button">PAUSE</button></div>
+          </div>
+
+          <div class="run-panel">
+            <div class="run-head"><span>RUN / PREVIEW-001</span><span class="live">● LIVE</span></div>
+            <div class="task-entry">
+              <label for="task">TASK</label>
+              <textarea id="task" rows="3">Open Settings, confirm Wi-Fi is connected, then return Home.</textarea>
+              <button id="run-demo" type="button">RUN DEMO →</button>
+            </div>
+            <ol class="trace" id="trace" aria-live="polite">
+              <li class="done"><time>00:00.000</time><span>ORCHESTRATOR</span><p>Compiled 3 prerequisites</p></li>
+              <li class="done"><time>00:00.014</time><span>DEVICE ACTOR</span><p>Transport and keyguard verified</p></li>
+              <li class="done"><time>00:00.061</time><span>EXECUTOR</span><p>Launch com.android.settings</p></li>
+              <li class="active"><time>00:00.482</time><span>VERIFIER</span><p>Waiting for semantic observation…</p></li>
+            </ol>
+            <div class="run-metrics">
+              <div><span>MODEL CALLS</span><b>0</b></div>
+              <div><span>ACTIONS</span><b>1</b></div>
+              <div><span>ELAPSED</span><b id="elapsed">0.48S</b></div>
+              <div><span>EST. COST</span><b>$0.000</b></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="manifesto">
+        <p class="chapter">THE THESIS / 001</p>
+        <h2>CODING AGENTS HAVE A TERMINAL.<br />TAPRIG GIVES THEM <em>HANDS.</em></h2>
+        <div class="manifesto-grid">
+          <p>Phone automation usually stops at coordinates and screenshots. TapRig treats every device as a durable actor with live state, scoped credentials, typed actions, bounded recovery, and evidence-backed completion.</p>
+          <p>The model decides only where judgment is useful. Known setup, unlock, execution, waits, retries, and verification remain deterministic—faster, cheaper, and inspectable.</p>
+        </div>
+      </section>
+
+      <section class="exhibit" id="evidence">
+        <header class="section-head">
+          <div><span>EXHIBIT B</span><span>PHYSICAL VALIDATION</span></div>
+          <p>REAL DEVICE / BRACH / 2026-10-29</p>
+        </header>
+        <div class="evidence-grid">
+          <div class="evidence-title">
+            <span class="huge-index">01</span>
+            <h3>MOTOROLA<br />MOTO G PLAY<br />2024</h3>
+            <p>ANDROID 14 · API 34<br />USB ADB · 720 × 1600</p>
+          </div>
+          <table class="evidence-log">
+            <caption>Validated operations</caption>
+            <tbody>
+              <tr><td>04:36:48.121</td><th scope="row">DISCOVERY</th><td>AUTHORIZED TRANSPORT</td><td>PASS</td></tr>
+              <tr><td>04:36:49.011</td><th scope="row">RAW ACTION</th><td>HOME → LAUNCHER RESUMED</td><td>PASS</td></tr>
+              <tr><td>04:36:50.757</td><th scope="row">DEVICE ACTOR</th><td>READY / BOOTED / UNLOCKED</td><td>PASS</td></tr>
+              <tr><td>04:37:59.475</td><th scope="row">PIN UNLOCK</th><td>SCOPED SECRET + FRESH VERIFY</td><td>PASS</td></tr>
+              <tr><td>04:38:00.012</td><th scope="row">SECRET AUDIT</th><td>METADATA ONLY / VALUE ABSENT</td><td>PASS</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="exhibit" id="status">
+        <header class="section-head">
+          <div><span>EXHIBIT C</span><span>BUILD STATUS</span></div>
+          <p>HONEST PRE-ALPHA INVENTORY</p>
+        </header>
+        <div class="status-grid">
+          <article>
+            <span>SHIPPED FOUNDATION</span>
+            <h3>THE CHASSIS IS ALIVE.</h3>
+            <ul>
+              <li>USB ADB discovery + doctor</li>
+              <li>Serialized per-device actors</li>
+              <li>Authenticated loopback daemon</li>
+              <li>Typed raw actions</li>
+              <li>Verified scoped PIN unlock</li>
+              <li>Readiness + device scheduling</li>
+            </ul>
+          </article>
+          <article class="inverse">
+            <span>NEXT CRITICAL PATH</span>
+            <h3>FROM HANDS TO AUTONOMY.</h3>
+            <ol>
+              <li><b>01</b> Semantic Android driver</li>
+              <li><b>02</b> scrcpy live video + takeover</li>
+              <li><b>03</b> Observe / act / verify loop</li>
+              <li><b>04</b> Durable run database</li>
+              <li><b>05</b> Desktop control room</li>
+              <li><b>06</b> Fleet orchestration</li>
+            </ol>
+          </article>
+        </div>
+      </section>
+
+      <section class="architecture">
+        <p class="chapter">SYSTEM TOPOLOGY / 002</p>
+        <figure class="arch-flow">
+          <figcaption class="visually-hidden">TapRig architecture</figcaption>
+          <div><span class="arch-label">YOU</span><b class="arch-value">DESCRIBE THE OUTCOME</b></div><i>→</i>
+          <div><span class="arch-label">ORCHESTRATOR</span><b class="arch-value">PLAN + ASSIGN</b></div><i>→</i>
+          <div><span class="arch-label">DEVICE ACTOR</span><b class="arch-value">LOCAL CONTEXT</b></div><i>→</i>
+          <div><span class="arch-label">EXECUTOR</span><b class="arch-value">ACT + VERIFY</b></div><i>→</i>
+          <div class="inverse"><span class="arch-label">ANDROID</span><b class="arch-value">REAL WORLD</b></div>
+        </figure>
+      </section>
+
+      <section class="download" id="download">
+        <p class="chapter">DISTRIBUTION / 003</p>
+        <h2>ONE ENGINE.<br />THREE WAYS IN.</h2>
+        <div class="download-grid">
+          <article class="download-card">
+            <span class="download-label">AVAILABLE NOW</span>
+            <h3>OPEN SOURCE</h3>
+            <p>Clone the repository, run the checks, connect Android over ADB, and build with us.</p>
+            <a class="button button-solid" href="https://github.com/joeykokinda/taprig">GITHUB REPOSITORY ↗</a>
+          </article>
+          <article class="download-card">
+            <span class="download-label">IN DEVELOPMENT</span>
+            <h3>DESKTOP APP</h3>
+            <p>Signed installers for macOS, Windows, and Linux with guided setup and automatic updates.</p>
+            <button class="button" type="button" disabled>DOWNLOADS COMING SOON</button>
+          </article>
+          <article class="download-card">
+            <span class="download-label">AVAILABLE IN SOURCE</span>
+            <h3>HEADLESS CLI</h3>
+            <p>Run the daemon beside a phone farm and control it through SSH, API, or eventually MCP.</p>
+            <code>npm run taprig -- doctor</code>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="wordmark"><span class="mark" aria-hidden="true">T<span>R</span></span><span>TAPRIG</span></div>
+      <p class="footer-copy">OPEN-SOURCE PHONE AGENT INFRASTRUCTURE.<br />BUILT IN PUBLIC. VERIFIED ON HARDWARE.</p>
+      <div><a class="footer-link" href="https://github.com/joeykokinda/taprig">GITHUB ↗</a><a class="footer-link" href="#top">BACK TO TOP ↑</a></div>
+    </footer>
+  </body>
+</html>
