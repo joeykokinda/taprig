@@ -39,12 +39,21 @@ MCP integration, and programmatic API.
 
 ## Status
 
-TapRig is pre-alpha. It can discover and classify USB ADB devices with
-`npm run taprig -- devices` and diagnose connection setup with
-`npm run taprig -- doctor`. Its authenticated local daemon now maintains basic
-identity, boot, keyguard, disconnect, and reconnect state. Raw key/gesture/app
-actions and verified PIN unlock are implemented; semantic control and the agent
-loop are not yet built. See [physical hardware results](docs/HARDWARE_VALIDATION.md).
+TapRig is pre-alpha. It discovers and diagnoses USB ADB devices, maintains
+durable device/run state, performs raw and semantic actions, verifies action
+batches, and has a bounded agent loop. The authenticated daemon has secure
+background lifecycle commands:
+
+```console
+npm run taprig -- daemon start
+npm run taprig -- daemon status
+npm run taprig -- daemon stop
+```
+
+The token, state, log, and SQLite database stay in the OS application-data
+directory with private file permissions. The interactive task experience,
+model providers, live control room, and desktop packaging remain in progress.
+See [physical hardware results](docs/HARDWARE_VALIDATION.md).
 
 ## License
 
