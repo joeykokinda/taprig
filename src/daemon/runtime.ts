@@ -1,9 +1,9 @@
-import { homedir } from "node:os";
 import { join } from "node:path";
 
 import type { AdbDevice } from "../android/adb-discovery.ts";
 import { discoverAdbDevices } from "../android/adb-discovery.ts";
 import { DeviceRegistry } from "../android/device-actor.ts";
+import { dataDirectory } from "../paths.ts";
 import { TapRigStore } from "../persistence/store.ts";
 import { startDaemon } from "./server.ts";
 
@@ -18,15 +18,9 @@ export interface RuntimeOptions {
 export function defaultDatabasePath(
   platform = process.platform,
   environment: NodeJS.ProcessEnv = process.env,
-  home = homedir(),
+  home?: string,
 ): string {
-  if (platform === "win32") {
-    return join(environment.APPDATA ?? join(home, "AppData", "Roaming"), "TapRig", "taprig.db");
-  }
-  if (platform === "darwin") {
-    return join(home, "Library", "Application Support", "TapRig", "taprig.db");
-  }
-  return join(environment.XDG_DATA_HOME ?? join(home, ".local", "share"), "taprig", "taprig.db");
+  return join(dataDirectory(platform, environment, home), "taprig.db");
 }
 
 export interface RunningRuntime {
