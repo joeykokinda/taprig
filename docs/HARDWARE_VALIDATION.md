@@ -11,7 +11,7 @@ Environment:
 - transport: USB ADB, Google platform-tools 37.0.1;
 - device: Motorola Moto G Play 2024 (`fogona`), Android 14 / API 34;
 - display: 720 x 1600;
-- TapRig commits: `d5c9fc6` through `c3e8374`.
+- TapRig commits: `d5c9fc6` through `d52dfd9`.
 
 Verified results:
 
@@ -34,10 +34,17 @@ Verified results:
 11. TapRig's pinned scrcpy 5.0.1 adapter recorded three seconds of headless video
     to a validated Matroska artifact (786,180 bytes) and hardened its permissions
     from scrcpy's default to mode 0600.
+12. The UIAutomator bootstrap observed Android Settings, resolved the visible
+    `Navigate up` control by accessibility description, tapped its computed
+    bounds, and verified a changed hierarchy generation while Settings remained
+    foreground.
+13. The Android semantic adapter repeated that flow as an idempotent typed action
+    batch, rejecting stale input and marking the step verified only after fresh
+    post-action evidence reached the Settings root.
 
 Still unverified on this device:
 
-- semantic Android driver and accessibility actions;
+- event-driven accessibility transport and parent/child label association;
 - browser live-stream transport and manual takeover leases;
 - reliable text entry beyond numeric PIN;
 - app launch, taps, and swipes through task-level postcondition verification;
