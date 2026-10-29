@@ -52,13 +52,20 @@ export function parseUiHierarchy(
   const xmlStart = output.indexOf("<?xml");
   if (xmlStart < 0) throw new Error("UIAutomator returned no XML hierarchy");
   const xml = output.slice(xmlStart);
-  const nodes = [...xml.matchAll(/<node\b([^>]*)\/?\s*>/gu)];
-  if (nodes.length > maximumNodes) throw new Error(`UI hierarchy exceeds ${maximumNodes} nodes`);
+  const tokens = [...xml.matchAll(/<node\b([^>]*)\/?\s*>|<\/node>/gu)];
+  const nodeCount = tokens.filter((token) => !token[0].startsWith("</")).length;
+  if (nodeCount > maximumNodes) throw new Error(`UI hierarchy exceeds ${maximumNodes} nodes`);
 
   const elements: Element[] = [];
+  const parents: number[] = [];
   const packages = new Map<string, number>();
-  for (const [index, match] of nodes.entries()) {
-    const values = attributes(match[1] ?? "");
+  for (const token of tokens) {
+    if (token[0].startsWith("</")) {
+      parents.pop();
+      continue;
+    }
+
+    const values = attributes(token[1] ?? "");
     const className = values.get("class") ?? "android.view.View";
     const packageName = values.get("package");
     if (packageName) packages.set(packageName, (packages.get(packageName) ?? 0) + 1);
@@ -67,18 +74,27 @@ export function parseUiHierarchy(
     const description = values.get("content-desc");
     const resourceId = values.get("resource-id");
 
-    elements.push({
-      id: `node-${index}`,
+    const element: Element = {
+      id: `node-${elements.length}`,
       role: className.split(".").at(-1) ?? className,
       ...(text ? { text } : {}),
       ...(description ? { description } : {}),
       ...(resourceId ? { resourceId } : {}),
-      actionable:
-        values.get("clickable") === "true" ||
-        values.get("long-clickable") === "true" ||
-        values.get("scrollable") === "true",
+      actionable: values.get("clickable") === "true" || values.get("long-clickable") === "true",
       ...(elementBounds ? { bounds: elementBounds } : {}),
-    });
+    };
+    elements.push(element);
+
+    const actionableParent = parents
+      .toReversed()
+      .map((index) => elements[index])
+      .find((parent) => parent?.actionable);
+    if (actionableParent && !actionableParent.text && !actionableParent.description) {
+      if (text) actionableParent.text = text;
+      else if (description) actionableParent.description = description;
+      if (resourceId && !actionableParent.resourceId) actionableParent.resourceId = resourceId;
+    }
+    if (!token[0].endsWith("/>")) parents.push(elements.length - 1);
   }
 
   const foregroundPackage = [...packages].sort((left, right) => right[1] - left[1])[0]?.[0];
@@ -130,9 +146,11 @@ export function resolveElement(observation: Observation, selector: Selector): El
     if ("description" in selector) return element.description === selector.description;
     return element.text === selector.text && (!selector.role || element.role === selector.role);
   });
-  if (matches.length === 0) throw new Error("semantic target not found");
-  if (matches.length > 1) throw new Error("semantic selector is ambiguous");
-  const element = matches[0];
+  const actionableMatches = matches.filter((element) => element.actionable);
+  const candidates = actionableMatches.length > 0 ? actionableMatches : matches;
+  if (candidates.length === 0) throw new Error("semantic target not found");
+  if (candidates.length > 1) throw new Error("semantic selector is ambiguous");
+  const element = candidates[0];
   if (!element) throw new Error("semantic target not found");
   return element;
 }

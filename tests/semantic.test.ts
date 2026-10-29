@@ -17,6 +17,13 @@ const hierarchy = `UI hierchary dumped to: /dev/tty
   </node>
 </hierarchy>`;
 
+const nestedHierarchy = `<?xml version="1.0" encoding="UTF-8"?>
+<hierarchy rotation="0">
+  <node class="android.widget.LinearLayout" package="com.android.settings" clickable="true" bounds="[0,200][720,320]">
+    <node text="System" resource-id="android:id/title" class="android.widget.TextView" package="com.android.settings" clickable="false" bounds="[24,210][696,260]" />
+  </node>
+</hierarchy>`;
+
 test("parses a bounded semantic observation with a stable generation", () => {
   const first = parseUiHierarchy("phone-1", hierarchy, "2026-10-29T03:00:00.000Z");
   const second = parseUiHierarchy("phone-1", hierarchy, "2026-10-29T03:00:01.000Z");
@@ -63,6 +70,19 @@ test("taps the center of one unambiguous current semantic element", async () => 
   );
 
   assert.deepEqual(args, ["input", "tap", "360", "230"]);
+});
+
+test("associates a child label with its clickable parent", async () => {
+  const observation = parseUiHierarchy("phone-1", nestedHierarchy);
+  const parent = resolveElement(observation, { text: "System" });
+  assert.equal(parent.id, "node-0");
+  assert.equal(parent.actionable, true);
+
+  let args: readonly string[] = [];
+  await tapSemanticElement("phone-1", observation, { text: "System" }, async (_serial, next) => {
+    args = next;
+  });
+  assert.deepEqual(args, ["input", "tap", "360", "260"]);
 });
 
 test("rejects missing, ambiguous, and untappable semantic targets", async () => {
