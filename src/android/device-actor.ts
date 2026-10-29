@@ -16,6 +16,13 @@ export interface AndroidIdentity {
   sdk?: string;
 }
 
+export type ScreenState = "awake" | "asleep" | "dozing" | "dreaming" | "unknown";
+
+export interface ForegroundActivity {
+  packageName: string;
+  activityName: string;
+}
+
 export interface DeviceActorState {
   id: string;
   serial: string;
@@ -24,6 +31,8 @@ export interface DeviceActorState {
   identity: AndroidIdentity;
   bootCompleted?: boolean;
   unlocked?: boolean;
+  screenState?: ScreenState;
+  foregroundActivity?: ForegroundActivity;
   observedAt: string;
 }
 
@@ -49,14 +58,29 @@ export function parseKeyguardUnlocked(output: string): boolean {
   return states.length > 0 && states.every((match) => match[1] === "false");
 }
 
+export function parseScreenState(output: string): ScreenState {
+  const state = /mWakefulness=(Awake|Asleep|Dozing|Dreaming)/u.exec(output)?.[1];
+  return state ? (state.toLowerCase() as Exclude<ScreenState, "unknown">) : "unknown";
+}
+
+export function parseForegroundActivity(output: string): ForegroundActivity | undefined {
+  const match =
+    /topResumedActivity=ActivityRecord\{[^\n]*\su\d+\s+([A-Za-z0-9._]+)\/([^\s}]+)/u.exec(output);
+  const packageName = match?.[1];
+  const activityName = match?.[2];
+  return packageName && activityName ? { packageName, activityName } : undefined;
+}
+
 async function probeConnectedDevice(
   device: AdbDevice,
   shell: AdbShell,
   observedAt: string,
 ): Promise<DeviceActorState> {
-  const [propertyOutput, windowPolicy] = await Promise.all([
+  const [propertyOutput, windowPolicy, powerState, activities] = await Promise.all([
     shell(device.serial, "getprop"),
     shell(device.serial, "dumpsys window policy"),
+    shell(device.serial, "dumpsys power"),
+    shell(device.serial, "dumpsys activity activities"),
   ]);
   const properties = parseProperties(propertyOutput);
   const bootCompleted = properties.get("sys.boot_completed") === "1";
@@ -66,6 +90,7 @@ async function probeConnectedDevice(
   const product = properties.get("ro.product.device");
   const androidVersion = properties.get("ro.build.version.release");
   const sdk = properties.get("ro.build.version.sdk");
+  const foregroundActivity = parseForegroundActivity(activities);
 
   return {
     id: device.serial,
@@ -81,6 +106,8 @@ async function probeConnectedDevice(
     },
     bootCompleted,
     unlocked,
+    screenState: parseScreenState(powerState),
+    ...(foregroundActivity ? { foregroundActivity } : {}),
     observedAt,
   };
 }
@@ -110,16 +137,20 @@ export class DeviceActor {
       const observedAt = this.#now();
       if (!device) {
         this.#state = {
-          ...this.#state,
+          id: this.#state.id,
+          serial: this.#state.serial,
           state: "offline",
           transportState: "offline",
+          identity: { ...this.#state.identity },
           observedAt,
         };
       } else if (device.transportState !== "device") {
         this.#state = {
-          ...this.#state,
+          id: this.#state.id,
+          serial: this.#state.serial,
           state: device.transportState === "unauthorized" ? "unauthorized" : "offline",
           transportState: device.transportState,
+          identity: { ...this.#state.identity },
           observedAt,
         };
       } else {
@@ -127,9 +158,11 @@ export class DeviceActor {
           this.#state = await probeConnectedDevice(device, this.#shell, observedAt);
         } catch {
           this.#state = {
-            ...this.#state,
+            id: this.#state.id,
+            serial: this.#state.serial,
             state: "degraded",
             transportState: "device",
+            identity: { ...this.#state.identity },
             observedAt,
           };
         }
