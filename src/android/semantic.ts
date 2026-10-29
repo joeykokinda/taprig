@@ -1,9 +1,12 @@
-import { createHash } from "node:crypto";
+import { execFile } from "node:child_process";
+import { createHash, randomUUID } from "node:crypto";
+import { promisify } from "node:util";
 
 import type { Element, Observation, Selector } from "../core/contracts.ts";
 import { type AdbCommandRunner, runAdbShell } from "./raw-actions.ts";
 
 const maximumNodes = 5000;
+const execFileAsync = promisify(execFile);
 
 function decodeXml(value: string): string {
   return value
@@ -90,13 +93,26 @@ export function parseUiHierarchy(
 
 export type SemanticDumpRunner = (serial: string) => Promise<string>;
 
-export async function dumpUiHierarchy(serial: string): Promise<string> {
-  const { execFile } = await import("node:child_process");
-  return new Promise((resolve, reject) => {
-    execFile("adb", ["-s", serial, "shell", "uiautomator", "dump", "/dev/tty"], (error, stdout) =>
-      error ? reject(error) : resolve(stdout),
-    );
+export type AdbTextRunner = (serial: string, args: readonly string[]) => Promise<string>;
+
+export async function runAdbText(serial: string, args: readonly string[]): Promise<string> {
+  const { stdout } = await execFileAsync("adb", ["-s", serial, ...args], {
+    maxBuffer: 8 * 1024 * 1024,
   });
+  return stdout;
+}
+
+export async function dumpUiHierarchy(
+  serial: string,
+  run: AdbTextRunner = runAdbText,
+): Promise<string> {
+  const remotePath = `/data/local/tmp/taprig-ui-${randomUUID()}.xml`;
+  try {
+    await run(serial, ["shell", "uiautomator", "dump", remotePath]);
+    return await run(serial, ["exec-out", "cat", remotePath]);
+  } finally {
+    await run(serial, ["shell", "rm", "-f", remotePath]).catch(() => undefined);
+  }
 }
 
 export async function observeSemantics(

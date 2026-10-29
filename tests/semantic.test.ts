@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { parseUiHierarchy, resolveElement, tapSemanticElement } from "../src/android/semantic.ts";
+import {
+  dumpUiHierarchy,
+  parseUiHierarchy,
+  resolveElement,
+  tapSemanticElement,
+} from "../src/android/semantic.ts";
 
 const hierarchy = `UI hierchary dumped to: /dev/tty
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -27,6 +32,22 @@ test("parses a bounded semantic observation with a stable generation", () => {
     bounds: { left: 24, top: 180, right: 696, bottom: 280 },
   });
   assert.equal(resolveElement(first, { description: "Navigate up" }).id, "node-2");
+});
+
+test("dumps through a unique device file and always removes it", async () => {
+  const calls: string[][] = [];
+  const output = await dumpUiHierarchy("phone-1", async (_serial, args) => {
+    calls.push([...args]);
+    return args[0] === "exec-out" ? hierarchy : "UI hierarchy dumped";
+  });
+
+  assert.equal(output, hierarchy);
+  assert.equal(calls.length, 3);
+  assert.deepEqual(calls[0]?.slice(0, 3), ["shell", "uiautomator", "dump"]);
+  assert.deepEqual(calls[1]?.slice(0, 2), ["exec-out", "cat"]);
+  assert.deepEqual(calls[2]?.slice(0, 3), ["shell", "rm", "-f"]);
+  assert.equal(calls[0]?.at(-1), calls[1]?.at(-1));
+  assert.equal(calls[1]?.at(-1), calls[2]?.at(-1));
 });
 
 test("taps the center of one unambiguous current semantic element", async () => {
