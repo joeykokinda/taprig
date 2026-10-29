@@ -26,6 +26,7 @@ export interface Element {
   description?: string;
   resourceId?: string;
   actionable: boolean;
+  bounds?: { left: number; top: number; right: number; bottom: number };
 }
 
 export interface Observation {
