@@ -57,4 +57,12 @@ test("unknown keyguard output fails closed", () => {
   assert.equal(parseKeyguardUnlocked("mShowingLockscreen=true"), false);
   assert.equal(parseKeyguardUnlocked("mShowingLockscreen=false"), true);
   assert.equal(parseKeyguardUnlocked("mShowingLockscreen=false keyguardShowing=true"), false);
+  assert.equal(
+    parseKeyguardUnlocked(`KeyguardServiceDelegate
+      showing=false
+      KeyguardStateMonitor
+        mIsShowing=false`),
+    true,
+  );
+  assert.equal(parseKeyguardUnlocked("  showing=false\n  mIsShowing=true"), false);
 });

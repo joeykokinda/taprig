@@ -44,6 +44,7 @@ function parseProperties(output: string): Map<string, string> {
 export function parseKeyguardUnlocked(output: string): boolean {
   const states = [
     ...output.matchAll(/(?:keyguardShowing|mShowingLockscreen|isStatusBarKeyguard)=(true|false)/gu),
+    ...output.matchAll(/^\s*(?:showing|mIsShowing)=(true|false)\s*$/gmu),
   ];
   return states.length > 0 && states.every((match) => match[1] === "false");
 }
