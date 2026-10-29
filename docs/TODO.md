@@ -7,11 +7,11 @@ This is the ordered product queue. The canonical architecture remains in
 
 - Foundation/runtime: **70%**
 - Physical Android control: **50%**
-- Agent loop: **5%**
+- Agent loop: **12%**
 - Fleet orchestration: **5%**
 - Desktop application: **5%**
 - Public website/distribution: **45%**
-- Complete launch-ready product: **27%**
+- Complete launch-ready product: **28%**
 
 Percentages describe demonstrated functionality, not lines of code.
 
@@ -28,7 +28,8 @@ Percentages describe demonstrated functionality, not lines of code.
 - [x] Bootstrap semantic observation and selector taps through UIAutomator.
 - [x] Execute and verify a semantic action batch on physical hardware.
 - [ ] Replace polling with the event-driven TapRig Android accessibility driver.
-- [ ] Implement bounded observe → decide → execute → verify → recover.
+- [x] Implement the bounded observe → decide → execute → verify → recover core loop.
+- [ ] Calibrate the complete loop on physical hardware after the device reconnects.
 
 ## P1 — usable local product
 
