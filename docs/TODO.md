@@ -6,7 +6,7 @@ This is the ordered product queue. The canonical architecture remains in
 ## Current estimate
 
 - Foundation/runtime: **70%**
-- Physical Android control: **35%**
+- Physical Android control: **42%**
 - Agent loop: **5%**
 - Fleet orchestration: **5%**
 - Desktop application: **5%**
@@ -23,7 +23,8 @@ Percentages describe demonstrated functionality, not lines of code.
 - [x] Unlock a real PIN-protected phone through the scoped credential broker.
 - [x] Add foreground activity and screen-state observations to the device actor.
 - [x] Add screenshot capture and artifact retention.
-- [ ] Integrate pinned scrcpy video and manual takeover.
+- [x] Integrate pinned, checksum-verified scrcpy video transport.
+- [ ] Stream scrcpy video to the control room and implement manual takeover leases.
 - [ ] Build the TapRig Android semantic/accessibility driver.
 - [ ] Execute and verify a semantic action batch on physical hardware.
 - [ ] Implement bounded observe → decide → execute → verify → recover.

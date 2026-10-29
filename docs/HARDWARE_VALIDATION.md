@@ -31,11 +31,14 @@ Verified results:
    foreground package/activity after a TapRig HOME action.
 10. TapRig retained a mode-0600 screenshot artifact, validated as a 720 x 1600
     RGBA PNG (750,588 bytes) without overwriting an existing path.
+11. TapRig's pinned scrcpy 5.0.1 adapter recorded three seconds of headless video
+    to a validated Matroska artifact (786,180 bytes) and hardened its permissions
+    from scrcpy's default to mode 0600.
 
 Still unverified on this device:
 
 - semantic Android driver and accessibility actions;
-- scrcpy video/manual takeover;
+- browser live-stream transport and manual takeover leases;
 - reliable text entry beyond numeric PIN;
 - app launch, taps, and swipes through task-level postcondition verification;
 - reconnect across host/device reboot;
