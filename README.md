@@ -39,7 +39,9 @@ MCP integration, and programmatic API.
 ## Status
 
 TapRig is pre-alpha. It can discover and classify USB ADB devices with
-`npm run taprig -- devices`; phone control is not implemented yet.
+`npm run taprig -- devices`. Its authenticated local daemon now maintains basic
+identity, boot, keyguard, disconnect, and reconnect state; phone control is not
+implemented yet.
 
 ## License
 

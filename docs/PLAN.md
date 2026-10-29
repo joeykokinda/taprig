@@ -645,7 +645,7 @@ model configuration, raw traces, and failure classifications.
 - [ ] Add TypeScript build/test/lint foundation and CI.
 - [ ] Define core device, run, event, action, and error contracts.
 - [ ] Add fake device adapter and contract tests.
-- [ ] Define daemon lifecycle and authenticated local API boundary.
+- [x] Define daemon lifecycle and authenticated local API boundary.
 
 Exit: clean clone installs and tests; contracts support the first vertical slice
 without Android or model dependencies.
@@ -653,7 +653,7 @@ without Android or model dependencies.
 ### M1 — one-phone control vertical slice
 
 - [x] Discover and classify USB ADB devices.
-- [ ] Start one device actor with health/reconnect behavior.
+- [x] Start one device actor with health/reconnect behavior.
 - [ ] Integrate pinned scrcpy video and raw input.
 - [ ] Build the first Android driver observation/action protocol.
 - [ ] Show one live phone in the browser.
