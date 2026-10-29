@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 
 import type { AdbDevice } from "../src/android/adb-discovery.ts";
 import { DeviceRegistry } from "../src/android/device-actor.ts";
 import { startRuntime } from "../src/daemon/runtime.ts";
+import { TapRigStore } from "../src/persistence/store.ts";
 
 const token = "runtime-test-token";
 const headers = { authorization: `Bearer ${token}` };
@@ -13,6 +17,8 @@ const properties = `[ro.product.model]: [Test Phone]
 `;
 
 test("runtime composes discovery, device actors, and authenticated inventory", async (context) => {
+  const directory = await mkdtemp(join(tmpdir(), "taprig-runtime-"));
+  const databasePath = join(directory, "taprig.db");
   let discovered: readonly AdbDevice[] = [device];
   const registry = new DeviceRegistry(async (_serial, command) =>
     command === "getprop" ? properties : "keyguardShowing=false",
@@ -22,8 +28,15 @@ test("runtime composes discovery, device actors, and authenticated inventory", a
     registry,
     discover: async () => discovered,
     pollIntervalMs: 60_000,
+    databasePath,
   });
-  context.after(() => runtime.stop());
+  context.after(async () => {
+    await runtime.stop();
+    const store = new TapRigStore(databasePath);
+    assert.equal(store.getDevice(device.serial)?.state, "offline");
+    store.close();
+    await rm(directory, { recursive: true });
+  });
 
   const readyResponse = await fetch(`${runtime.url}/devices`, { headers });
   const ready = (await readyResponse.json()) as { devices: Array<{ state: string }> };
@@ -37,6 +50,7 @@ test("runtime composes discovery, device actors, and authenticated inventory", a
 });
 
 test("a discovery failure fails closed to offline", async (context) => {
+  const directory = await mkdtemp(join(tmpdir(), "taprig-runtime-"));
   let fail = false;
   const registry = new DeviceRegistry(async (_serial, command) =>
     command === "getprop" ? properties : "keyguardShowing=false",
@@ -49,8 +63,12 @@ test("a discovery failure fails closed to offline", async (context) => {
       return [device];
     },
     pollIntervalMs: 60_000,
+    databasePath: join(directory, "taprig.db"),
   });
-  context.after(() => runtime.stop());
+  context.after(async () => {
+    await runtime.stop();
+    await rm(directory, { recursive: true });
+  });
 
   fail = true;
   await assert.rejects(runtime.refresh(), /ADB unavailable/);
