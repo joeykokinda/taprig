@@ -5,13 +5,13 @@ This is the ordered product queue. The canonical architecture remains in
 
 ## Current estimate
 
-- Foundation/runtime: **70%**
+- Foundation/runtime: **76%**
 - Physical Android control: **50%**
 - Agent loop: **12%**
 - Fleet orchestration: **5%**
 - Desktop application: **5%**
 - Public website/distribution: **45%**
-- Complete launch-ready product: **28%**
+- Complete launch-ready product: **30%**
 
 Percentages describe demonstrated functionality, not lines of code.
 
@@ -33,7 +33,7 @@ Percentages describe demonstrated functionality, not lines of code.
 
 ## P1 — usable local product
 
-- [ ] Persist devices, runs, events, questions, and checkpoints in SQLite.
+- [x] Persist devices, runs, events, questions, and checkpoints in SQLite.
 - [ ] Add daemon lifecycle command and local token persistence.
 - [ ] Make CLI commands clients of the daemon instead of direct ADB callers.
 - [ ] Build interactive `taprig` task session and `attach` flow.
