@@ -2,7 +2,8 @@ import { timingSafeEqual } from "node:crypto";
 import { createServer, type Server } from "node:http";
 
 import { parseRawAction } from "../android/raw-actions.ts";
-import type { Action } from "../core/contracts.ts";
+import type { Action, RunMode } from "../core/contracts.ts";
+import type { RunService } from "../runs/service.ts";
 
 export interface DaemonDevice {
   id: string;
@@ -20,6 +21,7 @@ export interface TapRigDaemonOptions {
   host?: string;
   port?: number;
   execute?: (serial: string, action: Action) => Promise<void>;
+  runs?: RunService;
 }
 
 async function jsonBody(request: import("node:http").IncomingMessage): Promise<unknown> {
@@ -67,15 +69,65 @@ export async function startDaemon(options: TapRigDaemonOptions): Promise<Running
     }
 
     try {
-      if (request.method === "GET" && request.url === "/health") {
+      const url = new URL(request.url ?? "/", "http://localhost");
+      if (request.method === "GET" && url.pathname === "/health") {
         response.end(JSON.stringify({ status: "ok" }));
         return;
       }
-      if (request.method === "GET" && request.url === "/devices") {
+      if (request.method === "GET" && url.pathname === "/devices") {
         response.end(JSON.stringify({ devices: await options.devices.list() }));
         return;
       }
-      const actionRoute = /^\/devices\/([^/]+)\/actions$/u.exec(request.url ?? "");
+      if (request.method === "GET" && url.pathname === "/runs") {
+        response.end(JSON.stringify({ runs: options.runs?.list() ?? [] }));
+        return;
+      }
+      if (request.method === "POST" && url.pathname === "/runs") {
+        if (!options.runs) throw new Error("run service is unavailable");
+        try {
+          const body = (await jsonBody(request)) as { task?: unknown; mode?: unknown };
+          if (typeof body.task !== "string") throw new Error("task must be a string");
+          const run = options.runs.create(
+            body.task,
+            body.mode === undefined ? undefined : (body.mode as RunMode),
+          );
+          response.statusCode = 201;
+          response.end(JSON.stringify({ run }));
+        } catch {
+          response.statusCode = 400;
+          response.end(JSON.stringify({ error: "invalid-run" }));
+        }
+        return;
+      }
+      const eventRoute = /^\/runs\/([^/]+)\/events$/u.exec(url.pathname);
+      if (request.method === "GET" && eventRoute?.[1]) {
+        const runId = decodeURIComponent(eventRoute[1]);
+        if (!options.runs?.get(runId)) {
+          response.statusCode = 404;
+          response.end(JSON.stringify({ error: "run-not-found" }));
+          return;
+        }
+        const after = Number(url.searchParams.get("after") ?? "0");
+        if (!Number.isSafeInteger(after) || after < 0) {
+          response.statusCode = 400;
+          response.end(JSON.stringify({ error: "invalid-event-sequence" }));
+          return;
+        }
+        response.end(JSON.stringify({ events: options.runs.events(runId, after) }));
+        return;
+      }
+      const runRoute = /^\/runs\/([^/]+)$/u.exec(url.pathname);
+      if (request.method === "GET" && runRoute?.[1]) {
+        const run = options.runs?.get(decodeURIComponent(runRoute[1]));
+        if (!run) {
+          response.statusCode = 404;
+          response.end(JSON.stringify({ error: "run-not-found" }));
+          return;
+        }
+        response.end(JSON.stringify({ run }));
+        return;
+      }
+      const actionRoute = /^\/devices\/([^/]+)\/actions$/u.exec(url.pathname);
       if (request.method === "POST" && actionRoute?.[1]) {
         if (!options.execute) throw new Error("action execution is unavailable");
         const serial = decodeURIComponent(actionRoute[1]);

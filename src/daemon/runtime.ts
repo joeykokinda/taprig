@@ -6,6 +6,7 @@ import { DeviceRegistry } from "../android/device-actor.ts";
 import { executeRawAction } from "../android/raw-actions.ts";
 import { dataDirectory } from "../paths.ts";
 import { TapRigStore } from "../persistence/store.ts";
+import { RunService } from "../runs/service.ts";
 import { startDaemon } from "./server.ts";
 
 export interface RuntimeOptions {
@@ -34,6 +35,7 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
   const discover = options.discover ?? discoverAdbDevices;
   const registry = options.registry ?? new DeviceRegistry();
   const store = new TapRigStore(options.databasePath ?? defaultDatabasePath());
+  const runs = new RunService(store);
   let refreshTail = Promise.resolve();
   const refresh = (): Promise<void> => {
     const operation = refreshTail.then(async () => {
@@ -57,6 +59,7 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
       token: options.token,
       devices: registry,
       execute: executeRawAction,
+      runs,
     });
   } catch (error) {
     store.close();

@@ -25,6 +25,11 @@ export interface StoredCheckpoint {
 
 type JsonRow = { json: string };
 
+export interface StoredRunEvent {
+  sequence: number;
+  event: RunEvent;
+}
+
 export class TapRigStore {
   readonly #database: DatabaseSync;
 
@@ -94,6 +99,28 @@ export class TapRigStore {
       | JsonRow
       | undefined;
     return row ? (JSON.parse(row.json) as RunState) : undefined;
+  }
+
+  listRuns(limit = 100): RunState[] {
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 1000) {
+      throw new Error("run limit must be an integer from 1 to 1000");
+    }
+    const rows = this.#database
+      .prepare("SELECT json FROM runs ORDER BY updated_at DESC, id ASC LIMIT ?")
+      .all(limit) as unknown as JsonRow[];
+    return rows.map((row) => JSON.parse(row.json) as RunState);
+  }
+
+  listRunEvents(runId: string, afterSequence = 0): StoredRunEvent[] {
+    if (!Number.isSafeInteger(afterSequence) || afterSequence < 0) {
+      throw new Error("event sequence must be a non-negative integer");
+    }
+    const rows = this.#database
+      .prepare(
+        "SELECT sequence, json FROM run_events WHERE run_id = ? AND sequence > ? ORDER BY sequence ASC",
+      )
+      .all(runId, afterSequence) as unknown as Array<{ sequence: number; json: string }>;
+    return rows.map((row) => ({ sequence: row.sequence, event: JSON.parse(row.json) as RunEvent }));
   }
 
   recordRunEvent(current: RunState | undefined, event: RunEvent): RunState {

@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { startDaemon } from "../src/daemon/server.ts";
+import { TapRigStore } from "../src/persistence/store.ts";
+import { RunService } from "../src/runs/service.ts";
 
 const token = "test-daemon-token";
 const authorization = { authorization: `Bearer ${token}` };
@@ -78,4 +80,36 @@ test("the daemon validates and forwards authenticated raw actions", async (conte
   });
   assert.equal(rejected.status, 400);
   assert.deepEqual(actions.length, 1);
+});
+
+test("the daemon creates, lists, and attaches to durable runs", async (context) => {
+  const store = new TapRigStore(":memory:");
+  const runs = new RunService(
+    store,
+    () => "2026-10-29T12:00:00.000Z",
+    () => "run-1",
+  );
+  const daemon = await startDaemon({
+    token,
+    devices: { list: async () => [] },
+    runs,
+  });
+  context.after(async () => {
+    await daemon.stop();
+    store.close();
+  });
+
+  const created = await fetch(`${daemon.url}/runs`, {
+    method: "POST",
+    headers: { ...authorization, "content-type": "application/json" },
+    body: JSON.stringify({ task: "Open System settings", mode: "independent" }),
+  });
+  assert.equal(created.status, 201);
+  assert.equal(((await created.json()) as { run: { id: string } }).run.id, "run-1");
+
+  const listed = await fetch(`${daemon.url}/runs`, { headers: authorization });
+  assert.equal(((await listed.json()) as { runs: unknown[] }).runs.length, 1);
+  const attached = await fetch(`${daemon.url}/runs/run-1/events`, { headers: authorization });
+  const events = (await attached.json()) as { events: Array<{ event: { type: string } }> };
+  assert.equal(events.events[0]?.event.type, "run.created");
 });
