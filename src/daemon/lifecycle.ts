@@ -69,6 +69,13 @@ export async function daemonStatus(): Promise<DaemonState | undefined> {
   return (await isHealthy(state, getOrCreateDaemonToken())) ? state : undefined;
 }
 
+export async function daemonRequest(path: string, init: RequestInit = {}): Promise<Response> {
+  const state = (await daemonStatus()) ?? (await startDaemonProcess());
+  const headers = new Headers(init.headers);
+  headers.set("authorization", `Bearer ${getOrCreateDaemonToken()}`);
+  return fetch(`${state.url}${path}`, { ...init, headers });
+}
+
 export async function startDaemonProcess(scriptPath = process.argv[1]): Promise<DaemonState> {
   if (!scriptPath) throw new Error("cannot locate the TapRig CLI entrypoint");
   const running = await daemonStatus();

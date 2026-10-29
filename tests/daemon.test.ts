@@ -51,3 +51,31 @@ test("the daemon hides inventory failures", async (context) => {
   assert.equal(response.status, 500);
   assert.deepEqual(await response.json(), { error: "internal-error" });
 });
+
+test("the daemon validates and forwards authenticated raw actions", async (context) => {
+  const actions: unknown[] = [];
+  const daemon = await startDaemon({
+    token,
+    devices: { list: async () => [] },
+    execute: async (serial, action) => {
+      actions.push({ serial, action });
+    },
+  });
+  context.after(() => daemon.stop());
+
+  const accepted = await fetch(`${daemon.url}/devices/phone-1/actions`, {
+    method: "POST",
+    headers: { ...authorization, "content-type": "application/json" },
+    body: JSON.stringify({ action: { type: "key.press", key: "home" } }),
+  });
+  assert.equal(accepted.status, 202);
+  assert.deepEqual(actions, [{ serial: "phone-1", action: { type: "key.press", key: "home" } }]);
+
+  const rejected = await fetch(`${daemon.url}/devices/phone-1/actions`, {
+    method: "POST",
+    headers: { ...authorization, "content-type": "application/json" },
+    body: JSON.stringify({ action: { type: "shell", command: "whoami" } }),
+  });
+  assert.equal(rejected.status, 400);
+  assert.deepEqual(actions.length, 1);
+});

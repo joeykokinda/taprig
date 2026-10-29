@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { AdbCommandRunner } from "../src/android/raw-actions.ts";
-import { executeRawAction } from "../src/android/raw-actions.ts";
+import { executeRawAction, parseRawAction } from "../src/android/raw-actions.ts";
 
 test("raw actions pass validated arguments without shell interpolation", async () => {
   const calls: Array<{ serial: string; args: readonly string[] }> = [];
@@ -45,4 +45,13 @@ test("raw actions reject unsafe values and semantic-only operations", async () =
     ),
     /requires the TapRig semantic driver/,
   );
+});
+
+test("parses only the bounded raw action API", () => {
+  assert.deepEqual(parseRawAction({ type: "key.press", key: "home" }), {
+    type: "key.press",
+    key: "home",
+  });
+  assert.throws(() => parseRawAction({ type: "shell", command: "whoami" }), /unsupported/);
+  assert.throws(() => parseRawAction({ type: "gesture.tap", x: "1", y: 2 }), /malformed/);
 });

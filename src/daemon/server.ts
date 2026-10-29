@@ -1,6 +1,9 @@
 import { timingSafeEqual } from "node:crypto";
 import { createServer, type Server } from "node:http";
 
+import { parseRawAction } from "../android/raw-actions.ts";
+import type { Action } from "../core/contracts.ts";
+
 export interface DaemonDevice {
   id: string;
   serial: string;
@@ -16,6 +19,19 @@ export interface TapRigDaemonOptions {
   devices: DeviceInventory;
   host?: string;
   port?: number;
+  execute?: (serial: string, action: Action) => Promise<void>;
+}
+
+async function jsonBody(request: import("node:http").IncomingMessage): Promise<unknown> {
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of request) {
+    const buffer = Buffer.from(chunk as Uint8Array);
+    size += buffer.length;
+    if (size > 64 * 1024) throw new Error("request body is too large");
+    chunks.push(buffer);
+  }
+  return JSON.parse(Buffer.concat(chunks).toString("utf8"));
 }
 
 export interface RunningDaemon {
@@ -50,19 +66,31 @@ export async function startDaemon(options: TapRigDaemonOptions): Promise<Running
       return;
     }
 
-    if (request.method !== "GET") {
-      response.statusCode = 405;
-      response.end(JSON.stringify({ error: "method-not-allowed" }));
-      return;
-    }
-
     try {
-      if (request.url === "/health") {
+      if (request.method === "GET" && request.url === "/health") {
         response.end(JSON.stringify({ status: "ok" }));
         return;
       }
-      if (request.url === "/devices") {
+      if (request.method === "GET" && request.url === "/devices") {
         response.end(JSON.stringify({ devices: await options.devices.list() }));
+        return;
+      }
+      const actionRoute = /^\/devices\/([^/]+)\/actions$/u.exec(request.url ?? "");
+      if (request.method === "POST" && actionRoute?.[1]) {
+        if (!options.execute) throw new Error("action execution is unavailable");
+        const serial = decodeURIComponent(actionRoute[1]);
+        let action: Action;
+        try {
+          const body = (await jsonBody(request)) as { action?: unknown };
+          action = parseRawAction(body.action);
+        } catch {
+          response.statusCode = 400;
+          response.end(JSON.stringify({ error: "invalid-action" }));
+          return;
+        }
+        await options.execute(serial, action);
+        response.statusCode = 202;
+        response.end(JSON.stringify({ accepted: true, verified: false }));
         return;
       }
 

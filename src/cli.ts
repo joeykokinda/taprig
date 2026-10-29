@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
-import { discoverAdbDevices, formatAdbDevices } from "./android/adb-discovery.ts";
-import { executeRawAction } from "./android/raw-actions.ts";
+import { type AdbDevice, formatAdbDevices } from "./android/adb-discovery.ts";
 import {
+  daemonRequest,
   daemonStatus,
   serveDaemon,
   startDaemonProcess,
@@ -45,12 +45,33 @@ async function main(): Promise<void> {
   }
   if (command === "execute") {
     const execution = parseExecuteCommand(process.argv.slice(3));
-    await executeRawAction(execution.serial, execution.action);
+    const response = await daemonRequest(
+      `/devices/${encodeURIComponent(execution.serial)}/actions`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: execution.action }),
+      },
+    );
+    if (!response.ok) throw new Error(`daemon rejected action with HTTP ${response.status}`);
     process.stdout.write(`Action sent to ${execution.serial}; result not yet verified.\n`);
     return;
   }
 
-  const devices = await discoverAdbDevices();
+  const response = await daemonRequest("/devices");
+  if (!response.ok) throw new Error(`daemon returned HTTP ${response.status}`);
+  const inventory = (await response.json()) as {
+    devices: Array<{
+      serial: string;
+      transportState: AdbDevice["transportState"];
+      identity?: { model?: string };
+    }>;
+  };
+  const devices: AdbDevice[] = inventory.devices.map((device) => ({
+    serial: device.serial,
+    transportState: device.transportState,
+    ...(device.identity?.model ? { model: device.identity.model } : {}),
+  }));
   if (command === "devices") {
     process.stdout.write(`${formatAdbDevices(devices)}\n`);
     return;

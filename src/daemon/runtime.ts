@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { AdbDevice } from "../android/adb-discovery.ts";
 import { discoverAdbDevices } from "../android/adb-discovery.ts";
 import { DeviceRegistry } from "../android/device-actor.ts";
+import { executeRawAction } from "../android/raw-actions.ts";
 import { dataDirectory } from "../paths.ts";
 import { TapRigStore } from "../persistence/store.ts";
 import { startDaemon } from "./server.ts";
@@ -52,7 +53,11 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
   let daemon: Awaited<ReturnType<typeof startDaemon>>;
   try {
     await refresh();
-    daemon = await startDaemon({ token: options.token, devices: registry });
+    daemon = await startDaemon({
+      token: options.token,
+      devices: registry,
+      execute: executeRawAction,
+    });
   } catch (error) {
     store.close();
     throw error;

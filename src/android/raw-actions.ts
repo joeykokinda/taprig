@@ -19,6 +19,42 @@ const keyCodes = {
   delete: "KEYCODE_DEL",
 } as const;
 
+export function parseRawAction(value: unknown): Action {
+  if (!value || typeof value !== "object") throw new Error("action must be an object");
+  const action = value as Record<string, unknown>;
+  if (action.type === "app.launch" && typeof action.packageName === "string") {
+    return { type: "app.launch", packageName: action.packageName };
+  }
+  if (action.type === "key.press" && typeof action.key === "string" && action.key in keyCodes) {
+    return { type: "key.press", key: action.key as keyof typeof keyCodes };
+  }
+  if (
+    action.type === "gesture.tap" &&
+    typeof action.x === "number" &&
+    typeof action.y === "number"
+  ) {
+    return { type: "gesture.tap", x: action.x, y: action.y };
+  }
+  const from = action.from as Record<string, unknown> | undefined;
+  const to = action.to as Record<string, unknown> | undefined;
+  if (
+    action.type === "gesture.swipe" &&
+    typeof from?.x === "number" &&
+    typeof from.y === "number" &&
+    typeof to?.x === "number" &&
+    typeof to.y === "number" &&
+    typeof action.durationMs === "number"
+  ) {
+    return {
+      type: "gesture.swipe",
+      from: { x: from.x, y: from.y },
+      to: { x: to.x, y: to.y },
+      durationMs: action.durationMs,
+    };
+  }
+  throw new Error("unsupported or malformed raw action");
+}
+
 function coordinate(value: number): string {
   if (!Number.isSafeInteger(value) || value < 0)
     throw new Error("coordinates must be non-negative integers");
