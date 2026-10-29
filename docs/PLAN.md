@@ -658,7 +658,9 @@ without Android or model dependencies.
 - [ ] Build the first Android driver observation/action protocol.
 - [ ] Show one live phone in the browser.
 - [ ] Support manual control and takeover.
-- [ ] Implement `doctor`, `devices`, and deterministic `execute` commands. (`doctor` and `devices` complete.)
+- [ ] Implement `doctor`, `devices`, and deterministic `execute` commands.
+  (`doctor`, `devices`, and raw execution complete; integrated postcondition
+  verification remains.)
 
 Exit: a new user can connect one phone, see it live, inspect semantic state,
 execute and verify reversible actions, and take over manually.

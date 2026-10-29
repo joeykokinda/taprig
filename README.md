@@ -41,8 +41,9 @@ MCP integration, and programmatic API.
 TapRig is pre-alpha. It can discover and classify USB ADB devices with
 `npm run taprig -- devices` and diagnose connection setup with
 `npm run taprig -- doctor`. Its authenticated local daemon now maintains basic
-identity, boot, keyguard, disconnect, and reconnect state; phone control is not
-implemented yet.
+identity, boot, keyguard, disconnect, and reconnect state. Raw key/gesture/app
+actions and verified PIN unlock are implemented; semantic control and the agent
+loop are not yet built. See [physical hardware results](docs/HARDWARE_VALIDATION.md).
 
 ## License
 
