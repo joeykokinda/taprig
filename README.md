@@ -55,6 +55,18 @@ directory with private file permissions. The interactive task experience,
 model providers, live control room, and desktop packaging remain in progress.
 See [physical hardware results](docs/HARDWARE_VALIDATION.md).
 
+The pre-alpha run shell and its non-interactive equivalents are available now:
+
+```console
+npm run taprig --                       # interactive when attached to a TTY
+npm run taprig -- run "Open Settings"  # create a durable run
+npm run taprig -- runs                  # list runs
+npm run taprig -- attach <run-id>       # inspect state and ordered events
+```
+
+Runs remain `created` until a configured agent worker is available; TapRig does
+not report task execution before verified device evidence exists.
+
 ## License
 
 License selection is part of the foundation milestone and must be completed
