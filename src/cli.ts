@@ -249,6 +249,11 @@ async function main(): Promise<void> {
     }
     throw new Error(`unknown script command: ${operation}`);
   }
+  if (selectedCommand === "ui") {
+    const { url } = await daemonJson<{ url: string }>("/browser-sessions", { method: "POST" });
+    process.stdout.write(`${url}\n`);
+    return;
+  }
   if (selectedCommand === "execute") {
     const execution = parseExecuteCommand(process.argv.slice(3));
     const response = await daemonRequest(

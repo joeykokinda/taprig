@@ -1,5 +1,7 @@
-import { timingSafeEqual } from "node:crypto";
+import { randomBytes, timingSafeEqual } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
+import { join } from "node:path";
 
 import { parseRawAction } from "../android/raw-actions.ts";
 import type { Action, RunMode } from "../core/contracts.ts";
@@ -49,10 +51,20 @@ function stopServer(server: Server): Promise<void> {
   });
 }
 
-function isAuthorized(header: string | undefined, token: string): boolean {
+function isAuthorized(
+  header: string | undefined,
+  cookie: string | undefined,
+  token: string,
+  browserSessions: ReadonlyMap<string, number>,
+): boolean {
   const actual = Buffer.from(header ?? "");
   const expected = Buffer.from(`Bearer ${token}`);
-  return actual.length === expected.length && timingSafeEqual(actual, expected);
+  if (actual.length === expected.length && timingSafeEqual(actual, expected)) return true;
+  const browserToken = cookie
+    ?.split(";")
+    .map((value) => value.trim().split("="))
+    .find(([name]) => name === "taprig_session")?.[1];
+  return Boolean(browserToken && (browserSessions.get(browserToken) ?? 0) > Date.now());
 }
 
 export async function startDaemon(options: TapRigDaemonOptions): Promise<RunningDaemon> {
@@ -61,19 +73,62 @@ export async function startDaemon(options: TapRigDaemonOptions): Promise<Running
   if (host !== "127.0.0.1" && host !== "::1" && host !== "localhost") {
     throw new Error("daemon must bind to loopback");
   }
+  const pendingBrowserSessions = new Map<string, number>();
+  const browserSessions = new Map<string, number>();
+  const controlRoom = join(import.meta.dirname, "../../control-room");
 
   const server = createServer(async (request, response) => {
+    const url = new URL(request.url ?? "/", "http://localhost");
+    const now = Date.now();
+    for (const [key, expiry] of pendingBrowserSessions)
+      if (expiry <= now) pendingBrowserSessions.delete(key);
+    for (const [key, expiry] of browserSessions) if (expiry <= now) browserSessions.delete(key);
+    const browserSessionRoute = /^\/session\/([a-f0-9]{64})$/u.exec(url.pathname);
+    if (request.method === "GET" && browserSessionRoute?.[1]) {
+      const nonce = browserSessionRoute[1];
+      if ((pendingBrowserSessions.get(nonce) ?? 0) <= now) {
+        response.statusCode = 401;
+        response.end("Expired browser session");
+        return;
+      }
+      pendingBrowserSessions.delete(nonce);
+      const session = randomBytes(32).toString("hex");
+      browserSessions.set(session, now + 24 * 60 * 60 * 1000);
+      response.statusCode = 302;
+      response.setHeader(
+        "set-cookie",
+        `taprig_session=${session}; HttpOnly; SameSite=Strict; Path=/; Max-Age=86400`,
+      );
+      response.setHeader("location", "/");
+      response.end();
+      return;
+    }
     response.setHeader("content-type", "application/json");
-    if (!isAuthorized(request.headers.authorization, options.token)) {
+    if (
+      !isAuthorized(
+        request.headers.authorization,
+        request.headers.cookie,
+        options.token,
+        browserSessions,
+      )
+    ) {
       response.statusCode = 401;
       response.end(JSON.stringify({ error: "unauthorized" }));
       return;
     }
 
     try {
-      const url = new URL(request.url ?? "/", "http://localhost");
       if (request.method === "GET" && url.pathname === "/health") {
         response.end(JSON.stringify({ status: "ok" }));
+        return;
+      }
+      if (request.method === "POST" && url.pathname === "/browser-sessions") {
+        const nonce = randomBytes(32).toString("hex");
+        pendingBrowserSessions.set(nonce, Date.now() + 60_000);
+        response.statusCode = 201;
+        response.end(
+          JSON.stringify({ url: `http://${request.headers.host ?? "127.0.0.1"}/session/${nonce}` }),
+        );
         return;
       }
       if (request.method === "GET" && url.pathname === "/devices") {
@@ -196,6 +251,25 @@ export async function startDaemon(options: TapRigDaemonOptions): Promise<Running
         await options.execute(serial, action);
         response.statusCode = 202;
         response.end(JSON.stringify({ accepted: true, verified: false }));
+        return;
+      }
+      const asset =
+        url.pathname === "/"
+          ? { file: "index.html", type: "text/html; charset=utf-8" }
+          : url.pathname === "/control-room.css"
+            ? { file: "control-room.css", type: "text/css; charset=utf-8" }
+            : url.pathname === "/control-room.js"
+              ? { file: "control-room.js", type: "text/javascript; charset=utf-8" }
+              : undefined;
+      if (request.method === "GET" && asset) {
+        response.setHeader("content-type", asset.type);
+        response.setHeader("cache-control", "no-store");
+        response.setHeader("x-frame-options", "DENY");
+        response.setHeader(
+          "content-security-policy",
+          "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'",
+        );
+        response.end(readFileSync(join(controlRoom, asset.file)));
         return;
       }
 

@@ -34,6 +34,20 @@ test("the loopback daemon authenticates health and device inventory", async (con
   assert.deepEqual(await devices.json(), {
     devices: [{ id: "phone-1", serial: "serial-1", state: "ready" }],
   });
+
+  const browserSession = await fetch(`${daemon.url}/browser-sessions`, {
+    method: "POST",
+    headers: authorization,
+  });
+  const sessionUrl = ((await browserSession.json()) as { url: string }).url;
+  const exchange = await fetch(sessionUrl, { redirect: "manual" });
+  assert.equal(exchange.status, 302);
+  const cookie = exchange.headers.get("set-cookie");
+  assert.ok(cookie);
+  const controlRoom = await fetch(daemon.url, { headers: { cookie } });
+  assert.equal(controlRoom.status, 200);
+  assert.match(await controlRoom.text(), /TAPRIG/);
+  assert.equal((await fetch(sessionUrl, { redirect: "manual" })).status, 401);
 });
 
 test("the daemon rejects non-loopback binding", async () => {

@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <title>TapRig Control Room</title>
+    <link rel="stylesheet" href="/control-room.css" />
+  </head>
+  <body>
+    <header>
+      <a class="brand" href="/">TAPRIG<span>_</span></a>
+      <div class="status"><i></i><span id="connection">LOCAL DAEMON</span></div>
+      <div class="clock" id="clock">--:--:--</div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div>
+          <p class="eyebrow">PHONE AGENT CONTROL PLANE / LOCAL</p>
+          <h1>GIVE THE<br />MACHINE <em>HANDS.</em></h1>
+        </div>
+        <form id="task-form">
+          <label for="task">NEW TASK</label>
+          <textarea id="task" required maxlength="10000" placeholder="Tell the phones what to do…"></textarea>
+          <div class="form-row">
+            <select id="mode" aria-label="Run mode">
+              <option value="independent">INDEPENDENT</option>
+              <option value="broadcast">BROADCAST</option>
+              <option value="coordinated">COORDINATED</option>
+            </select>
+            <button type="submit">START RUN →</button>
+          </div>
+          <p id="task-result" role="status"></p>
+        </form>
+      </section>
+
+      <section class="metrics" aria-label="Fleet summary">
+        <article><span>DEVICES</span><strong id="device-count">0</strong></article>
+        <article><span>READY</span><strong id="ready-count">0</strong></article>
+        <article><span>ACTIVE RUNS</span><strong id="run-count">0</strong></article>
+        <article><span>SCRIPTS</span><strong id="script-count">0</strong></article>
+      </section>
+
+      <section class="workspace">
+        <div class="panel fleet-panel">
+          <div class="panel-head"><h2>DEVICE FLEET</h2><span>LIVE / 1S</span></div>
+          <div id="devices" class="device-grid"><p class="empty">NO DEVICES CONNECTED</p></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><h2>RUN TRACE</h2><span>RECENT</span></div>
+          <div id="runs" class="trace"><p class="empty">NO RUNS YET</p></div>
+        </div>
+
+        <div class="panel scripts-panel">
+          <div class="panel-head"><h2>DETERMINISTIC SCRIPTS</h2><span>ZERO MODEL CALLS</span></div>
+          <div id="scripts" class="script-list"><p class="empty">NO SCRIPTS YET</p></div>
+        </div>
+      </section>
+    </main>
+
+    <footer><span>TAPRIG PRE-ALPHA</span><span>ALL STATE STAYS LOCAL</span></footer>
+    <script type="module" src="/control-room.js"></script>
+  </body>
+</html>
