@@ -676,7 +676,7 @@ execute and verify reversible actions, and take over manually.
 - [ ] Questions, approvals, budgets, artifacts, and replay.
 - [x] User script creation, inspection, testing, and deterministic execution.
 - [ ] Full main workspace and onboarding.
-- [ ] MCP adapter.
+- [x] MCP adapter.
 
 Exit: install, connect one phone, type a task in UI or CLI, watch it finish or
 stop explicitly, and inspect cost and evidence.
@@ -684,7 +684,7 @@ stop explicitly, and inspect cost and evidence.
 ### M3 — fleet orchestration
 
 - [ ] Device groups and capability scheduling.
-- [ ] Independent concurrent runs.
+- [x] Independent concurrent runs.
 - [ ] Broadcast plans, barriers, drift recovery, and rejoin.
 - [ ] Coordinated task DAGs and result aggregation.
 - [ ] Fleet UI and CLI controls.
