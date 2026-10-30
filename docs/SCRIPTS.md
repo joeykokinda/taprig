@@ -8,6 +8,7 @@ taprig script create examples/open-settings-section.script.json
 taprig script list
 taprig script inspect open-settings-section
 taprig script run open-settings-section <device-id> section=System expected-heading=Languages
+taprig script promote <completed-run-id> my-script "My script"
 ```
 
 Each script declares an ID, immutable positive version, origin, string
@@ -26,7 +27,12 @@ The result is either:
 - `completed`, with the verified step count; or
 - `recovery-needed`, with the failed step and reason.
 
-The second result is the stable boundary for the agent worker: it receives the
-script ID/version, parameters, last verified checkpoint, fresh phone state, and
-failure evidence. It must recover or ask rather than blindly replaying the
-failed action.
+When a configured worker is available, `recovery-needed` creates a durable
+recovery run pinned to the same phone. Parameter values are not copied into its
+task or normal events. The worker observes fresh state and must recover or ask
+rather than blindly replaying the failed action.
+
+A completed model run retains its verified typed actions in a private completion
+checkpoint. Promotion is explicit: `script promote` converts those actions into
+the next immutable `learned` script version. It never silently turns every run
+into automation; the user chooses the stable workflow name and ID.

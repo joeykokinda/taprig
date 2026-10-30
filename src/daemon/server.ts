@@ -27,7 +27,7 @@ export interface TapRigDaemonOptions {
   port?: number;
   execute?: (serial: string, action: Action) => Promise<void>;
   runs?: RunService;
-  startRun?: (runId: string) => void;
+  startRun?: (runId: string, deviceId?: string) => void;
   scripts?: ScriptService;
   stream?: (serial: string) => Promise<LiveMjpegStream>;
   manualTap?: (serial: string, xRatio: number, yRatio: number) => Promise<void>;
@@ -244,7 +244,16 @@ export async function startDaemon(options: TapRigDaemonOptions): Promise<Running
             body.deviceId,
             body.inputs as Record<string, string>,
           );
-          response.end(JSON.stringify({ result }));
+          if (result.status === "recovery-needed" && options.runs && options.startRun) {
+            const script = options.scripts.get(decodeURIComponent(scriptRunRoute[1]));
+            const recovery = options.runs.create(
+              `Recover the deterministic workflow "${script?.name ?? scriptRunRoute[1]}" after step ${result.stepId}. ${result.reason}`,
+            );
+            options.startRun(recovery.id, body.deviceId);
+            response.end(JSON.stringify({ result, recoveryRun: recovery }));
+          } else {
+            response.end(JSON.stringify({ result }));
+          }
         } catch {
           response.statusCode = 400;
           response.end(JSON.stringify({ error: "invalid-script-run" }));
@@ -295,6 +304,45 @@ export async function startDaemon(options: TapRigDaemonOptions): Promise<Running
           return;
         }
         response.end(JSON.stringify({ events: options.runs.events(runId, after) }));
+        return;
+      }
+      const promotionRoute = /^\/runs\/([^/]+)\/promote$/u.exec(url.pathname);
+      if (request.method === "POST" && promotionRoute?.[1]) {
+        if (!options.runs || !options.scripts) throw new Error("run promotion is unavailable");
+        try {
+          const runId = decodeURIComponent(promotionRoute[1]);
+          const run = options.runs.get(runId);
+          const completion = options.runs.completion(runId)?.evidence as
+            | { actions?: Array<{ action?: Action }> }
+            | undefined;
+          const body = (await jsonBody(request)) as { id?: unknown; name?: unknown };
+          if (
+            run?.status !== "completed" ||
+            typeof body.id !== "string" ||
+            typeof body.name !== "string" ||
+            !completion?.actions?.length
+          ) {
+            throw new Error("run is not promotable");
+          }
+          const current = options.scripts.get(body.id);
+          const script = options.scripts.create({
+            schemaVersion: 1,
+            id: body.id,
+            name: body.name,
+            version: (current?.version ?? 0) + 1,
+            origin: "learned",
+            parameters: [],
+            steps: completion.actions.map(({ action }, index) => ({
+              id: `step-${index + 1}`,
+              action,
+            })),
+          });
+          response.statusCode = 201;
+          response.end(JSON.stringify({ script }));
+        } catch {
+          response.statusCode = 400;
+          response.end(JSON.stringify({ error: "run-not-promotable" }));
+        }
         return;
       }
       const runRoute = /^\/runs\/([^/]+)$/u.exec(url.pathname);

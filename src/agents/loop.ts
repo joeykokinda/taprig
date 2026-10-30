@@ -19,7 +19,7 @@ export interface AgentContext {
 }
 
 export type AgentLoopResult =
-  | { status: "completed"; evidence: string; decisions: number }
+  | { status: "completed"; evidence: string; decisions: number; actions: readonly ActionStep[] }
   | { status: "waiting-for-user"; question: string; decisions: number }
   | { status: "failed"; reason: string; decisions: number };
 
@@ -43,13 +43,15 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
   }
 
   let previousBatch: BatchResult | undefined;
+  const executedActions: ActionStep[] = [];
   let failedBatches = 0;
   let previousFailure: { generation: string; actions: string } | undefined;
 
   for (let decisionNumber = 0; decisionNumber < maxDecisions; decisionNumber += 1) {
     const observation = await options.device.observe(options.deviceId);
     const evidence = await options.verifyCompletion(observation);
-    if (evidence) return { status: "completed", evidence, decisions: decisionNumber };
+    if (evidence)
+      return { status: "completed", evidence, decisions: decisionNumber, actions: executedActions };
 
     const context: AgentContext = {
       observation,
@@ -62,6 +64,7 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
         status: "completed",
         evidence: decision.evidence,
         decisions: decisionNumber + 1,
+        actions: executedActions,
       };
     }
     if (decision.type === "ask_user") {
@@ -100,6 +103,10 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
       observationGeneration: observation.generation,
       steps: decision.steps,
     });
+    for (const [index, result] of previousBatch.steps.entries()) {
+      const step = decision.steps[index];
+      if (result?.status === "verified" && step) executedActions.push(step);
+    }
     if (previousBatch.steps.some((step) => step.status === "failed")) {
       failedBatches += 1;
       previousFailure = { generation: observation.generation, actions };

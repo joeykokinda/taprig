@@ -51,6 +51,7 @@ test("persists private devices, run events, questions, and checkpoints", async (
     evidence: { packageName: "com.android.settings" },
     createdAt: "2026-10-29T12:00:03.000Z",
   });
+  assert.equal(store.getCheckpoint("run-1", "settings-open")?.deviceId, "phone-1");
   store.close();
 
   assert.equal((await stat(path)).mode & 0o777, 0o600);

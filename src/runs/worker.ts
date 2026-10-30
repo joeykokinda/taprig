@@ -28,11 +28,11 @@ export class RunWorker {
     this.#decide = options.decide;
   }
 
-  start(runId: string): void {
+  start(runId: string, deviceId?: string): void {
     if (this.#active.has(runId)) return;
     // shortcut: serialize all runs until fleet scheduling owns per-device leases.
     const work = this.#tail
-      .then(() => this.#execute(runId))
+      .then(() => this.#execute(runId, deviceId))
       .finally(() => this.#active.delete(runId));
     this.#tail = work.catch(() => undefined);
     this.#active.set(runId, work);
@@ -42,15 +42,18 @@ export class RunWorker {
     await Promise.all(this.#active.values());
   }
 
-  async #execute(runId: string): Promise<void> {
+  async #execute(runId: string, requestedDeviceId?: string): Promise<void> {
     let run = this.#runs.get(runId);
     if (run?.status !== "created") return;
     run = this.#runs.record(runId, { type: "run.started", at: new Date().toISOString() });
     try {
       if (run.mode !== "independent") throw new Error(`${run.mode} execution is not implemented`);
-      const device = (await this.#devices.list())
+      const readyDevices = (await this.#devices.list())
         .filter((candidate) => candidate.state === "ready")
-        .sort((left, right) => left.id.localeCompare(right.id))[0];
+        .sort((left, right) => left.id.localeCompare(right.id));
+      const device = requestedDeviceId
+        ? readyDevices.find((candidate) => candidate.id === requestedDeviceId)
+        : readyDevices[0];
       if (!device) throw new Error("no ready Android device is connected");
       const result = await runAgentLoop({
         device: this.#adapter,
@@ -60,7 +63,10 @@ export class RunWorker {
       });
       const at = new Date().toISOString();
       if (result.status === "completed") {
-        this.#runs.checkpoint(runId, device.id, result.evidence);
+        this.#runs.checkpoint(runId, device.id, {
+          summary: result.evidence,
+          actions: result.actions,
+        });
         this.#runs.record(runId, { type: "run.completed", at });
       } else if (result.status === "waiting-for-user") {
         this.#runs.question(runId, result.question);

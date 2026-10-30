@@ -188,6 +188,9 @@ test("the daemon creates, lists, and attaches to durable runs", async (context) 
 
 test("the daemon creates, inspects, and runs verified scripts", async (context) => {
   const directory = await mkdtemp(join(tmpdir(), "taprig-script-api-"));
+  const store = new TapRigStore(":memory:");
+  const runs = new RunService(store);
+  const started: Array<{ runId: string; deviceId?: string }> = [];
   const scripts = new ScriptService(new ScriptStore(directory), {
     observe: async () => ({
       deviceId: "phone-1",
@@ -202,9 +205,16 @@ test("the daemon creates, inspects, and runs verified scripts", async (context) 
       replayed: false,
     }),
   });
-  const daemon = await startDaemon({ token, devices: { list: async () => [] }, scripts });
+  const daemon = await startDaemon({
+    token,
+    devices: { list: async () => [] },
+    scripts,
+    runs,
+    startRun: (runId, deviceId) => started.push({ runId, ...(deviceId ? { deviceId } : {}) }),
+  });
   context.after(async () => {
     await daemon.stop();
+    store.close();
     await rm(directory, { recursive: true });
   });
   const definition = {
@@ -237,4 +247,45 @@ test("the daemon creates, inspects, and runs verified scripts", async (context) 
     body: JSON.stringify({ deviceId: "phone-1", inputs: {} }),
   });
   assert.deepEqual(await run.json(), { result: { status: "completed", completedSteps: 1 } });
+
+  scripts.create({
+    ...definition,
+    id: "recover-system",
+    name: "Recover System",
+    steps: [
+      {
+        ...definition.steps[0],
+        checkpoint: { selector: { text: "Missing" } },
+      },
+    ],
+  });
+  const recovery = await fetch(`${daemon.url}/scripts/recover-system/run`, {
+    method: "POST",
+    headers: { ...authorization, "content-type": "application/json" },
+    body: JSON.stringify({ deviceId: "phone-1", inputs: {} }),
+  });
+  const recoveryBody = (await recovery.json()) as {
+    result: { status: string };
+    recoveryRun: { id: string };
+  };
+  assert.equal(recoveryBody.result.status, "recovery-needed");
+  assert.deepEqual(started.at(-1), { runId: recoveryBody.recoveryRun.id, deviceId: "phone-1" });
+
+  const completed = runs.create("Open Settings");
+  runs.record(completed.id, { type: "run.started", at: "2026-10-30T16:00:00.000Z" });
+  runs.checkpoint(completed.id, "phone-1", {
+    summary: "Settings visible",
+    actions: [{ id: "open", action: { type: "app.launch", packageName: "com.android.settings" } }],
+  });
+  runs.record(completed.id, { type: "run.completed", at: "2026-10-30T16:00:01.000Z" });
+  const promoted = await fetch(`${daemon.url}/runs/${completed.id}/promote`, {
+    method: "POST",
+    headers: { ...authorization, "content-type": "application/json" },
+    body: JSON.stringify({ id: "open-settings", name: "Open Settings" }),
+  });
+  assert.equal(promoted.status, 201);
+  assert.equal(
+    ((await promoted.json()) as { script: { origin: string } }).script.origin,
+    "learned",
+  );
 });

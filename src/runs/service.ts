@@ -66,7 +66,7 @@ export class RunService {
     });
   }
 
-  checkpoint(runId: string, deviceId: string, evidence: string): void {
+  checkpoint(runId: string, deviceId: string, evidence: unknown): void {
     this.store.saveCheckpoint({
       id: this.id(),
       runId,
@@ -75,5 +75,9 @@ export class RunService {
       evidence,
       createdAt: this.now(),
     });
+  }
+
+  completion(runId: string) {
+    return this.store.getCheckpoint(runId, "completion");
   }
 }

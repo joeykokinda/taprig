@@ -47,6 +47,7 @@ test("observes, decides, executes, and completes from verified fresh state", asy
     status: "completed",
     evidence: "System settings are visible",
     decisions: 1,
+    actions: [{ id: "open", action: { type: "element.tap", target: { text: "System" } } }],
   });
 });
 
@@ -97,5 +98,6 @@ test("accepts model-provided visible completion evidence", async () => {
     status: "completed",
     evidence: "Settings title is visible",
     decisions: 1,
+    actions: [],
   });
 });

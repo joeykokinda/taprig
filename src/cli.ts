@@ -235,7 +235,7 @@ async function main(): Promise<void> {
           return [argument.slice(0, separator), argument.slice(separator + 1)];
         }),
       );
-      const { result } = await daemonJson<{ result: ScriptRunResult }>(
+      const response = await daemonJson<{ result: ScriptRunResult; recoveryRun?: RunState }>(
         `/scripts/${encodeURIComponent(id)}/run`,
         {
           method: "POST",
@@ -243,8 +243,27 @@ async function main(): Promise<void> {
           body: JSON.stringify({ deviceId, inputs }),
         },
       );
-      process.stdout.write(`${JSON.stringify(result)}\n`);
-      if (result.status === "recovery-needed") process.exitCode = 2;
+      process.stdout.write(`${JSON.stringify(response)}\n`);
+      if (response.result.status === "recovery-needed" && !response.recoveryRun)
+        process.exitCode = 2;
+      return;
+    }
+    if (operation === "promote") {
+      const runId = process.argv[4];
+      const id = process.argv[5];
+      const name = process.argv.slice(6).join(" ").trim();
+      if (!runId || !id || !name) {
+        throw new Error("script promote requires a run ID, script ID, and name");
+      }
+      const { script } = await daemonJson<{ script: TapRigScript }>(
+        `/runs/${encodeURIComponent(runId)}/promote`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ id, name }),
+        },
+      );
+      process.stdout.write(`Promoted ${runId} to ${script.id} v${script.version}.\n`);
       return;
     }
     throw new Error(`unknown script command: ${operation}`);

@@ -40,7 +40,7 @@ Percentages describe demonstrated functionality, not lines of code.
 - [x] Add model-provider configuration and Economy/Balanced/Best routing.
 - [x] Connect independent natural-language runs to the bounded ready-device worker.
 - [x] Build scripts: create, inspect, run, verify, and emit a typed recovery handoff.
-- [ ] Connect script mismatch recovery and successful-run promotion to the agent worker.
+- [x] Connect script mismatch recovery and successful-run promotion to the agent worker.
 - [x] Serve the control-room web UI from the local daemon.
 - [ ] Package the daemon and UI as an Electron desktop application.
 

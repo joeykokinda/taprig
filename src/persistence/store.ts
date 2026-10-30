@@ -163,6 +163,15 @@ export class TapRigStore {
       .run(checkpoint.id, checkpoint.runId, JSON.stringify(checkpoint), checkpoint.createdAt);
   }
 
+  getCheckpoint(runId: string, name: string): StoredCheckpoint | undefined {
+    const rows = this.#database
+      .prepare("SELECT json FROM checkpoints WHERE run_id = ? ORDER BY rowid DESC")
+      .all(runId) as unknown as JsonRow[];
+    return rows
+      .map((row) => JSON.parse(row.json) as StoredCheckpoint)
+      .find((item) => item.name === name);
+  }
+
   eventCount(runId: string): number {
     const row = this.#database
       .prepare("SELECT COUNT(*) AS count FROM run_events WHERE run_id = ?")

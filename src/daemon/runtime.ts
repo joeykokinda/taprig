@@ -86,7 +86,9 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
       devices: registry,
       execute: executeRawAction,
       runs,
-      ...(worker ? { startRun: (runId: string) => worker.start(runId) } : {}),
+      ...(worker
+        ? { startRun: (runId: string, deviceId?: string) => worker.start(runId, deviceId) }
+        : {}),
       scripts,
       stream: (serial) =>
         startLiveMjpegStream({
