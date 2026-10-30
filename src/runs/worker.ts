@@ -15,7 +15,8 @@ type Decider = (context: AgentContext) => Promise<AgentDecision>;
 
 export class RunWorker {
   readonly #active = new Map<string, Promise<void>>();
-  #tail = Promise.resolve();
+  readonly #leasedDevices = new Set<string>();
+  readonly #leaseWaiters = new Set<() => void>();
   readonly #runs: RunService;
   readonly #devices: DeviceInventory;
   readonly #adapter: DeviceAdapter;
@@ -30,11 +31,7 @@ export class RunWorker {
 
   start(runId: string, deviceId?: string): void {
     if (this.#active.has(runId)) return;
-    // shortcut: serialize all runs until fleet scheduling owns per-device leases.
-    const work = this.#tail
-      .then(() => this.#execute(runId, deviceId))
-      .finally(() => this.#active.delete(runId));
-    this.#tail = work.catch(() => undefined);
+    const work = this.#execute(runId, deviceId).finally(() => this.#active.delete(runId));
     this.#active.set(runId, work);
   }
 
@@ -46,24 +43,19 @@ export class RunWorker {
     let run = this.#runs.get(runId);
     if (run?.status !== "created") return;
     run = this.#runs.record(runId, { type: "run.started", at: new Date().toISOString() });
+    let leasedDeviceId: string | undefined;
     try {
       if (run.mode !== "independent") throw new Error(`${run.mode} execution is not implemented`);
-      const readyDevices = (await this.#devices.list())
-        .filter((candidate) => candidate.state === "ready")
-        .sort((left, right) => left.id.localeCompare(right.id));
-      const device = requestedDeviceId
-        ? readyDevices.find((candidate) => candidate.id === requestedDeviceId)
-        : readyDevices[0];
-      if (!device) throw new Error("no ready Android device is connected");
+      leasedDeviceId = await this.#acquireDevice(requestedDeviceId);
       const result = await runAgentLoop({
         device: this.#adapter,
-        deviceId: device.id,
+        deviceId: leasedDeviceId,
         decide: this.#decide(run.task),
         verifyCompletion: async () => undefined,
       });
       const at = new Date().toISOString();
       if (result.status === "completed") {
-        this.#runs.checkpoint(runId, device.id, {
+        this.#runs.checkpoint(runId, leasedDeviceId, {
           summary: result.evidence,
           actions: result.actions,
         });
@@ -88,6 +80,37 @@ export class RunWorker {
           retryable: true,
         },
       });
+    } finally {
+      if (leasedDeviceId) this.#releaseDevice(leasedDeviceId);
     }
+  }
+
+  async #acquireDevice(requestedDeviceId?: string): Promise<string> {
+    while (true) {
+      const ready = (await this.#devices.list())
+        .filter((candidate) => candidate.state === "ready")
+        .sort((left, right) => left.id.localeCompare(right.id));
+      if (ready.length === 0) throw new Error("no ready Android device is connected");
+      const device = requestedDeviceId
+        ? ready.find(
+            (candidate) =>
+              candidate.id === requestedDeviceId && !this.#leasedDevices.has(candidate.id),
+          )
+        : ready.find((candidate) => !this.#leasedDevices.has(candidate.id));
+      if (device) {
+        this.#leasedDevices.add(device.id);
+        return device.id;
+      }
+      if (requestedDeviceId && !ready.some((candidate) => candidate.id === requestedDeviceId)) {
+        throw new Error(`requested Android device ${requestedDeviceId} is not ready`);
+      }
+      await new Promise<void>((resolve) => this.#leaseWaiters.add(resolve));
+    }
+  }
+
+  #releaseDevice(deviceId: string): void {
+    this.#leasedDevices.delete(deviceId);
+    for (const resolve of this.#leaseWaiters) resolve();
+    this.#leaseWaiters.clear();
   }
 }

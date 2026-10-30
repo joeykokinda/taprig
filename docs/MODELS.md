@@ -38,5 +38,6 @@ available only when semantic/local perception is insufficient. A route returns
 no model when its budget is exhausted; callers must recover, ask, or fail rather
 than silently spend through the limit.
 
-The current worker uses the `fast` route and serializes runs on one device.
-Strong/vision escalation and per-device fleet leases remain roadmap items.
+The current worker uses the `fast` route. Independent runs lease distinct ready
+devices and execute concurrently; excess runs wait for a lease. Strong/vision
+escalation and broadcast/coordinated planning remain roadmap items.

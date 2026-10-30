@@ -85,3 +85,49 @@ test("a worker records an explicit failure when no phone is ready", async () => 
   assert.match(runs.get(run.id)?.error?.message ?? "", /no ready Android device/);
   store.close();
 });
+
+test("independent runs lease distinct ready phones and execute concurrently", async () => {
+  const store = new TapRigStore(":memory:");
+  const runs = new RunService(store);
+  const first = runs.create("First task");
+  const second = runs.create("Second task");
+  const assigned = new Set<string>();
+  let release!: () => void;
+  const bothAssigned = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const worker = new RunWorker({
+    runs,
+    devices: {
+      list: async () => [
+        { id: "phone-1", serial: "phone-1", state: "ready" },
+        { id: "phone-2", serial: "phone-2", state: "ready" },
+      ],
+    },
+    adapter: {
+      observe: async (deviceId) => ({ ...observation("current"), deviceId }),
+      execute: async () => {
+        throw new Error("unused");
+      },
+    },
+    decide:
+      () =>
+      async ({ observation: current }) => {
+        assigned.add(current.deviceId);
+        if (assigned.size === 2) release();
+        await bothAssigned;
+        return { type: "complete", evidence: `${current.deviceId} completed` };
+      },
+  });
+  worker.start(first.id);
+  worker.start(second.id);
+  await Promise.race([
+    worker.idle(),
+    new Promise((_, reject) => setTimeout(() => reject(new Error("runs did not overlap")), 2_000)),
+  ]);
+
+  assert.deepEqual([...assigned].sort(), ["phone-1", "phone-2"]);
+  assert.equal(runs.get(first.id)?.status, "completed");
+  assert.equal(runs.get(second.id)?.status, "completed");
+  store.close();
+});
