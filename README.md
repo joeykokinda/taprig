@@ -51,8 +51,8 @@ npm run taprig -- daemon stop
 ```
 
 The token, state, log, and SQLite database stay in the OS application-data
-directory with private file permissions. The interactive task experience,
-model providers, live control room, and desktop packaging remain in progress.
+directory with private file permissions. The model-driven run worker, live
+control room, and desktop packaging remain in progress.
 See [physical hardware results](docs/HARDWARE_VALIDATION.md).
 
 The pre-alpha run shell and its non-interactive equivalents are available now:
@@ -66,6 +66,15 @@ npm run taprig -- attach <run-id>       # inspect state and ordered events
 
 Runs remain `created` until a configured agent worker is available; TapRig does
 not report task execution before verified device evidence exists.
+
+Model profiles are configured without persisting provider secrets:
+
+```console
+npm run taprig -- model show
+npm run taprig -- model profile economy   # economy | balanced | best
+```
+
+See [model routing](docs/MODELS.md) for role budgets and editable targets.
 
 ## License
 
