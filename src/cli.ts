@@ -14,6 +14,7 @@ import {
 } from "./daemon/lifecycle.ts";
 import { diagnoseAdbDevices, formatDoctorFindings } from "./doctor.ts";
 import { parseExecuteCommand } from "./execute-command.ts";
+import { serveTapRigMcp } from "./mcp/server.ts";
 import {
   loadOrCreateModelConfig,
   type ModelProfileName,
@@ -118,6 +119,10 @@ async function main(): Promise<void> {
     return;
   }
   const selectedCommand = command ?? "devices";
+  if (selectedCommand === "mcp") {
+    serveTapRigMcp();
+    return;
+  }
   if (selectedCommand === "daemon") {
     const operation = process.argv[3] ?? "status";
     if (operation === "serve") {

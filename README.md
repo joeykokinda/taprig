@@ -93,6 +93,9 @@ model call while the UI remains on the verified path. See
 Launch the authenticated local dashboard with `npm run taprig -- ui`. See the
 [control-room security and remote-access notes](docs/CONTROL_ROOM.md).
 
+External agents can launch `taprig mcp` for the official stdio MCP surface. See
+[MCP integration](docs/MCP.md).
+
 ## License
 
 TapRig is open source under the [MIT License](LICENSE).

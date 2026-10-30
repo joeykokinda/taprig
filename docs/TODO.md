@@ -50,7 +50,7 @@ Percentages describe demonstrated functionality, not lines of code.
 - [x] Independent parallel device runs with leases.
 - [ ] Broadcast plan, barriers, drift recovery, and rejoin.
 - [ ] Coordinated task DAGs and result aggregation.
-- [ ] MCP adapter over the same daemon API.
+- [x] MCP adapter over the same daemon API.
 - [ ] Signed macOS, Windows, and Linux installers.
 - [ ] GitHub Release download automation and checksums.
 - [x] First public website design and interactive product preview.
