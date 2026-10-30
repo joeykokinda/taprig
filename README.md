@@ -51,8 +51,9 @@ npm run taprig -- daemon stop
 ```
 
 The token, state, log, and SQLite database stay in the OS application-data
-directory with private file permissions. The model-driven run worker, live
-control room, and desktop packaging remain in progress.
+directory with private file permissions. A configured model worker now assigns
+an available phone and durably records verified completion, user questions, or
+typed failure. Fleet execution and desktop packaging remain in progress.
 See [physical hardware results](docs/HARDWARE_VALIDATION.md).
 
 The pre-alpha run shell and its non-interactive equivalents are available now:
@@ -64,8 +65,16 @@ npm run taprig -- runs                  # list runs
 npm run taprig -- attach <run-id>       # inspect state and ordered events
 ```
 
-Runs remain `created` until a configured agent worker is available; TapRig does
-not report task execution before verified device evidence exists.
+Set the provider key in the daemon environment, restart it, and new independent
+runs execute through the bounded semantic worker. Without a configured key,
+runs remain `created`; TapRig never reports execution before verified device
+evidence exists.
+
+```console
+export OPENAI_API_KEY=...
+npm run taprig -- daemon stop
+npm run taprig -- daemon start
+```
 
 Model profiles are configured without persisting provider secrets:
 

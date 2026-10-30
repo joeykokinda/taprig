@@ -79,3 +79,23 @@ test("refuses to repeat a failed action against unchanged state", async () => {
   assert.equal(result.status, "failed");
   assert.match(result.status === "failed" ? result.reason : "", /repeated a failed action/);
 });
+
+test("accepts model-provided visible completion evidence", async () => {
+  const device: DeviceAdapter = {
+    observe: async () => observation("done"),
+    execute: async () => {
+      throw new Error("completion must not execute another action");
+    },
+  };
+  const result = await runAgentLoop({
+    device,
+    deviceId: "phone-1",
+    decide: async () => ({ type: "complete", evidence: "Settings title is visible" }),
+    verifyCompletion: async () => undefined,
+  });
+  assert.deepEqual(result, {
+    status: "completed",
+    evidence: "Settings title is visible",
+    decisions: 1,
+  });
+});

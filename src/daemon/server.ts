@@ -27,6 +27,7 @@ export interface TapRigDaemonOptions {
   port?: number;
   execute?: (serial: string, action: Action) => Promise<void>;
   runs?: RunService;
+  startRun?: (runId: string) => void;
   scripts?: ScriptService;
   stream?: (serial: string) => Promise<LiveMjpegStream>;
   manualTap?: (serial: string, xRatio: number, yRatio: number) => Promise<void>;
@@ -272,6 +273,7 @@ export async function startDaemon(options: TapRigDaemonOptions): Promise<Running
           );
           response.statusCode = 201;
           response.end(JSON.stringify({ run }));
+          options.startRun?.(run.id);
         } catch {
           response.statusCode = 400;
           response.end(JSON.stringify({ error: "invalid-run" }));

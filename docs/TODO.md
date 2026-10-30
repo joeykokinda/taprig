@@ -7,11 +7,11 @@ This is the ordered product queue. The canonical architecture remains in
 
 - Foundation/runtime: **90%**
 - Physical Android control: **60%**
-- Agent loop: **31%**
+- Agent loop: **45%**
 - Fleet orchestration: **5%**
 - Desktop application: **5%**
 - Public website/distribution: **45%**
-- Complete launch-ready product: **47%**
+- Complete launch-ready product: **49%**
 
 Percentages describe demonstrated functionality, not lines of code.
 
@@ -38,6 +38,7 @@ Percentages describe demonstrated functionality, not lines of code.
 - [x] Make CLI commands clients of the daemon instead of direct ADB callers.
 - [x] Build interactive `taprig` task session and `attach` flow.
 - [x] Add model-provider configuration and Economy/Balanced/Best routing.
+- [x] Connect independent natural-language runs to the bounded ready-device worker.
 - [x] Build scripts: create, inspect, run, verify, and emit a typed recovery handoff.
 - [ ] Connect script mismatch recovery and successful-run promotion to the agent worker.
 - [x] Serve the control-room web UI from the local daemon.

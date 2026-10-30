@@ -1,4 +1,5 @@
 import type {
+  Action,
   ActionBatch,
   BatchResult,
   DeviceAdapter,
@@ -7,10 +8,12 @@ import type {
   StepResult,
   TapRigError,
 } from "../core/contracts.ts";
+import { executeRawAction } from "./raw-actions.ts";
 import { observeSemantics, tapSemanticElement } from "./semantic.ts";
 
 type Observe = (deviceId: DeviceId) => Promise<Observation>;
 type Tap = typeof tapSemanticElement;
+type Raw = (deviceId: DeviceId, action: Action) => Promise<void>;
 
 function failure(code: TapRigError["code"], message: string): TapRigError {
   return { code, message, retryable: code === "verification-failed" };
@@ -20,10 +23,16 @@ export class AndroidSemanticAdapter implements DeviceAdapter {
   readonly #results = new Map<string, BatchResult>();
   readonly #observe: Observe;
   readonly #tap: Tap;
+  readonly #raw: Raw;
 
-  constructor(observe: Observe = observeSemantics, tap: Tap = tapSemanticElement) {
+  constructor(
+    observe: Observe = observeSemantics,
+    tap: Tap = tapSemanticElement,
+    raw: Raw = executeRawAction,
+  ) {
     this.#observe = observe;
     this.#tap = tap;
+    this.#raw = raw;
   }
 
   observe(deviceId: DeviceId): Promise<Observation> {
@@ -48,7 +57,7 @@ export class AndroidSemanticAdapter implements DeviceAdapter {
         steps.push({ stepId: step.id, status: "skipped", durationMs: 0 });
         continue;
       }
-      if (step.action.type !== "element.tap") {
+      if (step.action.type === "element.longTap" || step.action.type === "element.text") {
         steps.push({
           stepId: step.id,
           status: "failed",
@@ -60,7 +69,11 @@ export class AndroidSemanticAdapter implements DeviceAdapter {
       }
 
       try {
-        await this.#tap(batch.deviceId, observation, step.action.target);
+        if (step.action.type === "element.tap") {
+          await this.#tap(batch.deviceId, observation, step.action.target);
+        } else {
+          await this.#raw(batch.deviceId, step.action);
+        }
         const next = await this.observe(batch.deviceId);
         if (next.generation === observation.generation) {
           throw new Error("semantic observation did not change after tap");

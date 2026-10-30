@@ -48,3 +48,24 @@ test("rejects stale input and fails closed when postcondition evidence is unchan
   assert.equal(result.steps[0]?.status, "failed");
   assert.equal(result.steps[0]?.error?.code, "verification-failed");
 });
+
+test("executes a typed raw action and verifies the semantic state changed", async () => {
+  const observations = [observation("before"), observation("after")];
+  const actions: ActionBatch["steps"][number]["action"][] = [];
+  const adapter = new AndroidSemanticAdapter(
+    async () => observations.shift() ?? observation("after"),
+    async () => {},
+    async (_deviceId, action) => {
+      actions.push(action);
+    },
+  );
+  const result = await adapter.execute({
+    ...batch,
+    requestId: "raw-request",
+    steps: [
+      { id: "settings", action: { type: "app.launch", packageName: "com.android.settings" } },
+    ],
+  });
+  assert.deepEqual(actions, [{ type: "app.launch", packageName: "com.android.settings" }]);
+  assert.equal(result.steps[0]?.status, "verified");
+});

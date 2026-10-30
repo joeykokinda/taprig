@@ -26,8 +26,17 @@ stored in `models.json`, SQLite, run events, prompts, or logs. The OpenAI adapte
 uses the Responses API with strict JSON Schema output as documented in
 [Structured model outputs](https://developers.openai.com/api/docs/guides/structured-outputs).
 
+The daemon enables its run worker only when the selected provider's key is in
+its environment. For the default provider, export `OPENAI_API_KEY` before
+starting the daemon. Each decision receives the task, a bounded current semantic
+observation, and the previous verified batch result; the model returns only a
+typed launch, key, semantic tap, completion, question, or failure decision.
+
 Routing is deterministic and budgeted. `fast` handles ordinary semantic
 decisions, `strong` is available only for explicit escalation, and `vision` is
 available only when semantic/local perception is insufficient. A route returns
 no model when its budget is exhausted; callers must recover, ask, or fail rather
 than silently spend through the limit.
+
+The current worker uses the `fast` route and serializes runs on one device.
+Strong/vision escalation and per-device fleet leases remain roadmap items.

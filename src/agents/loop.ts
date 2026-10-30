@@ -8,6 +8,7 @@ import type {
 
 export type AgentDecision =
   | { type: "execute"; requestId: string; steps: readonly ActionStep[] }
+  | { type: "complete"; evidence: string }
   | { type: "ask_user"; question: string }
   | { type: "fail"; reason: string };
 
@@ -56,6 +57,13 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
       ...(previousBatch ? { previousBatch } : {}),
     };
     const decision = await options.decide(context);
+    if (decision.type === "complete") {
+      return {
+        status: "completed",
+        evidence: decision.evidence,
+        decisions: decisionNumber + 1,
+      };
+    }
     if (decision.type === "ask_user") {
       return {
         status: "waiting-for-user",

@@ -152,6 +152,7 @@ test("the daemon streams phones and gates manual input with takeover leases", as
 });
 
 test("the daemon creates, lists, and attaches to durable runs", async (context) => {
+  const started: string[] = [];
   const store = new TapRigStore(":memory:");
   const runs = new RunService(
     store,
@@ -162,6 +163,7 @@ test("the daemon creates, lists, and attaches to durable runs", async (context) 
     token,
     devices: { list: async () => [] },
     runs,
+    startRun: (runId) => started.push(runId),
   });
   context.after(async () => {
     await daemon.stop();
@@ -175,6 +177,7 @@ test("the daemon creates, lists, and attaches to durable runs", async (context) 
   });
   assert.equal(created.status, 201);
   assert.equal(((await created.json()) as { run: { id: string } }).run.id, "run-1");
+  assert.deepEqual(started, ["run-1"]);
 
   const listed = await fetch(`${daemon.url}/runs`, { headers: authorization });
   assert.equal(((await listed.json()) as { runs: unknown[] }).runs.length, 1);
