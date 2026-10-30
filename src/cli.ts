@@ -13,6 +13,12 @@ import {
 } from "./daemon/lifecycle.ts";
 import { diagnoseAdbDevices, formatDoctorFindings } from "./doctor.ts";
 import { parseExecuteCommand } from "./execute-command.ts";
+import {
+  loadOrCreateModelConfig,
+  type ModelProfileName,
+  type ModelRole,
+  saveModelConfig,
+} from "./models/config.ts";
 
 async function daemonJson<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await daemonRequest(path, init);
@@ -139,6 +145,52 @@ async function main(): Promise<void> {
       return;
     }
     throw new Error(`unknown daemon command: ${operation}`);
+  }
+  if (selectedCommand === "model") {
+    const operation = process.argv[3] ?? "show";
+    const config = loadOrCreateModelConfig();
+    if (operation === "show") {
+      const profile = config.profiles[config.selectedProfile];
+      process.stdout.write(`Profile: ${config.selectedProfile}\n`);
+      for (const role of ["fast", "strong", "vision"] as const) {
+        const selected = profile.roles[role];
+        process.stdout.write(`${role}: ${selected.provider}/${selected.model}\n`);
+      }
+      for (const [name, provider] of Object.entries(config.providers)) {
+        process.stdout.write(
+          `${name}: ${process.env[provider.apiKeyEnv] ? "configured" : `missing ${provider.apiKeyEnv}`}\n`,
+        );
+      }
+      return;
+    }
+    if (operation === "profile") {
+      const profile = process.argv[4] as ModelProfileName | undefined;
+      if (!profile || !(["economy", "balanced", "best"] as const).includes(profile)) {
+        throw new Error("model profile must be economy, balanced, or best");
+      }
+      config.selectedProfile = profile;
+      saveModelConfig(config);
+      process.stdout.write(`Model profile set to ${profile}.\n`);
+      return;
+    }
+    if (operation === "set") {
+      const profile = process.argv[4] as ModelProfileName | undefined;
+      const role = process.argv[5] as ModelRole | undefined;
+      const model = process.argv[6];
+      const provider = process.argv[7] ?? "openai";
+      if (!profile || !(["economy", "balanced", "best"] as const).includes(profile)) {
+        throw new Error("model set requires an economy, balanced, or best profile");
+      }
+      if (!role || !(["fast", "strong", "vision"] as const).includes(role) || !model) {
+        throw new Error("model set requires a fast, strong, or vision role and model ID");
+      }
+      if (!config.providers[provider]) throw new Error(`unknown model provider: ${provider}`);
+      config.profiles[profile].roles[role] = { provider, model };
+      saveModelConfig(config);
+      process.stdout.write(`${profile}/${role} set to ${provider}/${model}.\n`);
+      return;
+    }
+    throw new Error(`unknown model command: ${operation}`);
   }
   if (selectedCommand === "execute") {
     const execution = parseExecuteCommand(process.argv.slice(3));
