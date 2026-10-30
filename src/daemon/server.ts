@@ -148,7 +148,7 @@ export async function startDaemon(options: TapRigDaemonOptions): Promise<Running
         response.setHeader("cache-control", "no-store");
         response.setHeader("x-content-type-options", "nosniff");
         live.stream.once("error", () => response.destroy());
-        request.once("close", () => void live.stop());
+        response.once("close", () => void live.stop());
         live.stream.pipe(response);
         return;
       }
