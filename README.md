@@ -76,6 +76,11 @@ npm run taprig -- model profile economy   # economy | balanced | best
 
 See [model routing](docs/MODELS.md) for role budgets and editable targets.
 
+Repeated workflows can run as parameterized, checkpointed scripts without a
+model call while the UI remains on the verified path. See
+[deterministic scripts](docs/SCRIPTS.md) and the
+[Settings example](examples/open-settings-section.script.json).
+
 ## License
 
 License selection is part of the foundation milestone and must be completed

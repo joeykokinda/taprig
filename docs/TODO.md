@@ -7,11 +7,11 @@ This is the ordered product queue. The canonical architecture remains in
 
 - Foundation/runtime: **87%**
 - Physical Android control: **50%**
-- Agent loop: **25%**
+- Agent loop: **31%**
 - Fleet orchestration: **5%**
 - Desktop application: **5%**
 - Public website/distribution: **45%**
-- Complete launch-ready product: **39%**
+- Complete launch-ready product: **42%**
 
 Percentages describe demonstrated functionality, not lines of code.
 
@@ -38,7 +38,8 @@ Percentages describe demonstrated functionality, not lines of code.
 - [x] Make CLI commands clients of the daemon instead of direct ADB callers.
 - [x] Build interactive `taprig` task session and `attach` flow.
 - [x] Add model-provider configuration and Economy/Balanced/Best routing.
-- [ ] Build scripts: create, inspect, run, verify, and recover.
+- [x] Build scripts: create, inspect, run, verify, and emit a typed recovery handoff.
+- [ ] Connect script mismatch recovery and successful-run promotion to the agent worker.
 - [ ] Serve the control-room web UI from the local daemon.
 - [ ] Package the daemon and UI as an Electron desktop application.
 
