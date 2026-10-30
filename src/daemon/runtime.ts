@@ -3,13 +3,14 @@ import { dirname, join } from "node:path";
 import type { AdbDevice } from "../android/adb-discovery.ts";
 import { discoverAdbDevices } from "../android/adb-discovery.ts";
 import { DeviceRegistry } from "../android/device-actor.ts";
-import { executeRawAction } from "../android/raw-actions.ts";
+import { executeNormalizedTap, executeRawAction } from "../android/raw-actions.ts";
 import { AndroidSemanticAdapter } from "../android/semantic-adapter.ts";
 import { dataDirectory } from "../paths.ts";
 import { TapRigStore } from "../persistence/store.ts";
 import { RunService } from "../runs/service.ts";
 import { ScriptService } from "../scripts/service.ts";
 import { ScriptStore } from "../scripts/store.ts";
+import { startLiveMjpegStream } from "../video/live-stream.ts";
 import { startDaemon } from "./server.ts";
 
 export interface RuntimeOptions {
@@ -69,6 +70,12 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
       execute: executeRawAction,
       runs,
       scripts,
+      stream: (serial) =>
+        startLiveMjpegStream({
+          serial,
+          scrcpyExecutable: process.env.TAPRIG_SCRCPY ?? "scrcpy",
+        }),
+      manualTap: executeNormalizedTap,
     });
   } catch (error) {
     store.close();

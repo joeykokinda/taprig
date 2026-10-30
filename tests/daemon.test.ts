@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { Readable } from "node:stream";
 import test from "node:test";
 
 import { startDaemon } from "../src/daemon/server.ts";
@@ -99,6 +100,55 @@ test("the daemon validates and forwards authenticated raw actions", async (conte
   });
   assert.equal(rejected.status, 400);
   assert.deepEqual(actions.length, 1);
+});
+
+test("the daemon streams phones and gates manual input with takeover leases", async (context) => {
+  const taps: unknown[] = [];
+  let stopped = false;
+  const daemon = await startDaemon({
+    token,
+    devices: { list: async () => [] },
+    stream: async () => ({
+      stream: Readable.from([Buffer.from("--ffmpeg\r\nContent-Type: image/jpeg\r\n\r\nframe")]),
+      stop: async () => {
+        stopped = true;
+      },
+    }),
+    manualTap: async (serial, xRatio, yRatio) => {
+      taps.push({ serial, xRatio, yRatio });
+    },
+  });
+  context.after(() => daemon.stop());
+
+  const stream = await fetch(`${daemon.url}/devices/phone-1/stream.mjpeg`, {
+    headers: authorization,
+  });
+  assert.match(stream.headers.get("content-type") ?? "", /multipart\/x-mixed-replace/);
+  assert.match(await stream.text(), /frame/);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(stopped, true);
+
+  const acquired = await fetch(`${daemon.url}/devices/phone-1/takeover`, {
+    method: "POST",
+    headers: authorization,
+  });
+  const lease = ((await acquired.json()) as { lease: { id: string } }).lease;
+  assert.equal(
+    (
+      await fetch(`${daemon.url}/devices/phone-1/takeover`, {
+        method: "POST",
+        headers: authorization,
+      })
+    ).status,
+    409,
+  );
+  const tapped = await fetch(`${daemon.url}/devices/phone-1/manual-actions`, {
+    method: "POST",
+    headers: { ...authorization, "content-type": "application/json" },
+    body: JSON.stringify({ leaseId: lease.id, type: "tap", xRatio: 0.5, yRatio: 0.25 }),
+  });
+  assert.equal(tapped.status, 200);
+  assert.deepEqual(taps, [{ serial: "phone-1", xRatio: 0.5, yRatio: 0.25 }]);
 });
 
 test("the daemon creates, lists, and attaches to durable runs", async (context) => {

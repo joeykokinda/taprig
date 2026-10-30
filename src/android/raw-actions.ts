@@ -6,9 +6,15 @@ import type { Action } from "../core/contracts.ts";
 const execFileAsync = promisify(execFile);
 
 export type AdbCommandRunner = (serial: string, args: readonly string[]) => Promise<void>;
+export type AdbOutputRunner = (serial: string, args: readonly string[]) => Promise<string>;
 
 export async function runAdbShell(serial: string, args: readonly string[]): Promise<void> {
   await execFileAsync("adb", ["-s", serial, "shell", ...args]);
+}
+
+export async function runAdbOutput(serial: string, args: readonly string[]): Promise<string> {
+  const { stdout } = await execFileAsync("adb", ["-s", serial, "shell", ...args]);
+  return stdout;
 }
 
 const keyCodes = {
@@ -113,4 +119,40 @@ export async function executeRawAction(
     default:
       throw new Error(`${action.type} requires the TapRig semantic driver`);
   }
+}
+
+export async function executeNormalizedTap(
+  serial: string,
+  xRatio: number,
+  yRatio: number,
+  output: AdbOutputRunner = runAdbOutput,
+  run: AdbCommandRunner = runAdbShell,
+): Promise<void> {
+  if (
+    !Number.isFinite(xRatio) ||
+    !Number.isFinite(yRatio) ||
+    xRatio < 0 ||
+    xRatio > 1 ||
+    yRatio < 0 ||
+    yRatio > 1
+  ) {
+    throw new Error("normalized tap coordinates must be from 0 to 1");
+  }
+  const sizes = [
+    ...(await output(serial, ["wm", "size"])).matchAll(
+      /(?:Physical|Override) size:\s*(\d+)x(\d+)/gu,
+    ),
+  ];
+  const size = sizes.at(-1);
+  const width = Number(size?.[1]);
+  const height = Number(size?.[2]);
+  if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width < 1 || height < 1) {
+    throw new Error("Android display size is unavailable");
+  }
+  await run(serial, [
+    "input",
+    "tap",
+    String(Math.min(width - 1, Math.floor(xRatio * width))),
+    String(Math.min(height - 1, Math.floor(yRatio * height))),
+  ]);
 }

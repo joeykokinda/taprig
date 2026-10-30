@@ -4,9 +4,11 @@ import { createServer, type Server } from "node:http";
 import { join } from "node:path";
 
 import { parseRawAction } from "../android/raw-actions.ts";
+import { TakeoverLeases } from "../control/takeover.ts";
 import type { Action, RunMode } from "../core/contracts.ts";
 import type { RunService } from "../runs/service.ts";
 import type { ScriptService } from "../scripts/service.ts";
+import type { LiveMjpegStream } from "../video/live-stream.ts";
 
 export interface DaemonDevice {
   id: string;
@@ -26,6 +28,8 @@ export interface TapRigDaemonOptions {
   execute?: (serial: string, action: Action) => Promise<void>;
   runs?: RunService;
   scripts?: ScriptService;
+  stream?: (serial: string) => Promise<LiveMjpegStream>;
+  manualTap?: (serial: string, xRatio: number, yRatio: number) => Promise<void>;
 }
 
 async function jsonBody(request: import("node:http").IncomingMessage): Promise<unknown> {
@@ -75,6 +79,7 @@ export async function startDaemon(options: TapRigDaemonOptions): Promise<Running
   }
   const pendingBrowserSessions = new Map<string, number>();
   const browserSessions = new Map<string, number>();
+  const takeover = new TakeoverLeases();
   const controlRoom = join(import.meta.dirname, "../../control-room");
 
   const server = createServer(async (request, response) => {
@@ -133,6 +138,72 @@ export async function startDaemon(options: TapRigDaemonOptions): Promise<Running
       }
       if (request.method === "GET" && url.pathname === "/devices") {
         response.end(JSON.stringify({ devices: await options.devices.list() }));
+        return;
+      }
+      const streamRoute = /^\/devices\/([^/]+)\/stream\.mjpeg$/u.exec(url.pathname);
+      if (request.method === "GET" && streamRoute?.[1]) {
+        if (!options.stream) throw new Error("live streaming is unavailable");
+        const live = await options.stream(decodeURIComponent(streamRoute[1]));
+        response.setHeader("content-type", "multipart/x-mixed-replace; boundary=ffmpeg");
+        response.setHeader("cache-control", "no-store");
+        response.setHeader("x-content-type-options", "nosniff");
+        live.stream.once("error", () => response.destroy());
+        request.once("close", () => void live.stop());
+        live.stream.pipe(response);
+        return;
+      }
+      const takeoverRoute = /^\/devices\/([^/]+)\/takeover$/u.exec(url.pathname);
+      if (takeoverRoute?.[1]) {
+        const deviceId = decodeURIComponent(takeoverRoute[1]);
+        try {
+          if (request.method === "POST") {
+            response.statusCode = 201;
+            response.end(JSON.stringify({ lease: takeover.acquire(deviceId) }));
+            return;
+          }
+          const body = (await jsonBody(request)) as { leaseId?: unknown };
+          if (typeof body.leaseId !== "string") throw new Error("lease ID is required");
+          if (request.method === "PATCH") {
+            response.end(JSON.stringify({ lease: takeover.renew(deviceId, body.leaseId) }));
+            return;
+          }
+          if (request.method === "DELETE") {
+            takeover.release(deviceId, body.leaseId);
+            response.statusCode = 204;
+            response.end();
+            return;
+          }
+        } catch {
+          response.statusCode = 409;
+          response.end(JSON.stringify({ error: "takeover-unavailable" }));
+          return;
+        }
+      }
+      const manualRoute = /^\/devices\/([^/]+)\/manual-actions$/u.exec(url.pathname);
+      if (request.method === "POST" && manualRoute?.[1]) {
+        const serial = decodeURIComponent(manualRoute[1]);
+        try {
+          const body = (await jsonBody(request)) as Record<string, unknown>;
+          if (typeof body.leaseId !== "string") throw new Error("lease ID is required");
+          takeover.require(serial, body.leaseId);
+          if (
+            body.type === "tap" &&
+            typeof body.xRatio === "number" &&
+            typeof body.yRatio === "number"
+          ) {
+            if (!options.manualTap) throw new Error("manual taps are unavailable");
+            await options.manualTap(serial, body.xRatio, body.yRatio);
+          } else if (body.type === "key" && typeof body.key === "string") {
+            if (!options.execute) throw new Error("manual keys are unavailable");
+            await options.execute(serial, parseRawAction({ type: "key.press", key: body.key }));
+          } else {
+            throw new Error("invalid manual action");
+          }
+          response.end(JSON.stringify({ lease: takeover.renew(serial, body.leaseId) }));
+        } catch {
+          response.statusCode = 409;
+          response.end(JSON.stringify({ error: "manual-action-rejected" }));
+        }
         return;
       }
       if (request.method === "GET" && url.pathname === "/runs") {

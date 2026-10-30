@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { AdbCommandRunner } from "../src/android/raw-actions.ts";
-import { executeRawAction, parseRawAction } from "../src/android/raw-actions.ts";
+import {
+  executeNormalizedTap,
+  executeRawAction,
+  parseRawAction,
+} from "../src/android/raw-actions.ts";
 
 test("raw actions pass validated arguments without shell interpolation", async () => {
   const calls: Array<{ serial: string; args: readonly string[] }> = [];
@@ -54,4 +58,19 @@ test("parses only the bounded raw action API", () => {
   });
   assert.throws(() => parseRawAction({ type: "shell", command: "whoami" }), /unsupported/);
   assert.throws(() => parseRawAction({ type: "gesture.tap", x: "1", y: 2 }), /malformed/);
+});
+
+test("maps a normalized manual tap to the current Android display", async () => {
+  let args: readonly string[] = [];
+  await executeNormalizedTap(
+    "phone-1",
+    0.5,
+    0.25,
+    async () => "Physical size: 720x1600\n",
+    async (_serial, next) => {
+      args = next;
+    },
+  );
+  assert.deepEqual(args, ["input", "tap", "360", "400"]);
+  await assert.rejects(executeNormalizedTap("phone-1", 2, 0.5), /0 to 1/);
 });
