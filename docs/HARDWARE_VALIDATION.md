@@ -45,12 +45,24 @@ Verified results:
     label with its clickable parent row, executed the typed tap batch, and
     verified the System page from fresh `Languages` and `Keyboard` semantics.
     The verified step took 2.75 seconds with UIAutomator polling.
+15. At commits `7f44244` through `2c0ccc6`, the authenticated control-room
+    endpoint streamed a valid 360 x 800 MJPEG view through scrcpy, FFmpeg, the
+    daemon, and an SSH tunnel. Sequential browser reconnects produced fresh
+    streams without leaking the previous process.
+16. An exclusive takeover lease accepted a normalized control-room tap, after
+    which Android reported Desk Clock foreground. A leased HOME action restored
+    Motorola Launcher, and explicit lease release succeeded.
+17. Two Moto G Play 2024 devices (`ZY22KSF7B2` and `ZY22L2TQM3`) were discovered
+    ready and unlocked together. A simultaneous pre-fallback stream attempt
+    exposed scrcpy's static Matroska startup buffering on the second phone; the
+    automatic screenshot fallback added afterward is covered by a process-level
+    regression test but still awaits a repeated two-phone hardware run.
 
 Still unverified on this device:
 
 - event-driven accessibility transport to replace UIAutomator polling latency;
-- browser live-stream transport and manual takeover leases;
 - reliable text entry beyond numeric PIN;
 - app launch, taps, and swipes through task-level postcondition verification;
 - reconnect across host/device reboot;
-- multiple simultaneous devices.
+- simultaneous live views and isolated takeover on multiple devices after the
+  fallback change.

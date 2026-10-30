@@ -654,10 +654,11 @@ without Android or model dependencies.
 
 - [x] Discover and classify USB ADB devices.
 - [x] Start one device actor with health/reconnect behavior.
-- [ ] Integrate pinned scrcpy video and raw input.
-- [ ] Build the first Android driver observation/action protocol.
-- [ ] Show one live phone in the browser.
-- [ ] Support manual control and takeover.
+- [x] Integrate pinned scrcpy video.
+- [ ] Integrate scrcpy raw-input transport (leased manual input currently uses ADB).
+- [x] Build the first Android driver observation/action protocol.
+- [x] Show one live phone in the browser.
+- [x] Support manual control and takeover.
 - [ ] Implement `doctor`, `devices`, and deterministic `execute` commands.
   (`doctor`, `devices`, and raw execution complete; integrated postcondition
   verification remains.)
@@ -667,12 +668,12 @@ execute and verify reversible actions, and take over manually.
 
 ### M2 — complete single-phone agent product
 
-- [ ] Durable runs and normalized event stream.
-- [ ] Interactive CLI and run attachment.
-- [ ] Provider configuration and model profiles.
-- [ ] Built-in observe/decide/execute/verify/recover loop.
+- [x] Durable runs and normalized event stream.
+- [x] Interactive CLI and run attachment.
+- [x] Provider configuration and model profiles.
+- [x] Built-in observe/decide/execute/verify/recover loop.
 - [ ] Questions, approvals, budgets, artifacts, and replay.
-- [ ] User script creation, inspection, testing, and deterministic execution.
+- [x] User script creation, inspection, testing, and deterministic execution.
 - [ ] Full main workspace and onboarding.
 - [ ] MCP adapter.
 

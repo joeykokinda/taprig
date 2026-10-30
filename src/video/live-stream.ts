@@ -2,7 +2,7 @@ import { type ChildProcess, execFile, spawn } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Readable } from "node:stream";
+import { PassThrough, type Readable } from "node:stream";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
@@ -15,9 +15,36 @@ export interface LiveMjpegStream {
 export interface LiveStreamOptions {
   serial: string;
   scrcpyExecutable: string;
+  adbExecutable?: string;
   ffmpegExecutable?: string;
   framesPerSecond?: number;
   width?: number;
+}
+
+export function screenshotFallbackArguments(options: LiveStreamOptions) {
+  const framesPerSecond = options.framesPerSecond ?? 5;
+  const width = options.width ?? 360;
+  return {
+    adb: ["-s", options.serial, "exec-out", "screencap", "-p"],
+    ffmpeg: [
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-f",
+      "image2pipe",
+      "-framerate",
+      String(framesPerSecond),
+      "-i",
+      "pipe:0",
+      "-vf",
+      `scale=${width}:-2`,
+      "-q:v",
+      "5",
+      "-f",
+      "mpjpeg",
+      "pipe:1",
+    ],
+  };
 }
 
 export function liveStreamArguments(options: LiveStreamOptions, fifo: string) {
@@ -61,7 +88,7 @@ export function liveStreamArguments(options: LiveStreamOptions, fifo: string) {
 }
 
 function closed(process: ChildProcess): Promise<void> {
-  if (process.exitCode !== null) return Promise.resolve();
+  if (process.exitCode !== null || process.signalCode !== null) return Promise.resolve();
   return new Promise((resolve) => {
     process.once("close", () => resolve());
     process.once("error", () => resolve());
@@ -82,27 +109,78 @@ export async function startLiveMjpegStream(options: LiveStreamOptions): Promise<
   const scrcpy = spawn(options.scrcpyExecutable, args.scrcpy, {
     stdio: ["ignore", "ignore", "ignore"],
   });
+  const output = new PassThrough();
+  const children: ChildProcess[] = [scrcpy, ffmpeg];
+  let stopped = false;
+  let selected = false;
+  let fallbackLoop: Promise<void> | undefined;
+  const startFallback = () => {
+    if (selected || stopped) return;
+    selected = true;
+    if (scrcpy.exitCode === null) scrcpy.kill("SIGTERM");
+    if (ffmpeg.exitCode === null) ffmpeg.kill("SIGTERM");
+    const fallbackArgs = screenshotFallbackArguments(options);
+    const fallback = spawn(options.ffmpegExecutable ?? "ffmpeg", fallbackArgs.ffmpeg, {
+      stdio: ["pipe", "pipe", "ignore"],
+    });
+    children.push(fallback);
+    fallback.stdout?.pipe(output);
+    fallback.once("error", (error) => output.destroy(error));
+    fallbackLoop = (async () => {
+      while (!stopped && fallback.stdin?.writable) {
+        const { stdout } = await execFileAsync(options.adbExecutable ?? "adb", fallbackArgs.adb, {
+          encoding: "buffer",
+          timeout: 5_000,
+          maxBuffer: 16 * 1024 * 1024,
+        });
+        if (!fallback.stdin.write(stdout)) {
+          await new Promise<void>((resolve) => fallback.stdin?.once("drain", resolve));
+        }
+        await new Promise((resolve) => setTimeout(resolve, 1000 / (options.framesPerSecond ?? 5)));
+      }
+    })().catch((error: unknown) => {
+      if (!stopped) output.destroy(error instanceof Error ? error : new Error(String(error)));
+    });
+  };
+  const fallbackTimer = setTimeout(startFallback, 1_500);
+  fallbackTimer.unref();
+  ffmpeg.stdout?.once("data", (chunk: Buffer) => {
+    if (selected || stopped) return;
+    selected = true;
+    clearTimeout(fallbackTimer);
+    output.write(chunk);
+    ffmpeg.stdout?.pipe(output);
+  });
   let stopping: Promise<void> | undefined;
   const stop = (): Promise<void> => {
     if (stopping) return stopping;
-    if (scrcpy.exitCode === null) scrcpy.kill("SIGTERM");
-    if (ffmpeg.exitCode === null) ffmpeg.kill("SIGTERM");
-    stopping = Promise.all([closed(scrcpy), closed(ffmpeg)])
+    stopped = true;
+    clearTimeout(fallbackTimer);
+    for (const child of children) {
+      if (child.stdin?.writable) child.stdin.end();
+      if (child.exitCode === null) child.kill("SIGTERM");
+    }
+    stopping = Promise.all([...children.map(closed), fallbackLoop])
       .then(() => undefined)
-      .finally(() => rm(directory, { recursive: true, force: true }));
+      .finally(async () => {
+        output.end();
+        await rm(directory, { recursive: true, force: true });
+      });
     return stopping;
   };
-  scrcpy.once("error", () => void stop());
-  ffmpeg.once("error", () => void stop());
+  scrcpy.once("error", startFallback);
+  ffmpeg.once("error", startFallback);
   scrcpy.once("close", () => {
-    if (ffmpeg.exitCode === null) ffmpeg.kill("SIGTERM");
+    if (!selected) startFallback();
+    else if (ffmpeg.exitCode === null) ffmpeg.kill("SIGTERM");
   });
   ffmpeg.once("close", () => {
-    if (scrcpy.exitCode === null) scrcpy.kill("SIGTERM");
+    if (!selected) startFallback();
+    else if (scrcpy.exitCode === null) scrcpy.kill("SIGTERM");
   });
   if (!ffmpeg.stdout) {
     await stop();
     throw new Error("ffmpeg stream output is unavailable");
   }
-  return { stream: ffmpeg.stdout, stop };
+  return { stream: output, stop };
 }

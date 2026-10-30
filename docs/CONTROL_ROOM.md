@@ -20,11 +20,16 @@ The current control room provides:
 - natural-language task creation with independent, broadcast, or coordinated
   run mode;
 - versioned deterministic-script inventory;
+- per-phone scrcpy live video with an automatic screenshot fallback for static
+  streams;
+- exclusive renewable takeover leases with direct tap, Home, and Back controls;
 - responsive desktop/mobile layouts and keyboard-visible controls.
 
-The phone frame deliberately says `LIVE VIEW PENDING`: scrcpy browser streaming
-and takeover leases are not represented as complete before that transport is
-wired.
+The video path prefers scrcpy for low latency. If scrcpy's recording muxer does
+not emit an initial frame within 1.5 seconds, that phone switches to bounded ADB
+screenshots so a static display never leaves the control room blank. Takeover
+input remains serialized through the daemon rather than scrcpy's uncontrolled
+input channel.
 
 For a remote phone server, forward the daemon's printed loopback port over SSH,
 then open the one-time path on the forwarded localhost origin. The packaged

@@ -74,6 +74,7 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
         startLiveMjpegStream({
           serial,
           scrcpyExecutable: process.env.TAPRIG_SCRCPY ?? "scrcpy",
+          adbExecutable: process.env.TAPRIG_ADB ?? "adb",
         }),
       manualTap: executeNormalizedTap,
     });

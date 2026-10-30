@@ -6,12 +6,12 @@ This is the ordered product queue. The canonical architecture remains in
 ## Current estimate
 
 - Foundation/runtime: **90%**
-- Physical Android control: **50%**
+- Physical Android control: **60%**
 - Agent loop: **31%**
 - Fleet orchestration: **5%**
 - Desktop application: **5%**
 - Public website/distribution: **45%**
-- Complete launch-ready product: **45%**
+- Complete launch-ready product: **47%**
 
 Percentages describe demonstrated functionality, not lines of code.
 
@@ -24,7 +24,7 @@ Percentages describe demonstrated functionality, not lines of code.
 - [x] Add foreground activity and screen-state observations to the device actor.
 - [x] Add screenshot capture and artifact retention.
 - [x] Integrate pinned, checksum-verified scrcpy video transport.
-- [ ] Stream scrcpy video to the control room and implement manual takeover leases.
+- [x] Stream scrcpy video to the control room and implement manual takeover leases.
 - [x] Bootstrap semantic observation and selector taps through UIAutomator.
 - [x] Execute and verify a semantic action batch on physical hardware.
 - [ ] Replace polling with the event-driven TapRig Android accessibility driver.
@@ -45,6 +45,7 @@ Percentages describe demonstrated functionality, not lines of code.
 
 ## P2 — fleet and launch
 
+- [ ] Validate simultaneous live view and isolated takeover across two physical phones.
 - [ ] Independent parallel device runs with leases.
 - [ ] Broadcast plan, barriers, drift recovery, and rejoin.
 - [ ] Coordinated task DAGs and result aggregation.
