@@ -81,6 +81,9 @@ model call while the UI remains on the verified path. See
 [deterministic scripts](docs/SCRIPTS.md) and the
 [Settings example](examples/open-settings-section.script.json).
 
+Launch the authenticated local dashboard with `npm run taprig -- ui`. See the
+[control-room security and remote-access notes](docs/CONTROL_ROOM.md).
+
 ## License
 
 License selection is part of the foundation milestone and must be completed
