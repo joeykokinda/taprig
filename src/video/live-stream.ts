@@ -39,6 +39,7 @@ export function liveStreamArguments(options: LiveStreamOptions, fifo: string) {
       "--no-audio",
       "--no-window",
       "--max-fps=15",
+      "--video-codec-options=repeat-previous-frame-after:long=100000",
       `--record=${fifo}`,
       "--record-format=mkv",
     ],

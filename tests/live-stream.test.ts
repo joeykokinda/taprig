@@ -17,6 +17,7 @@ test("builds bounded scrcpy-to-mjpeg streaming arguments", () => {
     "--no-window",
   ]);
   assert.ok(args.scrcpy.includes("--record-format=mkv"));
+  assert.ok(args.scrcpy.includes("--video-codec-options=repeat-previous-frame-after:long=100000"));
   assert.ok(args.ffmpeg.includes("fps=5,scale=360:-2"));
   assert.throws(
     () =>
