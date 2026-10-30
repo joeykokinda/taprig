@@ -641,10 +641,11 @@ model configuration, raw traces, and failure classifications.
 
 ### M0 — foundation
 
-- [ ] Select and add an open-source license.
-- [ ] Add TypeScript build/test/lint foundation and CI.
-- [ ] Define core device, run, event, action, and error contracts.
-- [ ] Add fake device adapter and contract tests.
+- [x] Select and add an open-source license.
+- [ ] Add TypeScript build/test/lint foundation and CI. (Local checks complete;
+  GitHub workflow push requires a credential with `workflow` scope.)
+- [x] Define core device, run, event, action, and error contracts.
+- [x] Add fake device adapter and contract tests.
 - [x] Define daemon lifecycle and authenticated local API boundary.
 
 Exit: clean clone installs and tests; contracts support the first vertical slice

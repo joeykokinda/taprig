@@ -95,5 +95,4 @@ Launch the authenticated local dashboard with `npm run taprig -- ui`. See the
 
 ## License
 
-License selection is part of the foundation milestone and must be completed
-before accepting external contributions.
+TapRig is open source under the [MIT License](LICENSE).

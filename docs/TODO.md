@@ -5,7 +5,7 @@ This is the ordered product queue. The canonical architecture remains in
 
 ## Current estimate
 
-- Foundation/runtime: **90%**
+- Foundation/runtime: **95%**
 - Physical Android control: **60%**
 - Agent loop: **45%**
 - Fleet orchestration: **5%**
