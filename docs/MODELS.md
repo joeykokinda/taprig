@@ -4,11 +4,11 @@ TapRig separates model roles from provider/model IDs. The checked-in defaults
 follow the current OpenAI catalog, but every target is editable in the private
 OS application-data file `models.json`.
 
-| Profile | Fast | Strong | Vision | Escalation budget |
-| --- | --- | --- | --- | --- |
-| Economy | GPT-6 Luna | disabled | disabled | zero strong/vision calls |
-| Balanced | GPT-6 Luna | GPT-6.1 Sol | GPT-6.1 Terra | three calls per escalated role |
-| Best | GPT-6 Astra | GPT-6 Astra | GPT-6 Astra | twenty calls per escalated role |
+| Profile  | Fast        | Strong      | Vision        | Escalation budget               |
+| -------- | ----------- | ----------- | ------------- | ------------------------------- |
+| Economy  | GPT-6 Luna  | disabled    | disabled      | zero strong/vision calls        |
+| Balanced | GPT-6 Luna  | GPT-6.1 Sol | GPT-6.1 Terra | three calls per escalated role  |
+| Best     | GPT-6 Astra | GPT-6 Astra | GPT-6 Astra   | twenty calls per escalated role |
 
 The model names reflect OpenAI's current guidance: Luna is the efficient
 high-volume model, Sol balances capability and cost, Terra targets visual and

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { readFileSync } from "node:fs";
 import { createInterface } from "node:readline/promises";
 
 import { type AdbDevice, formatAdbDevices } from "./android/adb-discovery.ts";
@@ -19,6 +20,7 @@ import {
   type ModelRole,
   saveModelConfig,
 } from "./models/config.ts";
+import type { ScriptRunResult, TapRigScript } from "./scripts/contracts.ts";
 
 async function daemonJson<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await daemonRequest(path, init);
@@ -191,6 +193,61 @@ async function main(): Promise<void> {
       return;
     }
     throw new Error(`unknown model command: ${operation}`);
+  }
+  if (selectedCommand === "script") {
+    const operation = process.argv[3] ?? "list";
+    if (operation === "list") {
+      const { scripts } = await daemonJson<{ scripts: TapRigScript[] }>("/scripts");
+      if (scripts.length === 0) process.stdout.write("No scripts yet.\n");
+      for (const script of scripts) {
+        process.stdout.write(`${script.id}\tv${script.version}\t${script.name}\n`);
+      }
+      return;
+    }
+    if (operation === "inspect") {
+      const id = process.argv[4];
+      if (!id) throw new Error("script inspect requires a script ID");
+      const result = await daemonJson<{ script: TapRigScript }>(
+        `/scripts/${encodeURIComponent(id)}`,
+      );
+      process.stdout.write(`${JSON.stringify(result.script, null, 2)}\n`);
+      return;
+    }
+    if (operation === "create") {
+      const path = process.argv[4];
+      if (!path) throw new Error("script create requires a JSON file path");
+      const result = await daemonJson<{ script: TapRigScript }>("/scripts", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: readFileSync(path, "utf8"),
+      });
+      process.stdout.write(`Saved ${result.script.id} v${result.script.version}.\n`);
+      return;
+    }
+    if (operation === "run") {
+      const id = process.argv[4];
+      const deviceId = process.argv[5];
+      if (!id || !deviceId) throw new Error("script run requires a script ID and device ID");
+      const inputs = Object.fromEntries(
+        process.argv.slice(6).map((argument) => {
+          const separator = argument.indexOf("=");
+          if (separator < 1) throw new Error("script inputs must use name=value");
+          return [argument.slice(0, separator), argument.slice(separator + 1)];
+        }),
+      );
+      const { result } = await daemonJson<{ result: ScriptRunResult }>(
+        `/scripts/${encodeURIComponent(id)}/run`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ deviceId, inputs }),
+        },
+      );
+      process.stdout.write(`${JSON.stringify(result)}\n`);
+      if (result.status === "recovery-needed") process.exitCode = 2;
+      return;
+    }
+    throw new Error(`unknown script command: ${operation}`);
   }
   if (selectedCommand === "execute") {
     const execution = parseExecuteCommand(process.argv.slice(3));

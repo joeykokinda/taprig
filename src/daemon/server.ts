@@ -4,6 +4,7 @@ import { createServer, type Server } from "node:http";
 import { parseRawAction } from "../android/raw-actions.ts";
 import type { Action, RunMode } from "../core/contracts.ts";
 import type { RunService } from "../runs/service.ts";
+import type { ScriptService } from "../scripts/service.ts";
 
 export interface DaemonDevice {
   id: string;
@@ -22,6 +23,7 @@ export interface TapRigDaemonOptions {
   port?: number;
   execute?: (serial: string, action: Action) => Promise<void>;
   runs?: RunService;
+  scripts?: ScriptService;
 }
 
 async function jsonBody(request: import("node:http").IncomingMessage): Promise<unknown> {
@@ -80,6 +82,57 @@ export async function startDaemon(options: TapRigDaemonOptions): Promise<Running
       }
       if (request.method === "GET" && url.pathname === "/runs") {
         response.end(JSON.stringify({ runs: options.runs?.list() ?? [] }));
+        return;
+      }
+      if (request.method === "GET" && url.pathname === "/scripts") {
+        response.end(JSON.stringify({ scripts: options.scripts?.list() ?? [] }));
+        return;
+      }
+      if (request.method === "POST" && url.pathname === "/scripts") {
+        if (!options.scripts) throw new Error("script service is unavailable");
+        try {
+          const script = options.scripts.create(await jsonBody(request));
+          response.statusCode = 201;
+          response.end(JSON.stringify({ script }));
+        } catch {
+          response.statusCode = 400;
+          response.end(JSON.stringify({ error: "invalid-script" }));
+        }
+        return;
+      }
+      const scriptRunRoute = /^\/scripts\/([^/]+)\/run$/u.exec(url.pathname);
+      if (request.method === "POST" && scriptRunRoute?.[1]) {
+        if (!options.scripts) throw new Error("script service is unavailable");
+        try {
+          const body = (await jsonBody(request)) as { deviceId?: unknown; inputs?: unknown };
+          if (
+            typeof body.deviceId !== "string" ||
+            !body.inputs ||
+            typeof body.inputs !== "object"
+          ) {
+            throw new Error("invalid script run");
+          }
+          const result = await options.scripts.run(
+            decodeURIComponent(scriptRunRoute[1]),
+            body.deviceId,
+            body.inputs as Record<string, string>,
+          );
+          response.end(JSON.stringify({ result }));
+        } catch {
+          response.statusCode = 400;
+          response.end(JSON.stringify({ error: "invalid-script-run" }));
+        }
+        return;
+      }
+      const scriptRoute = /^\/scripts\/([^/]+)$/u.exec(url.pathname);
+      if (request.method === "GET" && scriptRoute?.[1]) {
+        const script = options.scripts?.get(decodeURIComponent(scriptRoute[1]));
+        if (!script) {
+          response.statusCode = 404;
+          response.end(JSON.stringify({ error: "script-not-found" }));
+          return;
+        }
+        response.end(JSON.stringify({ script }));
         return;
       }
       if (request.method === "POST" && url.pathname === "/runs") {

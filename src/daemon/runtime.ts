@@ -1,12 +1,15 @@
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 import type { AdbDevice } from "../android/adb-discovery.ts";
 import { discoverAdbDevices } from "../android/adb-discovery.ts";
 import { DeviceRegistry } from "../android/device-actor.ts";
 import { executeRawAction } from "../android/raw-actions.ts";
+import { AndroidSemanticAdapter } from "../android/semantic-adapter.ts";
 import { dataDirectory } from "../paths.ts";
 import { TapRigStore } from "../persistence/store.ts";
 import { RunService } from "../runs/service.ts";
+import { ScriptService } from "../scripts/service.ts";
+import { ScriptStore } from "../scripts/store.ts";
 import { startDaemon } from "./server.ts";
 
 export interface RuntimeOptions {
@@ -34,8 +37,13 @@ export interface RunningRuntime {
 export async function startRuntime(options: RuntimeOptions): Promise<RunningRuntime> {
   const discover = options.discover ?? discoverAdbDevices;
   const registry = options.registry ?? new DeviceRegistry();
-  const store = new TapRigStore(options.databasePath ?? defaultDatabasePath());
+  const databasePath = options.databasePath ?? defaultDatabasePath();
+  const store = new TapRigStore(databasePath);
   const runs = new RunService(store);
+  const scripts = new ScriptService(
+    new ScriptStore(join(dirname(databasePath), "scripts")),
+    new AndroidSemanticAdapter(),
+  );
   let refreshTail = Promise.resolve();
   const refresh = (): Promise<void> => {
     const operation = refreshTail.then(async () => {
@@ -60,6 +68,7 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
       devices: registry,
       execute: executeRawAction,
       runs,
+      scripts,
     });
   } catch (error) {
     store.close();

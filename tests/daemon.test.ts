@@ -1,9 +1,14 @@
 import assert from "node:assert/strict";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 
 import { startDaemon } from "../src/daemon/server.ts";
 import { TapRigStore } from "../src/persistence/store.ts";
 import { RunService } from "../src/runs/service.ts";
+import { ScriptService } from "../src/scripts/service.ts";
+import { ScriptStore } from "../src/scripts/store.ts";
 
 const token = "test-daemon-token";
 const authorization = { authorization: `Bearer ${token}` };
@@ -112,4 +117,57 @@ test("the daemon creates, lists, and attaches to durable runs", async (context) 
   const attached = await fetch(`${daemon.url}/runs/run-1/events`, { headers: authorization });
   const events = (await attached.json()) as { events: Array<{ event: { type: string } }> };
   assert.equal(events.events[0]?.event.type, "run.created");
+});
+
+test("the daemon creates, inspects, and runs verified scripts", async (context) => {
+  const directory = await mkdtemp(join(tmpdir(), "taprig-script-api-"));
+  const scripts = new ScriptService(new ScriptStore(directory), {
+    observe: async () => ({
+      deviceId: "phone-1",
+      generation: "current",
+      elements: [{ id: "node-1", role: "TextView", text: "Languages", actionable: false }],
+      capturedAt: "2026-10-30T12:00:00.000Z",
+    }),
+    execute: async (batch) => ({
+      requestId: batch.requestId,
+      deviceId: batch.deviceId,
+      steps: [{ stepId: "tap-system", status: "verified", durationMs: 1 }],
+      replayed: false,
+    }),
+  });
+  const daemon = await startDaemon({ token, devices: { list: async () => [] }, scripts });
+  context.after(async () => {
+    await daemon.stop();
+    await rm(directory, { recursive: true });
+  });
+  const definition = {
+    schemaVersion: 1,
+    id: "open-system",
+    name: "Open System",
+    version: 1,
+    origin: "user",
+    parameters: [],
+    steps: [
+      {
+        id: "tap-system",
+        action: { type: "element.tap", target: { text: "System" } },
+        checkpoint: { selector: { text: "Languages" } },
+      },
+    ],
+  };
+
+  const created = await fetch(`${daemon.url}/scripts`, {
+    method: "POST",
+    headers: { ...authorization, "content-type": "application/json" },
+    body: JSON.stringify(definition),
+  });
+  assert.equal(created.status, 201);
+  const listed = await fetch(`${daemon.url}/scripts`, { headers: authorization });
+  assert.equal(((await listed.json()) as { scripts: unknown[] }).scripts.length, 1);
+  const run = await fetch(`${daemon.url}/scripts/open-system/run`, {
+    method: "POST",
+    headers: { ...authorization, "content-type": "application/json" },
+    body: JSON.stringify({ deviceId: "phone-1", inputs: {} }),
+  });
+  assert.deepEqual(await run.json(), { result: { status: "completed", completedSteps: 1 } });
 });

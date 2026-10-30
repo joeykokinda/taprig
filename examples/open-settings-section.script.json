@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "id": "open-settings-section",
+  "name": "Open a Settings section",
+  "version": 1,
+  "origin": "user",
+  "parameters": [
+    {
+      "name": "section",
+      "required": true
+    },
+    {
+      "name": "expected-heading",
+      "required": true
+    }
+  ],
+  "steps": [
+    {
+      "id": "open-section",
+      "action": {
+        "type": "element.tap",
+        "target": {
+          "text": "{{section}}"
+        }
+      },
+      "checkpoint": {
+        "selector": {
+          "text": "{{expected-heading}}"
+        }
+      }
+    }
+  ]
+}
