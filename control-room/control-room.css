@@ -267,7 +267,7 @@ h2 {
 }
 .trace-row {
   display: grid;
-  grid-template-columns: 78px 92px 1fr;
+  grid-template-columns: 78px 100px 92px 1fr;
   gap: 12px;
   font:
     11px ui-monospace,
@@ -275,6 +275,9 @@ h2 {
 }
 .trace-row time {
   color: #747474;
+}
+.trace-row span {
+  color: #aaa;
 }
 .trace-row strong {
   color: #c8ff00;

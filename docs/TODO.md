@@ -8,10 +8,10 @@ This is the ordered product queue. The canonical architecture remains in
 - Foundation/runtime: **95%**
 - Physical Android control: **60%**
 - Agent loop: **55%**
-- Fleet orchestration: **55%**
+- Fleet orchestration: **60%**
 - Desktop application: **45%**
 - Public website/distribution: **45%**
-- Complete launch-ready product: **62%**
+- Complete launch-ready product: **63%**
 
 Percentages describe demonstrated functionality, not lines of code.
 

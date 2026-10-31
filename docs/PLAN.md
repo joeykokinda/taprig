@@ -687,7 +687,7 @@ stop explicitly, and inspect cost and evidence.
 - [x] Independent concurrent runs.
 - [x] Broadcast plans, barriers, drift recovery, and rejoin.
 - [x] Coordinated task DAGs and result aggregation.
-- [ ] Fleet UI and CLI controls.
+- [x] Fleet UI and CLI controls.
 
 Exit: demonstrate independent, broadcast, and coordinated modes on the physical
 PhoneFarm fleet with reproducible traces.

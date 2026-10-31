@@ -63,6 +63,7 @@ The pre-alpha run shell and its non-interactive equivalents are available now:
 ```console
 npm run taprig --                       # interactive when attached to a TTY
 npm run taprig -- run "Open Settings"  # create a durable run
+npm run taprig -- run --mode coordinated "Split this workflow across the fleet"
 npm run taprig -- runs                  # list runs
 npm run taprig -- attach <run-id>       # inspect state and ordered events
 ```

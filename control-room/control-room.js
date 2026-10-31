@@ -119,6 +119,7 @@ function renderRuns(runs) {
           (run) => `
       <article class="trace-row">
         <time>${escapeHtml(new Date(run.updatedAt).toLocaleTimeString())}</time>
+        <span>${escapeHtml(run.mode).toUpperCase()}</span>
         <strong>${escapeHtml(run.status).toUpperCase()}</strong>
         <p title="${escapeHtml(run.task)}">${escapeHtml(run.task)}</p>
       </article>`,

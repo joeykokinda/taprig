@@ -21,6 +21,7 @@ import {
   type ModelRole,
   saveModelConfig,
 } from "./models/config.ts";
+import { parseRunCommand, parseRunMode } from "./run-command.ts";
 import type { ScriptRunResult, TapRigScript } from "./scripts/contracts.ts";
 
 async function daemonJson<T>(path: string, init?: RequestInit): Promise<T> {
@@ -62,7 +63,8 @@ function printRuns(runs: readonly RunState[]): void {
     process.stdout.write("No runs yet.\n");
     return;
   }
-  for (const run of runs) process.stdout.write(`${run.id}\t${run.status}\t${run.task}\n`);
+  for (const run of runs)
+    process.stdout.write(`${run.id}\t${run.status}\t${run.mode}\t${run.task}\n`);
 }
 
 async function showRun(id: string): Promise<void> {
@@ -80,8 +82,9 @@ async function interactiveSession(): Promise<void> {
   const devices = await loadDevices();
   process.stdout.write(
     `TapRig · ${devices.length} device${devices.length === 1 ? "" : "s"} connected\n` +
-      "Type a task, or /devices, /runs, /attach <run-id>, /quit.\n\n",
+      "Type a task, or /mode <mode>, /devices, /runs, /attach <run-id>, /quit.\n\n",
   );
+  let mode: RunMode = "independent";
   const terminal = createInterface({ input: process.stdin, output: process.stdout });
   try {
     while (true) {
@@ -96,6 +99,19 @@ async function interactiveSession(): Promise<void> {
         printRuns(await listRuns());
         continue;
       }
+      if (line === "/mode") {
+        process.stdout.write(`Run mode is ${mode}.\n`);
+        continue;
+      }
+      if (line.startsWith("/mode ")) {
+        try {
+          mode = parseRunMode(line.slice(6).trim());
+          process.stdout.write(`Run mode set to ${mode}.\n`);
+        } catch (error) {
+          process.stdout.write(`${error instanceof Error ? error.message : String(error)}.\n`);
+        }
+        continue;
+      }
       if (line.startsWith("/attach ")) {
         await showRun(line.slice(8).trim());
         continue;
@@ -104,7 +120,7 @@ async function interactiveSession(): Promise<void> {
         process.stdout.write("Unknown command.\n");
         continue;
       }
-      const run = await createRun(line);
+      const run = await createRun(line, mode);
       process.stdout.write(`Created ${run.id}. Use /attach ${run.id} to inspect it.\n`);
     }
   } finally {
@@ -293,7 +309,8 @@ async function main(): Promise<void> {
     return;
   }
   if (selectedCommand === "run") {
-    const run = await createRun(process.argv.slice(3).join(" "));
+    const command = parseRunCommand(process.argv.slice(3));
+    const run = await createRun(command.task, command.mode);
     process.stdout.write(`${run.id}\t${run.status}\n`);
     return;
   }
