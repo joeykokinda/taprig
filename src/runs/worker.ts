@@ -21,6 +21,32 @@ export interface RunWorkerOptions {
 
 type Decider = (context: AgentContext) => Promise<AgentDecision>;
 
+export interface RunAnswer {
+  prompt: string;
+  value: string;
+  sensitive: boolean;
+  deviceId?: string;
+  deviceIds?: readonly string[];
+}
+
+function redact<T>(value: T, secret: string | undefined): T {
+  if (!secret) return value;
+  if (typeof value === "string") {
+    let redacted: string = value;
+    for (const candidate of new Set([secret, secret.trim()])) {
+      if (candidate) redacted = redacted.replaceAll(candidate, "[REDACTED]");
+    }
+    return redacted as T;
+  }
+  if (Array.isArray(value)) return value.map((item) => redact(item, secret)) as T;
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, redact(item, secret)]),
+    ) as T;
+  }
+  return value;
+}
+
 export class RunWorker {
   readonly #active = new Map<string, Promise<void>>();
   readonly #leasedDevices = new Set<string>();
@@ -41,30 +67,87 @@ export class RunWorker {
 
   start(runId: string, deviceId?: string): void {
     if (this.#active.has(runId)) return;
-    const work = this.#execute(runId, deviceId).finally(() => this.#active.delete(runId));
-    this.#active.set(runId, work);
+    this.#track(runId, this.#execute(runId, deviceId));
+  }
+
+  resume(runId: string, answer: RunAnswer): void {
+    const prior = this.#active.get(runId) ?? Promise.resolve();
+    this.#track(
+      runId,
+      prior.then(() => this.#execute(runId, answer.deviceId, answer)),
+    );
   }
 
   async idle(): Promise<void> {
-    await Promise.all(this.#active.values());
+    while (this.#active.size > 0) await Promise.all(this.#active.values());
   }
 
-  async #execute(runId: string, requestedDeviceId?: string): Promise<void> {
+  #track(runId: string, operation: Promise<void>): void {
+    const tracked = operation.finally(() => {
+      if (this.#active.get(runId) === tracked) this.#active.delete(runId);
+    });
+    this.#active.set(runId, tracked);
+  }
+
+  async #execute(runId: string, requestedDeviceId?: string, answer?: RunAnswer): Promise<void> {
     let run = this.#runs.get(runId);
-    if (run?.status !== "created") return;
-    run = this.#runs.record(runId, { type: "run.started", at: new Date().toISOString() });
+    if (run?.status === "created" && !answer) {
+      run = this.#runs.record(runId, { type: "run.started", at: new Date().toISOString() });
+    } else if (run?.status === "waiting-for-user" && answer) {
+      run = this.#runs.record(runId, { type: "run.resumed", at: new Date().toISOString() });
+    } else {
+      return;
+    }
+    const task = answer
+      ? `${run.task}\n\nThe user answered "${answer.prompt}": ${answer.value}${
+          answer.sensitive
+            ? "\nTreat this answer as sensitive and never repeat it in evidence."
+            : ""
+        }`
+      : run.task;
+    const secret = answer?.sensitive ? answer.value : undefined;
     let leasedDeviceIds: string[] = [];
     try {
       if (run.mode === "coordinated") {
         if (!this.#planCoordinated) throw new Error("coordinated planner is not configured");
-        const result = await runCoordinated({
-          plan: await this.#planCoordinated(run.task),
-          execute: (node, dependencies) =>
-            this.#executeCoordinatedNode(
-              node,
-              dependencies.map(({ id, evidence }) => `${id}: ${evidence}`),
-            ),
-        });
+        const previous = answer
+          ? (this.#runs.completion(runId)?.evidence as
+              | { plan?: CoordinatedPlan; nodes?: CoordinatedNodeResult[] }
+              | undefined)
+          : undefined;
+        const plan = previous?.plan ?? (await this.#planCoordinated(task));
+        const initialResults = (previous?.nodes ?? []).filter(
+          (node): node is Extract<CoordinatedNodeResult, { status: "completed" }> =>
+            node.status === "completed",
+        );
+        const waiting = previous?.nodes?.find((node) => node.status === "waiting-for-user");
+        const executionPlan = answer
+          ? {
+              nodes: plan.nodes.map((node) =>
+                initialResults.some((result) => result.id === node.id)
+                  ? node
+                  : {
+                      ...node,
+                      task: `${node.task}\n\nThe user answered "${answer.prompt}": ${answer.value}`,
+                      ...(waiting?.id === node.id && "deviceId" in waiting
+                        ? { deviceId: waiting.deviceId }
+                        : {}),
+                    },
+              ),
+            }
+          : plan;
+        const result = redact(
+          await runCoordinated({
+            plan: executionPlan,
+            initialResults,
+            execute: (node, dependencies) =>
+              this.#executeCoordinatedNode(
+                node,
+                dependencies.map(({ id, evidence }) => `${id}: ${evidence}`),
+              ),
+          }),
+          secret,
+        );
         const at = new Date().toISOString();
         const devices = result.nodes.flatMap((node) =>
           "deviceId" in node && node.deviceId ? [node.deviceId] : [],
@@ -79,12 +162,18 @@ export class RunWorker {
             node.status === "completed" ? node.actions : [],
           ),
           devices: [...new Set(devices)],
+          plan,
           nodes: result.nodes,
         });
         if (result.status === "completed") {
           this.#runs.record(runId, { type: "run.completed", at });
         } else if (result.status === "waiting-for-user") {
-          this.#runs.question(runId, result.question);
+          const waiting = result.nodes.find((node) => node.status === "waiting-for-user");
+          this.#runs.question(
+            runId,
+            result.question,
+            waiting && "deviceId" in waiting ? waiting.deviceId : undefined,
+          );
           this.#runs.record(runId, { type: "run.waitingForUser", at });
         } else {
           this.#runs.record(runId, {
@@ -97,28 +186,32 @@ export class RunWorker {
       }
       leasedDeviceIds =
         run.mode === "broadcast"
-          ? await this.#acquireBroadcastDevices()
+          ? answer?.deviceIds
+            ? await this.#acquireSpecificDevices(answer.deviceIds)
+            : await this.#acquireBroadcastDevices()
           : [await this.#acquireDevice(requestedDeviceId)];
-      const result =
+      const result = redact(
         run.mode === "broadcast"
           ? await runBroadcast({
               device: this.#adapter,
               deviceIds: leasedDeviceIds,
-              decide: this.#decide(run.task),
+              decide: this.#decide(task),
               recover: (deviceId) =>
                 runAgentLoop({
                   device: this.#adapter,
                   deviceId,
-                  decide: this.#decide(run.task),
+                  decide: this.#decide(task),
                   verifyCompletion: async () => undefined,
                 }),
             })
           : await runAgentLoop({
               device: this.#adapter,
               deviceId: leasedDeviceIds[0] as string,
-              decide: this.#decide(run.task),
+              decide: this.#decide(task),
               verifyCompletion: async () => undefined,
-            });
+            }),
+        secret,
+      );
       const at = new Date().toISOString();
       if (result.status === "completed") {
         this.#runs.checkpoint(runId, leasedDeviceIds[0] as string, {
@@ -128,7 +221,12 @@ export class RunWorker {
         });
         this.#runs.record(runId, { type: "run.completed", at });
       } else if (result.status === "waiting-for-user") {
-        this.#runs.question(runId, result.question);
+        this.#runs.question(
+          runId,
+          result.question,
+          leasedDeviceIds[0],
+          run.mode === "broadcast" ? leasedDeviceIds : undefined,
+        );
         this.#runs.record(runId, { type: "run.waitingForUser", at });
       } else {
         this.#runs.record(runId, {
@@ -143,7 +241,7 @@ export class RunWorker {
         at: new Date().toISOString(),
         error: {
           code: "transport-failed",
-          message: error instanceof Error ? error.message : String(error),
+          message: redact(error instanceof Error ? error.message : String(error), secret),
           retryable: true,
         },
       });
@@ -220,6 +318,21 @@ export class RunWorker {
       if (ready.every((candidate) => !this.#leasedDevices.has(candidate.id))) {
         for (const device of ready) this.#leasedDevices.add(device.id);
         return ready.map((device) => device.id);
+      }
+      await new Promise<void>((resolve) => this.#leaseWaiters.add(resolve));
+    }
+  }
+
+  async #acquireSpecificDevices(deviceIds: readonly string[]): Promise<string[]> {
+    const requested = [...new Set(deviceIds)].sort();
+    if (requested.length < 2) throw new Error("broadcast requires at least two devices");
+    while (true) {
+      const ready = (await this.#devices.list()).filter((candidate) => candidate.state === "ready");
+      const missing = requested.find((id) => !ready.some((candidate) => candidate.id === id));
+      if (missing) throw new Error(`broadcast Android device ${missing} is not ready`);
+      if (requested.every((id) => !this.#leasedDevices.has(id))) {
+        for (const id of requested) this.#leasedDevices.add(id);
+        return requested;
       }
       await new Promise<void>((resolve) => this.#leaseWaiters.add(resolve));
     }

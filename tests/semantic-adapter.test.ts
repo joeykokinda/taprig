@@ -69,3 +69,33 @@ test("executes a typed raw action and verifies the semantic state changed", asyn
   assert.deepEqual(actions, [{ type: "app.launch", packageName: "com.android.settings" }]);
   assert.equal(result.steps[0]?.status, "verified");
 });
+
+test("executes semantic text entry and verifies the state changed", async () => {
+  const observations = [observation("before"), observation("after")];
+  const entries: Array<{ value: string; clear: boolean }> = [];
+  const adapter = new AndroidSemanticAdapter(
+    async () => observations.shift() ?? observation("after"),
+    async () => {},
+    async () => {},
+    async (_deviceId, _observation, _target, value, clear) => {
+      entries.push({ value, clear });
+    },
+  );
+  const result = await adapter.execute({
+    ...batch,
+    requestId: "text-request",
+    steps: [
+      {
+        id: "code",
+        action: {
+          type: "element.text",
+          target: { resourceId: "code" },
+          value: "123456",
+          clear: true,
+        },
+      },
+    ],
+  });
+  assert.deepEqual(entries, [{ value: "123456", clear: true }]);
+  assert.equal(result.steps[0]?.status, "verified");
+});

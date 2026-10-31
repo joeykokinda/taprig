@@ -100,7 +100,11 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
       execute: executeRawAction,
       runs,
       ...(worker
-        ? { startRun: (runId: string, deviceId?: string) => worker.start(runId, deviceId) }
+        ? {
+            startRun: (runId: string, deviceId?: string) => worker.start(runId, deviceId),
+            resumeRun: (runId: string, answer: Parameters<typeof worker.resume>[1]) =>
+              worker.resume(runId, answer),
+          }
         : {}),
       scripts,
       stream: (serial) =>

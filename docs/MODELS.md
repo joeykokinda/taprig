@@ -30,7 +30,8 @@ The daemon enables its run worker only when the selected provider's key is in
 its environment. For the default provider, export `OPENAI_API_KEY` before
 starting the daemon. Each decision receives the task, a bounded current semantic
 observation, and the previous verified batch result; the model returns only a
-typed launch, key, semantic tap, completion, question, or failure decision.
+typed launch, key, semantic tap/text entry, completion, question, or failure
+decision.
 
 Routing is deterministic and budgeted. `fast` handles ordinary semantic
 decisions, `strong` is available only for explicit escalation, and `vision` is
@@ -38,6 +39,22 @@ available only when semantic/local perception is insufficient. A route returns
 no model when its budget is exhausted; callers must recover, ask, or fail rather
 than silently spend through the limit.
 
-The current worker uses the `fast` route. Independent runs lease distinct ready
-devices and execute concurrently; excess runs wait for a lease. Strong/vision
-escalation and broadcast/coordinated planning remain roadmap items.
+Device workers use the `fast` route. Independent runs lease distinct ready
+devices and execute concurrently; excess runs wait for a lease. Broadcast runs
+share one bounded plan, while coordinated runs use the budgeted `strong` route
+when available and otherwise fall back to `fast`. Vision escalation remains a
+roadmap item.
+
+When a worker asks a question, the answer resumes the durable run against the
+same ready phone. Ordinary answers are retained with the question. Answers
+marked sensitive are never stored in SQLite: the loopback daemon moves the
+exact value through a one-time scoped in-memory credential, sends it to the
+configured model provider for the resumed decision, and redacts that exact
+value from checkpoints, questions, and errors.
+
+Until the event-driven Android driver lands, text entry uses Android's stock
+`input text`/`keycombination` commands. TapRig accepts only a bounded shell-safe
+ASCII subset in that fallback and encodes spaces as `%s`, matching the
+[AOSP input implementation](https://android.googlesource.com/platform/frameworks/base/+/master/services/core/java/com/android/server/input/InputShellCommand.java).
+Unicode and broader punctuation fail closed instead of being interpolated into
+a device shell; the accessibility driver remains the path to full text support.

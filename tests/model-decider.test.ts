@@ -23,6 +23,7 @@ test("turns strict model output into a locally identified typed tap", async () =
                 actionType: "tap",
                 selectorType: "text",
                 value: "Settings",
+                input: null,
                 role: null,
               },
             ],
@@ -43,5 +44,56 @@ test("turns strict model output into a locally identified typed tap", async () =
   assert.equal(decision.type, "execute");
   assert.deepEqual(decision.type === "execute" ? decision.steps : [], [
     { id: "open", action: { type: "element.tap", target: { text: "Settings" } } },
+  ]);
+});
+
+test("turns model text entry into a typed clearing semantic action", async () => {
+  const decide = createModelDecider(
+    "Enter the code",
+    { provider: "openai", model: "test-model" },
+    { type: "openai", apiKeyEnv: "TEST_KEY", baseUrl: "https://example.test/v1" },
+    { TEST_KEY: "secret" },
+    async () =>
+      new Response(
+        JSON.stringify({
+          output_text: JSON.stringify({
+            type: "execute",
+            evidence: null,
+            question: null,
+            reason: null,
+            steps: [
+              {
+                id: "code",
+                actionType: "text",
+                selectorType: "resourceId",
+                value: "code-input",
+                input: "123456",
+                role: null,
+              },
+            ],
+          }),
+        }),
+        { status: 200 },
+      ),
+  );
+  const decision = await decide({
+    decisionNumber: 0,
+    observation: {
+      deviceId: "phone-1",
+      generation: "one",
+      capturedAt: "2026-10-30T16:00:00.000Z",
+      elements: [{ id: "node-1", role: "EditText", resourceId: "code-input", actionable: true }],
+    },
+  });
+  assert.deepEqual(decision.type === "execute" ? decision.steps : [], [
+    {
+      id: "code",
+      action: {
+        type: "element.text",
+        target: { resourceId: "code-input" },
+        value: "123456",
+        clear: true,
+      },
+    },
   ]);
 });

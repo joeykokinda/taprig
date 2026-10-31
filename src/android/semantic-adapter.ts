@@ -9,10 +9,11 @@ import type {
   TapRigError,
 } from "../core/contracts.ts";
 import { executeRawAction } from "./raw-actions.ts";
-import { observeSemantics, tapSemanticElement } from "./semantic.ts";
+import { observeSemantics, tapSemanticElement, typeSemanticElement } from "./semantic.ts";
 
 type Observe = (deviceId: DeviceId) => Promise<Observation>;
 type Tap = typeof tapSemanticElement;
+type Text = typeof typeSemanticElement;
 type Raw = (deviceId: DeviceId, action: Action) => Promise<void>;
 
 function failure(code: TapRigError["code"], message: string): TapRigError {
@@ -23,16 +24,19 @@ export class AndroidSemanticAdapter implements DeviceAdapter {
   readonly #results = new Map<string, BatchResult>();
   readonly #observe: Observe;
   readonly #tap: Tap;
+  readonly #text: Text;
   readonly #raw: Raw;
 
   constructor(
     observe: Observe = observeSemantics,
     tap: Tap = tapSemanticElement,
     raw: Raw = executeRawAction,
+    text: Text = typeSemanticElement,
   ) {
     this.#observe = observe;
     this.#tap = tap;
     this.#raw = raw;
+    this.#text = text;
   }
 
   observe(deviceId: DeviceId): Promise<Observation> {
@@ -57,7 +61,7 @@ export class AndroidSemanticAdapter implements DeviceAdapter {
         steps.push({ stepId: step.id, status: "skipped", durationMs: 0 });
         continue;
       }
-      if (step.action.type === "element.longTap" || step.action.type === "element.text") {
+      if (step.action.type === "element.longTap") {
         steps.push({
           stepId: step.id,
           status: "failed",
@@ -71,6 +75,14 @@ export class AndroidSemanticAdapter implements DeviceAdapter {
       try {
         if (step.action.type === "element.tap") {
           await this.#tap(batch.deviceId, observation, step.action.target);
+        } else if (step.action.type === "element.text") {
+          await this.#text(
+            batch.deviceId,
+            observation,
+            step.action.target,
+            step.action.value,
+            step.action.clear ?? false,
+          );
         } else {
           await this.#raw(batch.deviceId, step.action);
         }

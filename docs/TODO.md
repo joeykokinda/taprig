@@ -7,11 +7,11 @@ This is the ordered product queue. The canonical architecture remains in
 
 - Foundation/runtime: **95%**
 - Physical Android control: **60%**
-- Agent loop: **55%**
+- Agent loop: **65%**
 - Fleet orchestration: **60%**
 - Desktop application: **45%**
 - Public website/distribution: **45%**
-- Complete launch-ready product: **63%**
+- Complete launch-ready product: **65%**
 
 Percentages describe demonstrated functionality, not lines of code.
 
@@ -39,6 +39,7 @@ Percentages describe demonstrated functionality, not lines of code.
 - [x] Build interactive `taprig` task session and `attach` flow.
 - [x] Add model-provider configuration and Economy/Balanced/Best routing.
 - [x] Connect independent natural-language runs to the bounded ready-device worker.
+- [x] Answer and resume durable agent questions without persisting sensitive values.
 - [x] Build scripts: create, inspect, run, verify, and emit a typed recovery handoff.
 - [x] Connect script mismatch recovery and successful-run promotion to the agent worker.
 - [x] Serve the control-room web UI from the local daemon.

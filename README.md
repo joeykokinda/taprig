@@ -66,10 +66,12 @@ npm run taprig -- run "Open Settings"  # create a durable run
 npm run taprig -- run --mode coordinated "Split this workflow across the fleet"
 npm run taprig -- runs                  # list runs
 npm run taprig -- attach <run-id>       # inspect state and ordered events
+npm run taprig -- answer <run-id> <question-id> "Personal account"
+npm run taprig -- answer <run-id> <question-id> --sensitive "123456"
 ```
 
-Set the provider key in the daemon environment, restart it, and new independent
-runs execute through the bounded semantic worker. Without a configured key,
+Set the provider key in the daemon environment, restart it, and new runs execute
+through the bounded semantic workers. Without a configured key,
 runs remain `created`; TapRig never reports execution before verified device
 evidence exists.
 

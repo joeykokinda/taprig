@@ -248,3 +248,222 @@ test("a coordinated run leases parallel phones and persists node results", async
   );
   store.close();
 });
+
+test("a worker resumes a waiting run on the same phone with the durable answer", async () => {
+  const store = new TapRigStore(":memory:");
+  const runs = new RunService(store);
+  const run = runs.create("Choose an account");
+  const tasks: string[] = [];
+  const worker = new RunWorker({
+    runs,
+    devices: { list: async () => [{ id: "phone-1", serial: "phone-1", state: "ready" }] },
+    adapter: {
+      observe: async (deviceId) => ({ ...observation("current"), deviceId }),
+      execute: async () => {
+        throw new Error("unused");
+      },
+    },
+    decide: (task) => async () => {
+      tasks.push(task);
+      return task.includes("The user answered")
+        ? { type: "complete", evidence: "Personal account selected" }
+        : { type: "ask_user", question: "Which account should I use?" };
+    },
+  });
+  worker.start(run.id);
+  await worker.idle();
+
+  const question = runs.questions(run.id)[0];
+  assert.equal(runs.get(run.id)?.status, "waiting-for-user");
+  assert.equal(question?.deviceId, "phone-1");
+  assert.ok(question);
+  runs.answer(run.id, question.id, "Personal");
+  worker.resume(run.id, {
+    prompt: question.prompt,
+    value: "Personal",
+    sensitive: false,
+    deviceId: question.deviceId,
+  });
+  await worker.idle();
+
+  assert.equal(runs.get(run.id)?.status, "completed");
+  assert.match(tasks[1] ?? "", /Personal/);
+  assert.deepEqual(
+    runs.events(run.id).map(({ event }) => event.type),
+    ["run.created", "run.started", "run.waitingForUser", "run.resumed", "run.completed"],
+  );
+  store.close();
+});
+
+test("a resumed sensitive answer reaches the phone but is redacted from evidence", async () => {
+  const store = new TapRigStore(":memory:");
+  const runs = new RunService(store);
+  const run = runs.create("Enter the one-time code");
+  const typed: string[] = [];
+  const worker = new RunWorker({
+    runs,
+    devices: { list: async () => [{ id: "phone-1", serial: "phone-1", state: "ready" }] },
+    adapter: {
+      observe: async (deviceId) => ({ ...observation("current"), deviceId }),
+      execute: async (batch) => {
+        const action = batch.steps[0]?.action;
+        if (action?.type === "element.text") typed.push(action.value);
+        return {
+          requestId: batch.requestId,
+          deviceId: batch.deviceId,
+          replayed: false,
+          steps: [{ stepId: "code", status: "verified", durationMs: 1 }],
+        };
+      },
+    },
+    decide:
+      (task) =>
+      async ({ decisionNumber }) => {
+        if (!task.includes("The user answered")) {
+          return { type: "ask_user", question: "What is the one-time code?" };
+        }
+        return decisionNumber === 0
+          ? {
+              type: "execute",
+              requestId: "type-code",
+              steps: [
+                {
+                  id: "code",
+                  action: {
+                    type: "element.text",
+                    target: { resourceId: "code" },
+                    value: " 123456 ",
+                    clear: true,
+                  },
+                },
+              ],
+            }
+          : { type: "complete", evidence: "Code 123456 accepted" };
+      },
+  });
+  worker.start(run.id);
+  await worker.idle();
+  const question = runs.questions(run.id)[0];
+  assert.ok(question);
+  assert.equal(question.deviceId, "phone-1");
+  runs.answer(run.id, question.id, " 123456 ", true);
+  worker.resume(run.id, {
+    prompt: question.prompt,
+    value: " 123456 ",
+    sensitive: true,
+    deviceId: question.deviceId,
+  });
+  await worker.idle();
+
+  assert.deepEqual(typed, [" 123456 "]);
+  const persisted = JSON.stringify(runs.completion(run.id)?.evidence);
+  assert.equal(persisted.includes("123456"), false);
+  assert.match(persisted, /REDACTED/);
+  store.close();
+});
+
+test("a coordinated resume keeps completed nodes and continues the waiting branch", async () => {
+  const store = new TapRigStore(":memory:");
+  const runs = new RunService(store);
+  const run = runs.create("Coordinate with one answer", "coordinated");
+  const calls = new Map<string, number>();
+  const worker = new RunWorker({
+    runs,
+    devices: {
+      list: async () => [
+        { id: "phone-1", serial: "phone-1", state: "ready" },
+        { id: "phone-2", serial: "phone-2", state: "ready" },
+      ],
+    },
+    adapter: {
+      observe: async (deviceId) => ({ ...observation("current"), deviceId }),
+      execute: async () => {
+        throw new Error("unused");
+      },
+    },
+    planCoordinated: async () => ({
+      nodes: [
+        { id: "done", task: "Done", dependsOn: [] },
+        { id: "ask", task: "Ask", dependsOn: [] },
+        { id: "after", task: "After", dependsOn: ["done", "ask"] },
+      ],
+    }),
+    decide: (task) => async () => {
+      const name = task.split("\n", 1)[0] as string;
+      calls.set(name, (calls.get(name) ?? 0) + 1);
+      if (name === "Ask" && !task.includes("The user answered")) {
+        return { type: "ask_user", question: "Which account?" };
+      }
+      return { type: "complete", evidence: `${name} complete` };
+    },
+  });
+  worker.start(run.id);
+  await worker.idle();
+  const question = runs.questions(run.id)[0];
+  assert.ok(question);
+  runs.answer(run.id, question.id, "Personal");
+  worker.resume(run.id, {
+    prompt: question.prompt,
+    value: "Personal",
+    sensitive: false,
+    ...(question.deviceId ? { deviceId: question.deviceId } : {}),
+  });
+  await worker.idle();
+
+  assert.equal(runs.get(run.id)?.status, "completed");
+  assert.equal(calls.get("Done"), 1);
+  assert.equal(calls.get("Ask"), 2);
+  assert.equal(calls.get("After"), 1);
+  store.close();
+});
+
+test("a broadcast resume keeps its original phone cohort", async () => {
+  const store = new TapRigStore(":memory:");
+  const runs = new RunService(store);
+  const run = runs.create("Broadcast after one answer", "broadcast");
+  let includeThird = false;
+  const observed = new Set<string>();
+  const worker = new RunWorker({
+    runs,
+    devices: {
+      list: async () => [
+        { id: "phone-1", serial: "phone-1", state: "ready" },
+        { id: "phone-2", serial: "phone-2", state: "ready" },
+        ...(includeThird ? [{ id: "phone-3", serial: "phone-3", state: "ready" }] : []),
+      ],
+    },
+    adapter: {
+      observe: async (deviceId) => {
+        observed.add(deviceId);
+        return { ...observation("current"), deviceId };
+      },
+      execute: async () => {
+        throw new Error("unused");
+      },
+    },
+    decide: (task) => async () =>
+      task.includes("The user answered")
+        ? { type: "complete", evidence: "Broadcast complete" }
+        : { type: "ask_user", question: "Continue?" },
+  });
+  worker.start(run.id);
+  await worker.idle();
+  const question = runs.questions(run.id)[0];
+  assert.ok(question);
+  assert.deepEqual(question.deviceIds, ["phone-1", "phone-2"]);
+  runs.answer(run.id, question.id, "Yes");
+  includeThird = true;
+  observed.clear();
+  worker.resume(run.id, {
+    prompt: question.prompt,
+    value: "Yes",
+    sensitive: false,
+    ...(question.deviceId ? { deviceId: question.deviceId } : {}),
+    ...(question.deviceIds ? { deviceIds: question.deviceIds } : {}),
+  });
+  await worker.idle();
+
+  assert.equal(runs.get(run.id)?.status, "completed");
+  assert.deepEqual([...observed].sort(), ["phone-1", "phone-2"]);
+  store.close();
+});

@@ -18,15 +18,16 @@ const decisionSchema = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["id", "actionType", "selectorType", "value", "role"],
+        required: ["id", "actionType", "selectorType", "value", "input", "role"],
         properties: {
           id: { type: "string", minLength: 1, maxLength: 80 },
-          actionType: { type: "string", enum: ["tap", "launch", "key"] },
+          actionType: { type: "string", enum: ["tap", "text", "launch", "key"] },
           selectorType: {
             type: "string",
             enum: ["text", "description", "resourceId", "elementId"],
           },
           value: { type: "string", minLength: 1, maxLength: 500 },
+          input: { type: ["string", "null"], minLength: 1, maxLength: 10_000 },
           role: { type: ["string", "null"], maxLength: 120 },
         },
       },
@@ -41,9 +42,10 @@ type ModelDecision = {
   reason: string | null;
   steps: Array<{
     id: string;
-    actionType: "tap" | "launch" | "key";
+    actionType: "tap" | "text" | "launch" | "key";
     selectorType: "text" | "description" | "resourceId" | "elementId";
     value: string;
+    input: string | null;
     role: string | null;
   }>;
 };
@@ -91,6 +93,13 @@ function parseDecision(value: unknown): AgentDecision {
               ? { elementId: value }
               : undefined;
     if (!target) throw new Error("model returned an invalid selector");
+    if (step.actionType === "text") {
+      if (step.input === null) throw new Error("model returned text without input");
+      return {
+        id: step.id.trim(),
+        action: { type: "element.text" as const, target, value: step.input, clear: true },
+      };
+    }
     return { id: step.id.trim(), action: { type: "element.tap" as const, target } };
   });
   return { type: "execute", requestId: randomUUID(), steps };
@@ -124,7 +133,7 @@ export function createModelDecider(
       schemaName: "taprig_phone_decision",
       schema: decisionSchema,
       system:
-        "You control one Android phone with typed launch, key, and exact semantic tap actions. For taps choose only visible selectors. Use a known Android package name for launch and back, home, recents, enter, or delete for keys; put that value in value and set unused selector fields to text/null. Take at most three short actions, then observe again. Mark complete only when the current UI visibly proves the user's task. Ask one precise question when required information is missing. Never guess success.",
+        "You control one Android phone with typed launch, key, semantic tap, and text-entry actions. For tap/text choose only a visible selector in value; for text put the exact text in input. For launch/key put the package or key in value. Set input null when unused. Take at most three short actions, then observe again. Mark complete only when the current UI visibly proves the user's task. Ask one precise question when required information is missing. Never repeat sensitive input in evidence and never guess success.",
       input: JSON.stringify({ task, decisionNumber: context.decisionNumber, observation }),
     });
     return parseDecision(response.value);

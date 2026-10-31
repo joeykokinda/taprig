@@ -8,6 +8,7 @@ import { TakeoverLeases } from "../control/takeover.ts";
 import type { Action, RunMode } from "../core/contracts.ts";
 import type { RunService } from "../runs/service.ts";
 import type { ScriptService } from "../scripts/service.ts";
+import { CredentialBroker } from "../security/credential-broker.ts";
 import type { LiveMjpegStream } from "../video/live-stream.ts";
 
 export interface DaemonDevice {
@@ -28,6 +29,17 @@ export interface TapRigDaemonOptions {
   execute?: (serial: string, action: Action) => Promise<void>;
   runs?: RunService;
   startRun?: (runId: string, deviceId?: string) => void;
+  resumeRun?: (
+    runId: string,
+    answer: {
+      prompt: string;
+      value: string;
+      sensitive: boolean;
+      deviceId?: string;
+      deviceIds?: readonly string[];
+    },
+  ) => void;
+  credentials?: CredentialBroker;
   scripts?: ScriptService;
   stream?: (serial: string) => Promise<LiveMjpegStream>;
   manualTap?: (serial: string, xRatio: number, yRatio: number) => Promise<void>;
@@ -81,6 +93,7 @@ export async function startDaemon(options: TapRigDaemonOptions): Promise<Running
   const pendingBrowserSessions = new Map<string, number>();
   const browserSessions = new Map<string, number>();
   const takeover = new TakeoverLeases();
+  const credentials = options.credentials ?? new CredentialBroker();
   const configuredControlRoom = process.env.TAPRIG_CONTROL_ROOM;
   if (configuredControlRoom && !isAbsolute(configuredControlRoom)) {
     throw new Error("TAPRIG_CONTROL_ROOM must be an absolute path");
@@ -308,6 +321,59 @@ export async function startDaemon(options: TapRigDaemonOptions): Promise<Running
           return;
         }
         response.end(JSON.stringify({ events: options.runs.events(runId, after) }));
+        return;
+      }
+      const questionsRoute = /^\/runs\/([^/]+)\/questions$/u.exec(url.pathname);
+      if (request.method === "GET" && questionsRoute?.[1]) {
+        try {
+          const runId = decodeURIComponent(questionsRoute[1]);
+          response.end(JSON.stringify({ questions: options.runs?.questions(runId) ?? [] }));
+        } catch {
+          response.statusCode = 404;
+          response.end(JSON.stringify({ error: "run-not-found" }));
+        }
+        return;
+      }
+      const answerRoute = /^\/runs\/([^/]+)\/questions\/([^/]+)\/answer$/u.exec(url.pathname);
+      if (request.method === "POST" && answerRoute?.[1] && answerRoute[2]) {
+        if (!options.runs || !options.resumeRun) throw new Error("run answers are unavailable");
+        try {
+          const runId = decodeURIComponent(answerRoute[1]);
+          const questionId = decodeURIComponent(answerRoute[2]);
+          const body = (await jsonBody(request)) as { answer?: unknown; sensitive?: unknown };
+          if (
+            typeof body.answer !== "string" ||
+            (body.sensitive !== undefined && typeof body.sensitive !== "boolean")
+          ) {
+            throw new Error("invalid answer");
+          }
+          const open = options.runs
+            .questions(runId)
+            .find((question) => question.id === questionId && question.status === "open");
+          if (!open) throw new Error("question is not open");
+          const sensitive = body.sensitive === true;
+          let value = body.answer;
+          if (sensitive) {
+            const scope = {
+              deviceId: open.deviceId ?? `run:${runId}`,
+              purpose: `answer:${questionId}`,
+            };
+            const secret = credentials.store(value, scope, { oneTime: true });
+            value = credentials.access(secret, scope);
+          }
+          const question = options.runs.answer(runId, questionId, value, sensitive);
+          options.resumeRun(runId, {
+            prompt: question.prompt,
+            value,
+            sensitive,
+            ...(question.deviceId ? { deviceId: question.deviceId } : {}),
+            ...(question.deviceIds ? { deviceIds: question.deviceIds } : {}),
+          });
+          response.end(JSON.stringify({ question }));
+        } catch {
+          response.statusCode = 400;
+          response.end(JSON.stringify({ error: "invalid-answer" }));
+        }
         return;
       }
       const promotionRoute = /^\/runs\/([^/]+)\/promote$/u.exec(url.pathname);

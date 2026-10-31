@@ -673,7 +673,8 @@ execute and verify reversible actions, and take over manually.
 - [x] Interactive CLI and run attachment.
 - [x] Provider configuration and model profiles.
 - [x] Built-in observe/decide/execute/verify/recover loop.
-- [ ] Questions, approvals, budgets, artifacts, and replay.
+- [x] Durable questions and answer/resume flow.
+- [ ] Approvals, budgets, artifacts, and replay.
 - [x] User script creation, inspection, testing, and deterministic execution.
 - [ ] Full main workspace and onboarding.
 - [x] MCP adapter.

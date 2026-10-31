@@ -6,6 +6,7 @@ import {
   parseUiHierarchy,
   resolveElement,
   tapSemanticElement,
+  typeSemanticElement,
 } from "../src/android/semantic.ts";
 
 const hierarchy = `UI hierchary dumped to: /dev/tty
@@ -83,6 +84,38 @@ test("associates a child label with its clickable parent", async () => {
     args = next;
   });
   assert.deepEqual(args, ["input", "tap", "360", "260"]);
+});
+
+test("types bounded shell-safe ASCII into one semantic target", async () => {
+  const observation = parseUiHierarchy("phone-1", hierarchy);
+  const calls: string[][] = [];
+  await typeSemanticElement(
+    "phone-1",
+    observation,
+    { text: "Network & internet" },
+    "joey@example.com code",
+    true,
+    async (_serial, args) => {
+      calls.push([...args]);
+    },
+  );
+  assert.deepEqual(calls, [
+    ["input", "tap", "360", "230"],
+    ["input", "keycombination", "KEYCODE_CTRL_LEFT", "KEYCODE_A"],
+    ["input", "keyevent", "KEYCODE_DEL"],
+    ["input", "text", "joey@example.com%scode"],
+  ]);
+  await assert.rejects(
+    typeSemanticElement(
+      "phone-1",
+      observation,
+      { text: "Network & internet" },
+      "unsafe;command",
+      false,
+      async () => {},
+    ),
+    /safe ASCII/,
+  );
 });
 
 test("rejects missing, ambiguous, and untappable semantic targets", async () => {

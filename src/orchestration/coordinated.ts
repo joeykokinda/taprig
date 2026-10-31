@@ -30,6 +30,7 @@ export type CoordinatedResult =
 
 export interface CoordinatedOptions {
   plan: CoordinatedPlan;
+  initialResults?: readonly Extract<CoordinatedNodeResult, { status: "completed" }>[];
   execute(
     node: CoordinatedNode,
     dependencies: readonly Extract<CoordinatedNodeResult, { status: "completed" }>[],
@@ -78,7 +79,20 @@ export function validateCoordinatedPlan(plan: CoordinatedPlan): void {
 
 export async function runCoordinated(options: CoordinatedOptions): Promise<CoordinatedResult> {
   validateCoordinatedPlan(options.plan);
+  const nodeIds = new Set(options.plan.nodes.map((node) => node.id));
   const results = new Map<string, CoordinatedNodeResult>();
+  for (const result of options.initialResults ?? []) {
+    if (!nodeIds.has(result.id) || results.has(result.id)) {
+      throw new Error(`invalid initial coordinated result ${result.id}`);
+    }
+    results.set(result.id, result);
+  }
+  for (const result of results.values()) {
+    const node = options.plan.nodes.find((candidate) => candidate.id === result.id);
+    if (!node?.dependsOn.every((id) => results.has(id))) {
+      throw new Error(`initial coordinated result ${result.id} is missing a dependency`);
+    }
+  }
 
   while (results.size < options.plan.nodes.length) {
     for (const node of options.plan.nodes) {

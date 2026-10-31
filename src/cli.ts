@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { createInterface } from "node:readline/promises";
 
 import { type AdbDevice, formatAdbDevices } from "./android/adb-discovery.ts";
+import { parseAnswerCommand } from "./answer-command.ts";
 import type { RunEvent, RunMode, RunState } from "./core/contracts.ts";
 import {
   daemonRequest,
@@ -68,21 +69,42 @@ function printRuns(runs: readonly RunState[]): void {
 }
 
 async function showRun(id: string): Promise<void> {
-  const [{ run }, { events }] = await Promise.all([
+  const [{ run }, { events }, { questions }] = await Promise.all([
     daemonJson<{ run: RunState }>(`/runs/${encodeURIComponent(id)}`),
     daemonJson<{ events: Array<{ sequence: number; event: RunEvent }> }>(
       `/runs/${encodeURIComponent(id)}/events`,
     ),
+    daemonJson<{
+      questions: Array<{ id: string; prompt: string; status: string; sensitive?: boolean }>;
+    }>(`/runs/${encodeURIComponent(id)}/questions`),
   ]);
   process.stdout.write(`${run.id} · ${run.status} · ${run.mode}\n${run.task}\n`);
   for (const item of events) process.stdout.write(`  ${item.sequence}  ${item.event.type}\n`);
+  for (const question of questions) {
+    process.stdout.write(
+      `  question ${question.id}  ${question.status}  ${question.prompt}${question.sensitive ? " [sensitive answer]" : ""}\n`,
+    );
+  }
+}
+
+async function answerQuestion(args: readonly string[]): Promise<void> {
+  const command = parseAnswerCommand(args);
+  await daemonJson(
+    `/runs/${encodeURIComponent(command.runId)}/questions/${encodeURIComponent(command.questionId)}/answer`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ answer: command.answer, sensitive: command.sensitive }),
+    },
+  );
+  process.stdout.write(`Answered ${command.questionId}; run ${command.runId} resumed.\n`);
 }
 
 async function interactiveSession(): Promise<void> {
   const devices = await loadDevices();
   process.stdout.write(
     `TapRig · ${devices.length} device${devices.length === 1 ? "" : "s"} connected\n` +
-      "Type a task, or /mode <mode>, /devices, /runs, /attach <run-id>, /quit.\n\n",
+      "Type a task, or /mode, /devices, /runs, /attach, /answer, /quit.\n\n",
   );
   let mode: RunMode = "independent";
   const terminal = createInterface({ input: process.stdin, output: process.stdout });
@@ -114,6 +136,10 @@ async function interactiveSession(): Promise<void> {
       }
       if (line.startsWith("/attach ")) {
         await showRun(line.slice(8).trim());
+        continue;
+      }
+      if (line.startsWith("/answer ")) {
+        await answerQuestion(line.slice(8).trim().split(/\s+/u));
         continue;
       }
       if (line.startsWith("/")) {
@@ -322,6 +348,10 @@ async function main(): Promise<void> {
     const id = process.argv[3];
     if (!id) throw new Error("attach requires a run ID");
     await showRun(id);
+    return;
+  }
+  if (selectedCommand === "answer") {
+    await answerQuestion(process.argv.slice(3));
     return;
   }
 

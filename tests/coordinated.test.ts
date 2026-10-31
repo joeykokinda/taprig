@@ -87,3 +87,37 @@ test("preserves independent results and skips work downstream of a failure", asy
   assert.deepEqual(executed.sort(), ["failed", "independent"]);
   assert.equal(result.nodes.find((node) => node.id === "blocked")?.status, "skipped");
 });
+
+test("resumes from completed dependency results without repeating them", async () => {
+  const executed: string[] = [];
+  const result = await runCoordinated({
+    plan: {
+      nodes: [
+        { id: "done", task: "Already done", dependsOn: [] },
+        { id: "next", task: "Continue", dependsOn: ["done"] },
+      ],
+    },
+    initialResults: [
+      {
+        id: "done",
+        status: "completed",
+        deviceId: "phone-1",
+        evidence: "saved evidence",
+        actions: [],
+      },
+    ],
+    execute: async (node, dependencies) => {
+      executed.push(node.id);
+      assert.equal(dependencies[0]?.evidence, "saved evidence");
+      return {
+        id: node.id,
+        status: "completed",
+        deviceId: "phone-2",
+        evidence: "continued",
+        actions: [],
+      };
+    },
+  });
+  assert.equal(result.status, "completed");
+  assert.deepEqual(executed, ["next"]);
+});

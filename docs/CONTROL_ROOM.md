@@ -19,6 +19,9 @@ The current control room provides:
 - durable run counts and recent trace state;
 - natural-language task creation with independent, broadcast, or coordinated
   run mode;
+- durable agent questions with answer-and-resume controls; sensitive answers
+  use a password field, pass through one-time scoped memory, and are redacted
+  from persisted evidence;
 - versioned deterministic-script inventory;
 - per-phone scrcpy live video with an automatic screenshot fallback for static
   streams;

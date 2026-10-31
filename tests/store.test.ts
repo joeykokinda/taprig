@@ -43,6 +43,9 @@ test("persists private devices, run events, questions, and checkpoints", async (
     status: "open",
     createdAt: "2026-10-29T12:00:02.000Z",
   });
+  assert.equal(store.listQuestions(run.id)[0]?.prompt, "Which account?");
+  store.answerQuestion(run.id, "question-1", "Personal", false, "2026-10-29T12:00:02.500Z");
+  assert.equal(store.listQuestions(run.id)[0]?.answer, "Personal");
   store.saveCheckpoint({
     id: "checkpoint-1",
     runId: run.id,

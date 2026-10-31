@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import type { RunEvent, RunMode, RunState } from "../core/contracts.ts";
-import type { StoredRunEvent, TapRigStore } from "../persistence/store.ts";
+import type { StoredQuestion, StoredRunEvent, TapRigStore } from "../persistence/store.ts";
 
 export class RunService {
   readonly store: TapRigStore;
@@ -56,14 +56,43 @@ export class RunService {
     return this.store.recordRunEvent(run, event);
   }
 
-  question(runId: string, prompt: string): void {
-    this.store.saveQuestion({
+  question(
+    runId: string,
+    prompt: string,
+    deviceId?: string,
+    deviceIds?: readonly string[],
+  ): StoredQuestion {
+    const question: StoredQuestion = {
       id: this.id(),
       runId,
       prompt,
       status: "open",
       createdAt: this.now(),
-    });
+      ...(deviceId ? { deviceId } : {}),
+      ...(deviceIds ? { deviceIds: [...deviceIds] } : {}),
+    };
+    this.store.saveQuestion(question);
+    return question;
+  }
+
+  questions(runId: string): StoredQuestion[] {
+    if (!this.get(runId)) throw new Error(`run ${runId} not found`);
+    return this.store.listQuestions(runId);
+  }
+
+  answer(runId: string, questionId: string, answer: string, sensitive = false): StoredQuestion {
+    const run = this.get(runId);
+    if (run?.status !== "waiting-for-user") throw new Error("run is not waiting for an answer");
+    if (!answer.trim() || answer.length > 10_000) {
+      throw new Error("answer must contain from 1 to 10000 characters");
+    }
+    return this.store.answerQuestion(
+      runId,
+      questionId,
+      sensitive ? undefined : answer.trim(),
+      sensitive,
+      this.now(),
+    );
   }
 
   checkpoint(runId: string, deviceId: string, evidence: unknown): void {

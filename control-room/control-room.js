@@ -1,6 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const leases = new Map();
 let renderedDeviceIds = "";
+let renderedQuestions = "";
 
 function escapeHtml(value) {
   return String(value)
@@ -140,6 +141,25 @@ function renderScripts(scripts) {
     : '<p class="empty">NO SCRIPTS YET</p>';
 }
 
+function renderQuestions(questions) {
+  const signature = questions.map(({ runId, id, prompt }) => `${runId}:${id}:${prompt}`).join("|");
+  if (signature === renderedQuestions) return;
+  renderedQuestions = signature;
+  $("#questions").innerHTML = questions.length
+    ? questions
+        .map(
+          ({ runId, id, prompt }) => `
+      <form class="question-row" data-run-id="${escapeHtml(runId)}" data-question-id="${escapeHtml(id)}">
+        <p>${escapeHtml(prompt)}</p>
+        <input name="answer" required maxlength="10000" autocomplete="off" aria-label="Answer" />
+        <label class="sensitive-answer"><input name="sensitive" type="checkbox" /> SENSITIVE — DO NOT SAVE</label>
+        <button type="submit">ANSWER + RESUME →</button>
+      </form>`,
+        )
+        .join("")
+    : '<p class="empty">NO OPEN QUESTIONS</p>';
+}
+
 async function refresh() {
   try {
     const [{ devices }, { runs }, { scripts }] = await Promise.all([
@@ -150,6 +170,16 @@ async function refresh() {
     renderDevices(devices);
     renderRuns(runs);
     renderScripts(scripts);
+    const questionGroups = await Promise.all(
+      runs
+        .filter((run) => run.status === "waiting-for-user")
+        .map((run) =>
+          json(`/runs/${encodeURIComponent(run.id)}/questions`).then(({ questions }) =>
+            questions.map((question) => ({ ...question, runId: run.id })),
+          ),
+        ),
+    );
+    renderQuestions(questionGroups.flat().filter((question) => question.status === "open"));
     $("#connection").textContent = "LOCAL DAEMON / ONLINE";
   } catch {
     $("#connection").textContent = "LOCAL DAEMON / OFFLINE";
@@ -172,6 +202,34 @@ $("#task-form").addEventListener("submit", async (event) => {
     await refresh();
   } catch (error) {
     $("#task-result").textContent = `FAILED: ${error.message}`;
+  }
+});
+
+$("#questions").addEventListener("change", (event) => {
+  if (event.target.name !== "sensitive") return;
+  event.target.form.elements.answer.type = event.target.checked ? "password" : "text";
+});
+
+$("#questions").addEventListener("submit", async (event) => {
+  const form = event.target.closest(".question-row");
+  if (!form) return;
+  event.preventDefault();
+  try {
+    await json(
+      `/runs/${encodeURIComponent(form.dataset.runId)}/questions/${encodeURIComponent(form.dataset.questionId)}/answer`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          answer: form.elements.answer.value,
+          sensitive: form.elements.sensitive.checked,
+        }),
+      },
+    );
+    $("#task-result").textContent = `ANSWERED ${form.dataset.questionId}`;
+    await refresh();
+  } catch (error) {
+    $("#task-result").textContent = `ANSWER FAILED: ${error.message}`;
   }
 });
 

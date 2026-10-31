@@ -167,3 +167,26 @@ export async function tapSemanticElement(
   const y = Math.floor((element.bounds.top + element.bounds.bottom) / 2);
   await run(serial, ["input", "tap", String(x), String(y)]);
 }
+
+export async function typeSemanticElement(
+  serial: string,
+  observation: Observation,
+  selector: Selector,
+  value: string,
+  clear: boolean,
+  run: AdbCommandRunner = runAdbShell,
+): Promise<void> {
+  const element = resolveElement(observation, selector);
+  if (!element.bounds) throw new Error("semantic text target has no bounds");
+  if (!value || value.length > 10_000 || !/^[A-Za-z0-9 ._@+=,:/-]+$/u.test(value)) {
+    throw new Error("ADB text input supports only safe ASCII; use the TapRig Android driver");
+  }
+  const x = Math.floor((element.bounds.left + element.bounds.right) / 2);
+  const y = Math.floor((element.bounds.top + element.bounds.bottom) / 2);
+  await run(serial, ["input", "tap", String(x), String(y)]);
+  if (clear) {
+    await run(serial, ["input", "keycombination", "KEYCODE_CTRL_LEFT", "KEYCODE_A"]);
+    await run(serial, ["input", "keyevent", "KEYCODE_DEL"]);
+  }
+  await run(serial, ["input", "text", value.replaceAll(" ", "%s")]);
+}

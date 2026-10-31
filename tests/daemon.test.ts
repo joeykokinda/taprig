@@ -200,6 +200,57 @@ test("the daemon creates, lists, and attaches to durable runs", async (context) 
   assert.equal(events.events[0]?.event.type, "run.created");
 });
 
+test("the daemon resumes questions without persisting sensitive answers", async (context) => {
+  const store = new TapRigStore(":memory:");
+  const runs = new RunService(store);
+  const run = runs.create("Sign in");
+  runs.record(run.id, { type: "run.started", at: "2026-10-29T12:00:01.000Z" });
+  const question = runs.question(run.id, "What is the one-time code?", "phone-1");
+  runs.record(run.id, { type: "run.waitingForUser", at: "2026-10-29T12:00:02.000Z" });
+  const resumed: Array<{
+    runId: string;
+    prompt: string;
+    value: string;
+    sensitive: boolean;
+    deviceId?: string;
+  }> = [];
+  const daemon = await startDaemon({
+    token,
+    devices: { list: async () => [] },
+    runs,
+    resumeRun: (runId, answer) => resumed.push({ runId, ...answer }),
+  });
+  context.after(async () => {
+    await daemon.stop();
+    store.close();
+  });
+
+  const response = await fetch(`${daemon.url}/runs/${run.id}/questions/${question.id}/answer`, {
+    method: "POST",
+    headers: { ...authorization, "content-type": "application/json" },
+    body: JSON.stringify({ answer: " 123456 ", sensitive: true }),
+  });
+  assert.equal(response.status, 200);
+  const stored = runs.questions(run.id)[0];
+  assert.equal(stored?.status, "answered");
+  assert.equal(stored?.sensitive, true);
+  assert.equal(stored?.answer, undefined);
+  assert.deepEqual(resumed, [
+    {
+      runId: run.id,
+      prompt: "What is the one-time code?",
+      value: " 123456 ",
+      sensitive: true,
+      deviceId: "phone-1",
+    },
+  ]);
+
+  const listed = await fetch(`${daemon.url}/runs/${run.id}/questions`, {
+    headers: authorization,
+  });
+  assert.equal(JSON.stringify(await listed.json()).includes("123456"), false);
+});
+
 test("the daemon creates, inspects, and runs verified scripts", async (context) => {
   const directory = await mkdtemp(join(tmpdir(), "taprig-script-api-"));
   const store = new TapRigStore(":memory:");

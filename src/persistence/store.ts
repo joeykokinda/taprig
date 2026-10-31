@@ -12,6 +12,11 @@ export interface StoredQuestion {
   prompt: string;
   status: "open" | "answered" | "dismissed";
   createdAt: string;
+  deviceId?: string;
+  deviceIds?: readonly string[];
+  answer?: string;
+  sensitive?: boolean;
+  answeredAt?: string;
 }
 
 export interface StoredCheckpoint {
@@ -152,6 +157,33 @@ export class TapRigStore {
         ON CONFLICT(id) DO UPDATE SET json = excluded.json
       `)
       .run(question.id, question.runId, JSON.stringify(question), question.createdAt);
+  }
+
+  listQuestions(runId: string): StoredQuestion[] {
+    const rows = this.#database
+      .prepare("SELECT json FROM questions WHERE run_id = ? ORDER BY rowid ASC")
+      .all(runId) as unknown as JsonRow[];
+    return rows.map((row) => JSON.parse(row.json) as StoredQuestion);
+  }
+
+  answerQuestion(
+    runId: string,
+    questionId: string,
+    answer: string | undefined,
+    sensitive: boolean,
+    answeredAt: string,
+  ): StoredQuestion {
+    const question = this.listQuestions(runId).find((item) => item.id === questionId);
+    if (question?.status !== "open") throw new Error("question is not open");
+    const answered: StoredQuestion = {
+      ...question,
+      status: "answered",
+      sensitive,
+      answeredAt,
+      ...(answer === undefined ? {} : { answer }),
+    };
+    this.saveQuestion(answered);
+    return answered;
   }
 
   saveCheckpoint(checkpoint: StoredCheckpoint): void {
