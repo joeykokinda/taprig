@@ -131,3 +131,52 @@ test("independent runs lease distinct ready phones and execute concurrently", as
   assert.equal(runs.get(second.id)?.status, "completed");
   store.close();
 });
+
+test("a broadcast run shares actions across leased phones and persists aggregate completion", async () => {
+  const store = new TapRigStore(":memory:");
+  const runs = new RunService(store);
+  const run = runs.create("Open Settings everywhere", "broadcast");
+  const executions: string[] = [];
+  const worker = new RunWorker({
+    runs,
+    devices: {
+      list: async () => [
+        { id: "phone-1", serial: "phone-1", state: "ready" },
+        { id: "phone-2", serial: "phone-2", state: "ready" },
+      ],
+    },
+    adapter: {
+      observe: async (deviceId) => ({ ...observation("current"), deviceId }),
+      execute: async (batch) => {
+        executions.push(batch.deviceId);
+        return {
+          requestId: batch.requestId,
+          deviceId: batch.deviceId,
+          replayed: false,
+          steps: [{ stepId: "open", status: "verified", durationMs: 1 }],
+        };
+      },
+    },
+    decide: () => {
+      let decision = 0;
+      return async () =>
+        decision++ === 0
+          ? {
+              type: "execute",
+              requestId: "shared",
+              steps: [
+                { id: "open", action: { type: "app.launch", packageName: "com.android.settings" } },
+              ],
+            }
+          : { type: "complete", evidence: "Settings visible" };
+    },
+  });
+  worker.start(run.id);
+  await worker.idle();
+
+  assert.equal(runs.get(run.id)?.status, "completed");
+  assert.deepEqual(executions.sort(), ["phone-1", "phone-2", "phone-2"]);
+  const completion = runs.completion(run.id)?.evidence as { devices?: string[] } | undefined;
+  assert.deepEqual(completion?.devices, ["phone-1", "phone-2"]);
+  store.close();
+});

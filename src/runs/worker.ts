@@ -2,6 +2,7 @@ import type { AgentContext, AgentDecision } from "../agents/loop.ts";
 import { runAgentLoop } from "../agents/loop.ts";
 import type { DeviceAdapter } from "../core/contracts.ts";
 import type { DeviceInventory } from "../daemon/server.ts";
+import { runBroadcast } from "../orchestration/broadcast.ts";
 import type { RunService } from "./service.ts";
 
 export interface RunWorkerOptions {
@@ -43,21 +44,39 @@ export class RunWorker {
     let run = this.#runs.get(runId);
     if (run?.status !== "created") return;
     run = this.#runs.record(runId, { type: "run.started", at: new Date().toISOString() });
-    let leasedDeviceId: string | undefined;
+    let leasedDeviceIds: string[] = [];
     try {
-      if (run.mode !== "independent") throw new Error(`${run.mode} execution is not implemented`);
-      leasedDeviceId = await this.#acquireDevice(requestedDeviceId);
-      const result = await runAgentLoop({
-        device: this.#adapter,
-        deviceId: leasedDeviceId,
-        decide: this.#decide(run.task),
-        verifyCompletion: async () => undefined,
-      });
+      if (run.mode === "coordinated") throw new Error("coordinated execution is not implemented");
+      leasedDeviceIds =
+        run.mode === "broadcast"
+          ? await this.#acquireBroadcastDevices()
+          : [await this.#acquireDevice(requestedDeviceId)];
+      const result =
+        run.mode === "broadcast"
+          ? await runBroadcast({
+              device: this.#adapter,
+              deviceIds: leasedDeviceIds,
+              decide: this.#decide(run.task),
+              recover: (deviceId) =>
+                runAgentLoop({
+                  device: this.#adapter,
+                  deviceId,
+                  decide: this.#decide(run.task),
+                  verifyCompletion: async () => undefined,
+                }),
+            })
+          : await runAgentLoop({
+              device: this.#adapter,
+              deviceId: leasedDeviceIds[0] as string,
+              decide: this.#decide(run.task),
+              verifyCompletion: async () => undefined,
+            });
       const at = new Date().toISOString();
       if (result.status === "completed") {
-        this.#runs.checkpoint(runId, leasedDeviceId, {
+        this.#runs.checkpoint(runId, leasedDeviceIds[0] as string, {
           summary: result.evidence,
           actions: result.actions,
+          devices: leasedDeviceIds,
         });
         this.#runs.record(runId, { type: "run.completed", at });
       } else if (result.status === "waiting-for-user") {
@@ -81,7 +100,7 @@ export class RunWorker {
         },
       });
     } finally {
-      if (leasedDeviceId) this.#releaseDevice(leasedDeviceId);
+      for (const deviceId of leasedDeviceIds) this.#releaseDevice(deviceId);
     }
   }
 
@@ -103,6 +122,21 @@ export class RunWorker {
       }
       if (requestedDeviceId && !ready.some((candidate) => candidate.id === requestedDeviceId)) {
         throw new Error(`requested Android device ${requestedDeviceId} is not ready`);
+      }
+      await new Promise<void>((resolve) => this.#leaseWaiters.add(resolve));
+    }
+  }
+
+  async #acquireBroadcastDevices(): Promise<string[]> {
+    while (true) {
+      const ready = (await this.#devices.list())
+        .filter((candidate) => candidate.state === "ready")
+        .sort((left, right) => left.id.localeCompare(right.id));
+      if (ready.length < 2)
+        throw new Error("broadcast requires at least two ready Android devices");
+      if (ready.every((candidate) => !this.#leasedDevices.has(candidate.id))) {
+        for (const device of ready) this.#leasedDevices.add(device.id);
+        return ready.map((device) => device.id);
       }
       await new Promise<void>((resolve) => this.#leaseWaiters.add(resolve));
     }
