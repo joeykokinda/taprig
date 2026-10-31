@@ -7,11 +7,11 @@ This is the ordered product queue. The canonical architecture remains in
 
 - Foundation/runtime: **95%**
 - Physical Android control: **60%**
-- Agent loop: **50%**
-- Fleet orchestration: **40%**
+- Agent loop: **55%**
+- Fleet orchestration: **55%**
 - Desktop application: **45%**
 - Public website/distribution: **45%**
-- Complete launch-ready product: **60%**
+- Complete launch-ready product: **62%**
 
 Percentages describe demonstrated functionality, not lines of code.
 
@@ -49,7 +49,7 @@ Percentages describe demonstrated functionality, not lines of code.
 - [ ] Validate simultaneous live view and isolated takeover across two physical phones.
 - [x] Independent parallel device runs with leases.
 - [x] Broadcast plan, barriers, drift recovery, and rejoin.
-- [ ] Coordinated task DAGs and result aggregation.
+- [x] Coordinated task DAGs and result aggregation.
 - [x] MCP adapter over the same daemon API.
 - [ ] Signed macOS, Windows, and Linux installers.
 - [ ] GitHub Release download automation and checksums.

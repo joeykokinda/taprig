@@ -1,5 +1,5 @@
 import { dirname, join } from "node:path";
-
+import { createModelCoordinator } from "../agents/model-coordinator.ts";
 import { createModelDecider } from "../agents/model-decider.ts";
 import type { AdbDevice } from "../android/adb-discovery.ts";
 import { discoverAdbDevices } from "../android/adb-discovery.ts";
@@ -52,7 +52,12 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
   );
   const modelConfig = loadOrCreateModelConfig(join(dirname(databasePath), "models.json"));
   const route = routeModel(modelConfig, "fast", { strongCalls: 0, visionCalls: 0 });
+  const coordinatorRoute =
+    routeModel(modelConfig, "strong", { strongCalls: 0, visionCalls: 0 }) ?? route;
   const provider = route ? modelConfig.providers[route.target.provider] : undefined;
+  const coordinatorProvider = coordinatorRoute
+    ? modelConfig.providers[coordinatorRoute.target.provider]
+    : undefined;
   const worker =
     route && provider && process.env[provider.apiKeyEnv]
       ? new RunWorker({
@@ -60,6 +65,14 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
           devices: registry,
           adapter: semanticAdapter,
           decide: (task) => createModelDecider(task, route.target, provider),
+          ...(coordinatorRoute && coordinatorProvider && process.env[coordinatorProvider.apiKeyEnv]
+            ? {
+                planCoordinated: createModelCoordinator(
+                  coordinatorRoute.target,
+                  coordinatorProvider,
+                ),
+              }
+            : {}),
         })
       : undefined;
   let refreshTail = Promise.resolve();

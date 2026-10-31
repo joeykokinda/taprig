@@ -686,7 +686,7 @@ stop explicitly, and inspect cost and evidence.
 - [ ] Device groups and capability scheduling.
 - [x] Independent concurrent runs.
 - [x] Broadcast plans, barriers, drift recovery, and rejoin.
-- [ ] Coordinated task DAGs and result aggregation.
+- [x] Coordinated task DAGs and result aggregation.
 - [ ] Fleet UI and CLI controls.
 
 Exit: demonstrate independent, broadcast, and coordinated modes on the physical

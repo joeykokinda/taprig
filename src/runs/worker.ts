@@ -3,6 +3,12 @@ import { runAgentLoop } from "../agents/loop.ts";
 import type { DeviceAdapter } from "../core/contracts.ts";
 import type { DeviceInventory } from "../daemon/server.ts";
 import { runBroadcast } from "../orchestration/broadcast.ts";
+import type {
+  CoordinatedNode,
+  CoordinatedNodeResult,
+  CoordinatedPlan,
+} from "../orchestration/coordinated.ts";
+import { runCoordinated } from "../orchestration/coordinated.ts";
 import type { RunService } from "./service.ts";
 
 export interface RunWorkerOptions {
@@ -10,6 +16,7 @@ export interface RunWorkerOptions {
   devices: DeviceInventory;
   adapter: DeviceAdapter;
   decide(task: string): Decider;
+  planCoordinated?(task: string): Promise<CoordinatedPlan>;
 }
 
 type Decider = (context: AgentContext) => Promise<AgentDecision>;
@@ -22,12 +29,14 @@ export class RunWorker {
   readonly #devices: DeviceInventory;
   readonly #adapter: DeviceAdapter;
   readonly #decide: (task: string) => Decider;
+  readonly #planCoordinated: ((task: string) => Promise<CoordinatedPlan>) | undefined;
 
   constructor(options: RunWorkerOptions) {
     this.#runs = options.runs;
     this.#devices = options.devices;
     this.#adapter = options.adapter;
     this.#decide = options.decide;
+    this.#planCoordinated = options.planCoordinated;
   }
 
   start(runId: string, deviceId?: string): void {
@@ -46,7 +55,46 @@ export class RunWorker {
     run = this.#runs.record(runId, { type: "run.started", at: new Date().toISOString() });
     let leasedDeviceIds: string[] = [];
     try {
-      if (run.mode === "coordinated") throw new Error("coordinated execution is not implemented");
+      if (run.mode === "coordinated") {
+        if (!this.#planCoordinated) throw new Error("coordinated planner is not configured");
+        const result = await runCoordinated({
+          plan: await this.#planCoordinated(run.task),
+          execute: (node, dependencies) =>
+            this.#executeCoordinatedNode(
+              node,
+              dependencies.map(({ id, evidence }) => `${id}: ${evidence}`),
+            ),
+        });
+        const at = new Date().toISOString();
+        const devices = result.nodes.flatMap((node) =>
+          "deviceId" in node && node.deviceId ? [node.deviceId] : [],
+        );
+        this.#runs.checkpoint(runId, devices[0] ?? "coordinator", {
+          summary: Object.fromEntries(
+            result.nodes.flatMap((node) =>
+              node.status === "completed" ? [[node.id, node.evidence]] : [],
+            ),
+          ),
+          actions: result.nodes.flatMap((node) =>
+            node.status === "completed" ? node.actions : [],
+          ),
+          devices: [...new Set(devices)],
+          nodes: result.nodes,
+        });
+        if (result.status === "completed") {
+          this.#runs.record(runId, { type: "run.completed", at });
+        } else if (result.status === "waiting-for-user") {
+          this.#runs.question(runId, result.question);
+          this.#runs.record(runId, { type: "run.waitingForUser", at });
+        } else {
+          this.#runs.record(runId, {
+            type: "run.failed",
+            at,
+            error: { code: "verification-failed", message: result.reason, retryable: false },
+          });
+        }
+        return;
+      }
       leasedDeviceIds =
         run.mode === "broadcast"
           ? await this.#acquireBroadcastDevices()
@@ -101,6 +149,41 @@ export class RunWorker {
       });
     } finally {
       for (const deviceId of leasedDeviceIds) this.#releaseDevice(deviceId);
+    }
+  }
+
+  async #executeCoordinatedNode(
+    node: CoordinatedNode,
+    dependencies: readonly string[],
+  ): Promise<CoordinatedNodeResult> {
+    let deviceId: string | undefined;
+    try {
+      deviceId = await this.#acquireDevice(node.deviceId);
+      const result = await runAgentLoop({
+        device: this.#adapter,
+        deviceId,
+        decide: this.#decide(
+          dependencies.length > 0
+            ? `${node.task}\n\nVerified dependency results:\n${dependencies.join("\n")}`
+            : node.task,
+        ),
+        verifyCompletion: async () => undefined,
+      });
+      if (result.status === "completed") {
+        return {
+          id: node.id,
+          status: "completed",
+          deviceId,
+          evidence: result.evidence,
+          actions: result.actions,
+        };
+      }
+      if (result.status === "waiting-for-user") {
+        return { id: node.id, status: "waiting-for-user", deviceId, question: result.question };
+      }
+      return { id: node.id, status: "failed", deviceId, reason: result.reason };
+    } finally {
+      if (deviceId) this.#releaseDevice(deviceId);
     }
   }
 

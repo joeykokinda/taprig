@@ -180,3 +180,71 @@ test("a broadcast run shares actions across leased phones and persists aggregate
   assert.deepEqual(completion?.devices, ["phone-1", "phone-2"]);
   store.close();
 });
+
+test("a coordinated run leases parallel phones and persists node results", async () => {
+  const store = new TapRigStore(":memory:");
+  const runs = new RunService(store);
+  const run = runs.create("Complete two tasks, then finish", "coordinated");
+  const assigned = new Map<string, string>();
+  let release!: () => void;
+  const rootsStarted = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const worker = new RunWorker({
+    runs,
+    devices: {
+      list: async () => [
+        { id: "phone-1", serial: "phone-1", state: "ready" },
+        { id: "phone-2", serial: "phone-2", state: "ready" },
+      ],
+    },
+    adapter: {
+      observe: async (deviceId) => ({ ...observation("current"), deviceId }),
+      execute: async () => {
+        throw new Error("unused");
+      },
+    },
+    planCoordinated: async () => ({
+      nodes: [
+        { id: "one", task: "One", dependsOn: [] },
+        { id: "two", task: "Two", dependsOn: [] },
+        { id: "finish", task: "Finish", dependsOn: ["one", "two"] },
+      ],
+    }),
+    decide:
+      (task) =>
+      async ({ observation: current }) => {
+        const name = task.split("\n", 1)[0] as string;
+        assigned.set(name, current.deviceId);
+        if (assigned.has("One") && assigned.has("Two")) release();
+        if (name !== "Finish") await rootsStarted;
+        if (name === "Finish") {
+          assert.match(task, /one: One done/);
+          assert.match(task, /two: Two done/);
+        }
+        return { type: "complete", evidence: `${name} done` };
+      },
+  });
+  worker.start(run.id);
+  await worker.idle();
+
+  assert.equal(runs.get(run.id)?.status, "completed");
+  assert.notEqual(assigned.get("One"), assigned.get("Two"));
+  const completion = runs.completion(run.id)?.evidence as
+    | { summary?: Record<string, string>; nodes?: Array<{ id: string; status: string }> }
+    | undefined;
+  assert.deepEqual(completion?.summary, {
+    one: "One done",
+    two: "Two done",
+    finish: "Finish done",
+  });
+  assert.deepEqual(
+    completion?.nodes?.map(({ id, status }) => [id, status]),
+    [
+      ["one", "completed"],
+      ["two", "completed"],
+      ["finish", "completed"],
+    ],
+  );
+  store.close();
+});
