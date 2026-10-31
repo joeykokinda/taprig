@@ -1,6 +1,7 @@
 node_modules/
 coverage/
 dist/
+release/
 !site/dist/
 !site/dist/**
 .taprig/

@@ -705,7 +705,8 @@ Exit: publish measured cost, latency, success, and fleet-scaling results.
 
 ### M5 — distribution and launch
 
-- [ ] Electron packaging and signed installers where practical.
+- [ ] Sign and publish the configured Electron installers. (The sandboxed app
+  and verified Linux package exist; platform signing and release CI remain.)
 - [ ] Guided updates and driver compatibility management.
 - [ ] Contributor documentation and stable extension contracts.
 - [ ] Security review and threat model.

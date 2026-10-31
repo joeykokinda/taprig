@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <title>TapRig</title>
+  <rect width="512" height="512" rx="72" fill="#f1f0eb"/>
+  <rect x="40" y="40" width="432" height="432" rx="44" fill="none" stroke="#101010" stroke-width="16"/>
+  <text x="256" y="244" text-anchor="middle" font-family="Arial, sans-serif" font-size="168" font-weight="700" fill="#101010">T</text>
+  <text x="256" y="410" text-anchor="middle" font-family="Georgia, serif" font-size="168" font-style="italic" fill="#101010">R</text>
+</svg>

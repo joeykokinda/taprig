@@ -38,7 +38,7 @@ const action = z.discriminatedUnion("type", [
 ]);
 
 export function createTapRigMcpServer(request: RequestDaemon = daemonRequest): McpServer {
-  const server = new McpServer({ name: "taprig", version: "0.0.0" });
+  const server = new McpServer({ name: "taprig", version: "0.1.0" });
   server.registerTool(
     "taprig_devices",
     {

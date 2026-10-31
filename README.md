@@ -96,6 +96,9 @@ Launch the authenticated local dashboard with `npm run taprig -- ui`. See the
 External agents can launch `taprig mcp` for the official stdio MCP surface. See
 [MCP integration](docs/MCP.md).
 
+The same experience is packaged in a sandboxed Electron shell. See the
+[desktop application](docs/DESKTOP.md) for development and packaging commands.
+
 ## License
 
 TapRig is open source under the [MIT License](LICENSE).

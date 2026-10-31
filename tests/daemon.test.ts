@@ -58,6 +58,20 @@ test("the daemon rejects non-loopback binding", async () => {
   );
 });
 
+test("the daemon rejects a relative control-room override", async () => {
+  const previous = process.env.TAPRIG_CONTROL_ROOM;
+  process.env.TAPRIG_CONTROL_ROOM = "relative/control-room";
+  try {
+    await assert.rejects(
+      startDaemon({ token, devices: { list: async () => [] } }),
+      /TAPRIG_CONTROL_ROOM must be an absolute path/,
+    );
+  } finally {
+    if (previous === undefined) delete process.env.TAPRIG_CONTROL_ROOM;
+    else process.env.TAPRIG_CONTROL_ROOM = previous;
+  }
+});
+
 test("the daemon hides inventory failures", async (context) => {
   const daemon = await startDaemon({
     token,

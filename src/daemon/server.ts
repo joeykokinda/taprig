@@ -1,7 +1,7 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 
 import { parseRawAction } from "../android/raw-actions.ts";
 import { TakeoverLeases } from "../control/takeover.ts";
@@ -81,7 +81,11 @@ export async function startDaemon(options: TapRigDaemonOptions): Promise<Running
   const pendingBrowserSessions = new Map<string, number>();
   const browserSessions = new Map<string, number>();
   const takeover = new TakeoverLeases();
-  const controlRoom = join(import.meta.dirname, "../../control-room");
+  const configuredControlRoom = process.env.TAPRIG_CONTROL_ROOM;
+  if (configuredControlRoom && !isAbsolute(configuredControlRoom)) {
+    throw new Error("TAPRIG_CONTROL_ROOM must be an absolute path");
+  }
+  const controlRoom = configuredControlRoom ?? join(import.meta.dirname, "../../control-room");
 
   const server = createServer(async (request, response) => {
     const url = new URL(request.url ?? "/", "http://localhost");
