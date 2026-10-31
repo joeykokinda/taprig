@@ -8,10 +8,10 @@ This is the ordered product queue. The canonical architecture remains in
 - Foundation/runtime: **95%**
 - Physical Android control: **60%**
 - Agent loop: **65%**
-- Fleet orchestration: **60%**
+- Fleet orchestration: **65%**
 - Desktop application: **45%**
 - Public website/distribution: **45%**
-- Complete launch-ready product: **65%**
+- Complete launch-ready product: **66%**
 
 Percentages describe demonstrated functionality, not lines of code.
 
@@ -51,6 +51,7 @@ Percentages describe demonstrated functionality, not lines of code.
 - [x] Independent parallel device runs with leases.
 - [x] Broadcast plan, barriers, drift recovery, and rejoin.
 - [x] Coordinated task DAGs and result aggregation.
+- [x] Capability-aware phone assignment for agent and coordinated work.
 - [x] MCP adapter over the same daemon API.
 - [ ] Signed macOS, Windows, and Linux installers.
 - [ ] GitHub Release download automation and checksums.

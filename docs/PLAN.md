@@ -684,7 +684,8 @@ stop explicitly, and inspect cost and evidence.
 
 ### M3 — fleet orchestration
 
-- [ ] Device groups and capability scheduling.
+- [x] Capability-aware device scheduling.
+- [ ] Named device groups and affinity rules.
 - [x] Independent concurrent runs.
 - [x] Broadcast plans, barriers, drift recovery, and rejoin.
 - [x] Coordinated task DAGs and result aggregation.

@@ -54,8 +54,9 @@ The token, state, log, and SQLite database stay in the OS application-data
 directory with private file permissions. A configured model worker now assigns
 an available phone and durably records verified completion, user questions, or
 typed failure. Independent, broadcast, and dependency-ordered coordinated runs
-share the same device leases and durable evidence. The Electron application has
-local Linux packages; signed cross-platform releases remain in progress.
+share capability-aware device leases and durable evidence. The Electron
+application has local Linux packages; signed cross-platform releases remain in
+progress.
 See [physical hardware results](docs/HARDWARE_VALIDATION.md).
 
 The pre-alpha run shell and its non-interactive equivalents are available now:

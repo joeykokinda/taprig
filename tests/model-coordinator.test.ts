@@ -13,12 +13,19 @@ test("turns strict model output into a validated coordinated plan", async () => 
         JSON.stringify({
           output_text: JSON.stringify({
             nodes: [
-              { id: "collect", task: "Collect the result", dependsOn: [], deviceId: null },
+              {
+                id: "collect",
+                task: "Collect the result",
+                dependsOn: [],
+                deviceId: null,
+                capabilities: ["semantic-observation", "semantic-action"],
+              },
               {
                 id: "send",
                 task: "Send the collected result",
                 dependsOn: ["collect"],
                 deviceId: " phone-2 ",
+                capabilities: ["semantic-observation"],
               },
             ],
           }),
@@ -29,12 +36,18 @@ test("turns strict model output into a validated coordinated plan", async () => 
 
   assert.deepEqual(plan, {
     nodes: [
-      { id: "collect", task: "Collect the result", dependsOn: [] },
+      {
+        id: "collect",
+        task: "Collect the result",
+        dependsOn: [],
+        capabilities: ["semantic-observation", "semantic-action"],
+      },
       {
         id: "send",
         task: "Send the collected result",
         dependsOn: ["collect"],
         deviceId: "phone-2",
+        capabilities: ["semantic-observation"],
       },
     ],
   });

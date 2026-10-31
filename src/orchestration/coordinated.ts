@@ -1,10 +1,11 @@
-import type { ActionStep } from "../core/contracts.ts";
+import type { ActionStep, DeviceCapability } from "../core/contracts.ts";
 
 export interface CoordinatedNode {
   id: string;
   task: string;
   dependsOn: readonly string[];
   deviceId?: string;
+  capabilities?: readonly DeviceCapability[];
 }
 
 export interface CoordinatedPlan {
@@ -37,6 +38,15 @@ export interface CoordinatedOptions {
   ): Promise<CoordinatedNodeResult>;
 }
 
+const knownCapabilities = new Set<DeviceCapability>([
+  "semantic-observation",
+  "semantic-action",
+  "raw-input",
+  "video",
+  "screenshot",
+  "shell",
+]);
+
 export function validateCoordinatedPlan(plan: CoordinatedPlan): void {
   if (!Array.isArray(plan.nodes) || plan.nodes.length < 1 || plan.nodes.length > 100) {
     throw new Error("coordinated plan must contain from 1 to 100 nodes");
@@ -55,6 +65,16 @@ export function validateCoordinatedPlan(plan: CoordinatedPlan): void {
     }
     if (node.deviceId !== undefined && !node.deviceId.trim()) {
       throw new Error(`coordinated node ${node.id} has an invalid device id`);
+    }
+    if (
+      node.capabilities !== undefined &&
+      (!Array.isArray(node.capabilities) ||
+        new Set(node.capabilities).size !== node.capabilities.length ||
+        node.capabilities.some(
+          (capability: DeviceCapability) => !knownCapabilities.has(capability),
+        ))
+    ) {
+      throw new Error(`coordinated node ${node.id} has invalid capabilities`);
     }
     nodes.set(node.id, node);
   }

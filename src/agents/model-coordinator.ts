@@ -15,7 +15,7 @@ const planSchema = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["id", "task", "dependsOn", "deviceId"],
+        required: ["id", "task", "dependsOn", "deviceId", "capabilities"],
         properties: {
           id: { type: "string", pattern: "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$" },
           task: { type: "string", minLength: 1, maxLength: 10_000 },
@@ -26,6 +26,21 @@ const planSchema = {
             items: { type: "string" },
           },
           deviceId: { type: ["string", "null"] },
+          capabilities: {
+            type: "array",
+            uniqueItems: true,
+            items: {
+              type: "string",
+              enum: [
+                "semantic-observation",
+                "semantic-action",
+                "raw-input",
+                "video",
+                "screenshot",
+                "shell",
+              ],
+            },
+          },
         },
       },
     },
@@ -33,7 +48,13 @@ const planSchema = {
 } as const;
 
 type ModelPlan = {
-  nodes: Array<{ id: string; task: string; dependsOn: string[]; deviceId: string | null }>;
+  nodes: Array<{
+    id: string;
+    task: string;
+    dependsOn: string[];
+    deviceId: string | null;
+    capabilities: CoordinatedPlan["nodes"][number]["capabilities"];
+  }>;
 };
 
 export function createModelCoordinator(
@@ -50,7 +71,7 @@ export function createModelCoordinator(
       schemaName: "taprig_coordinated_plan",
       schema: planSchema,
       system:
-        "Decompose one phone-fleet request into the smallest acyclic task graph. Each node is one independently verifiable phone task. Use dependencies only when a node needs an earlier result. Leave deviceId null unless the user explicitly names a device. Do not invent tasks, credentials, recipients, content, or success.",
+        "Decompose one phone-fleet request into the smallest acyclic task graph. Each node is one independently verifiable phone task. Use dependencies only when a node needs an earlier result. Leave deviceId null unless the user explicitly names a device. Require semantic-observation and semantic-action for ordinary phone work; add video, screenshot, raw-input, or shell only when the work specifically needs it. Do not invent tasks, credentials, recipients, content, or success.",
       input: task,
     });
     const value = response.value as Partial<ModelPlan>;
@@ -61,6 +82,7 @@ export function createModelCoordinator(
         task: node.task.trim(),
         dependsOn: node.dependsOn,
         ...(node.deviceId?.trim() ? { deviceId: node.deviceId.trim() } : {}),
+        ...(node.capabilities?.length ? { capabilities: node.capabilities } : {}),
       })),
     };
     validateCoordinatedPlan(plan);

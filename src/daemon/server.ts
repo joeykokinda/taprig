@@ -5,7 +5,7 @@ import { isAbsolute, join } from "node:path";
 
 import { parseRawAction } from "../android/raw-actions.ts";
 import { TakeoverLeases } from "../control/takeover.ts";
-import type { Action, RunMode } from "../core/contracts.ts";
+import type { Action, DeviceCapability, RunMode } from "../core/contracts.ts";
 import type { RunService } from "../runs/service.ts";
 import type { ScriptService } from "../scripts/service.ts";
 import { CredentialBroker } from "../security/credential-broker.ts";
@@ -15,6 +15,7 @@ export interface DaemonDevice {
   id: string;
   serial: string;
   state: string;
+  capabilities?: readonly DeviceCapability[];
 }
 
 export interface DeviceInventory {

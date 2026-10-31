@@ -18,6 +18,13 @@ const observation = (generation: string): Observation => ({
   capturedAt: "2026-10-30T16:00:00.000Z",
 });
 
+const readyDevice = (id: string) => ({
+  id,
+  serial: id,
+  state: "ready",
+  capabilities: ["semantic-observation", "semantic-action"] as const,
+});
+
 test("a worker assigns a ready phone and durably completes a bounded run", async () => {
   const store = new TapRigStore(":memory:");
   const runs = new RunService(store);
@@ -37,7 +44,7 @@ test("a worker assigns a ready phone and durably completes a bounded run", async
   };
   const worker = new RunWorker({
     runs,
-    devices: { list: async () => [{ id: "phone-1", serial: "phone-1", state: "ready" }] },
+    devices: { list: async () => [readyDevice("phone-1")] },
     adapter,
     decide:
       () =>
@@ -99,10 +106,7 @@ test("independent runs lease distinct ready phones and execute concurrently", as
   const worker = new RunWorker({
     runs,
     devices: {
-      list: async () => [
-        { id: "phone-1", serial: "phone-1", state: "ready" },
-        { id: "phone-2", serial: "phone-2", state: "ready" },
-      ],
+      list: async () => [readyDevice("phone-1"), readyDevice("phone-2")],
     },
     adapter: {
       observe: async (deviceId) => ({ ...observation("current"), deviceId }),
@@ -140,10 +144,7 @@ test("a broadcast run shares actions across leased phones and persists aggregate
   const worker = new RunWorker({
     runs,
     devices: {
-      list: async () => [
-        { id: "phone-1", serial: "phone-1", state: "ready" },
-        { id: "phone-2", serial: "phone-2", state: "ready" },
-      ],
+      list: async () => [readyDevice("phone-1"), readyDevice("phone-2")],
     },
     adapter: {
       observe: async (deviceId) => ({ ...observation("current"), deviceId }),
@@ -193,10 +194,7 @@ test("a coordinated run leases parallel phones and persists node results", async
   const worker = new RunWorker({
     runs,
     devices: {
-      list: async () => [
-        { id: "phone-1", serial: "phone-1", state: "ready" },
-        { id: "phone-2", serial: "phone-2", state: "ready" },
-      ],
+      list: async () => [readyDevice("phone-1"), readyDevice("phone-2")],
     },
     adapter: {
       observe: async (deviceId) => ({ ...observation("current"), deviceId }),
@@ -249,6 +247,51 @@ test("a coordinated run leases parallel phones and persists node results", async
   store.close();
 });
 
+test("a coordinated node leases only a phone with its required capabilities", async () => {
+  const store = new TapRigStore(":memory:");
+  const runs = new RunService(store);
+  const run = runs.create("Capture evidence", "coordinated");
+  let assigned = "";
+  const worker = new RunWorker({
+    runs,
+    devices: {
+      list: async () => [
+        readyDevice("phone-1"),
+        {
+          ...readyDevice("phone-2"),
+          capabilities: ["semantic-observation", "semantic-action", "screenshot"] as const,
+        },
+      ],
+    },
+    adapter: {
+      observe: async (deviceId) => {
+        assigned = deviceId;
+        return { ...observation("current"), deviceId };
+      },
+      execute: async () => {
+        throw new Error("unused");
+      },
+    },
+    planCoordinated: async () => ({
+      nodes: [
+        {
+          id: "capture",
+          task: "Capture evidence",
+          dependsOn: [],
+          capabilities: ["semantic-observation", "semantic-action", "screenshot"],
+        },
+      ],
+    }),
+    decide: () => async () => ({ type: "complete", evidence: "Captured" }),
+  });
+  worker.start(run.id);
+  await worker.idle();
+
+  assert.equal(runs.get(run.id)?.status, "completed");
+  assert.equal(assigned, "phone-2");
+  store.close();
+});
+
 test("a worker resumes a waiting run on the same phone with the durable answer", async () => {
   const store = new TapRigStore(":memory:");
   const runs = new RunService(store);
@@ -256,7 +299,7 @@ test("a worker resumes a waiting run on the same phone with the durable answer",
   const tasks: string[] = [];
   const worker = new RunWorker({
     runs,
-    devices: { list: async () => [{ id: "phone-1", serial: "phone-1", state: "ready" }] },
+    devices: { list: async () => [readyDevice("phone-1")] },
     adapter: {
       observe: async (deviceId) => ({ ...observation("current"), deviceId }),
       execute: async () => {
@@ -302,7 +345,7 @@ test("a resumed sensitive answer reaches the phone but is redacted from evidence
   const typed: string[] = [];
   const worker = new RunWorker({
     runs,
-    devices: { list: async () => [{ id: "phone-1", serial: "phone-1", state: "ready" }] },
+    devices: { list: async () => [readyDevice("phone-1")] },
     adapter: {
       observe: async (deviceId) => ({ ...observation("current"), deviceId }),
       execute: async (batch) => {
@@ -370,10 +413,7 @@ test("a coordinated resume keeps completed nodes and continues the waiting branc
   const worker = new RunWorker({
     runs,
     devices: {
-      list: async () => [
-        { id: "phone-1", serial: "phone-1", state: "ready" },
-        { id: "phone-2", serial: "phone-2", state: "ready" },
-      ],
+      list: async () => [readyDevice("phone-1"), readyDevice("phone-2")],
     },
     adapter: {
       observe: async (deviceId) => ({ ...observation("current"), deviceId }),
@@ -427,9 +467,9 @@ test("a broadcast resume keeps its original phone cohort", async () => {
     runs,
     devices: {
       list: async () => [
-        { id: "phone-1", serial: "phone-1", state: "ready" },
-        { id: "phone-2", serial: "phone-2", state: "ready" },
-        ...(includeThird ? [{ id: "phone-3", serial: "phone-3", state: "ready" }] : []),
+        readyDevice("phone-1"),
+        readyDevice("phone-2"),
+        ...(includeThird ? [readyDevice("phone-3")] : []),
       ],
     },
     adapter: {

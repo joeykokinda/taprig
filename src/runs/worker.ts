@@ -1,6 +1,6 @@
 import type { AgentContext, AgentDecision } from "../agents/loop.ts";
 import { runAgentLoop } from "../agents/loop.ts";
-import type { DeviceAdapter } from "../core/contracts.ts";
+import type { DeviceAdapter, DeviceCapability } from "../core/contracts.ts";
 import type { DeviceInventory } from "../daemon/server.ts";
 import { runBroadcast } from "../orchestration/broadcast.ts";
 import type {
@@ -20,6 +20,8 @@ export interface RunWorkerOptions {
 }
 
 type Decider = (context: AgentContext) => Promise<AgentDecision>;
+
+const agentCapabilities = ["semantic-observation", "semantic-action"] as const;
 
 export interface RunAnswer {
   prompt: string;
@@ -256,7 +258,7 @@ export class RunWorker {
   ): Promise<CoordinatedNodeResult> {
     let deviceId: string | undefined;
     try {
-      deviceId = await this.#acquireDevice(node.deviceId);
+      deviceId = await this.#acquireDevice(node.deviceId, node.capabilities ?? agentCapabilities);
       const result = await runAgentLoop({
         device: this.#adapter,
         deviceId,
@@ -285,24 +287,38 @@ export class RunWorker {
     }
   }
 
-  async #acquireDevice(requestedDeviceId?: string): Promise<string> {
+  async #acquireDevice(
+    requestedDeviceId?: string,
+    capabilities: readonly DeviceCapability[] = agentCapabilities,
+  ): Promise<string> {
     while (true) {
       const ready = (await this.#devices.list())
         .filter((candidate) => candidate.state === "ready")
         .sort((left, right) => left.id.localeCompare(right.id));
       if (ready.length === 0) throw new Error("no ready Android device is connected");
+      const eligible = ready.filter((candidate) =>
+        capabilities.every((capability) => candidate.capabilities?.includes(capability)),
+      );
       const device = requestedDeviceId
-        ? ready.find(
+        ? eligible.find(
             (candidate) =>
               candidate.id === requestedDeviceId && !this.#leasedDevices.has(candidate.id),
           )
-        : ready.find((candidate) => !this.#leasedDevices.has(candidate.id));
+        : eligible.find((candidate) => !this.#leasedDevices.has(candidate.id));
       if (device) {
         this.#leasedDevices.add(device.id);
         return device.id;
       }
       if (requestedDeviceId && !ready.some((candidate) => candidate.id === requestedDeviceId)) {
         throw new Error(`requested Android device ${requestedDeviceId} is not ready`);
+      }
+      if (requestedDeviceId && !eligible.some((candidate) => candidate.id === requestedDeviceId)) {
+        throw new Error(
+          `requested Android device ${requestedDeviceId} does not support ${capabilities.join(", ")}`,
+        );
+      }
+      if (eligible.length === 0) {
+        throw new Error(`no ready Android device supports ${capabilities.join(", ")}`);
       }
       await new Promise<void>((resolve) => this.#leaseWaiters.add(resolve));
     }
@@ -312,6 +328,9 @@ export class RunWorker {
     while (true) {
       const ready = (await this.#devices.list())
         .filter((candidate) => candidate.state === "ready")
+        .filter((candidate) =>
+          agentCapabilities.every((capability) => candidate.capabilities?.includes(capability)),
+        )
         .sort((left, right) => left.id.localeCompare(right.id));
       if (ready.length < 2)
         throw new Error("broadcast requires at least two ready Android devices");
@@ -327,7 +346,11 @@ export class RunWorker {
     const requested = [...new Set(deviceIds)].sort();
     if (requested.length < 2) throw new Error("broadcast requires at least two devices");
     while (true) {
-      const ready = (await this.#devices.list()).filter((candidate) => candidate.state === "ready");
+      const ready = (await this.#devices.list())
+        .filter((candidate) => candidate.state === "ready")
+        .filter((candidate) =>
+          agentCapabilities.every((capability) => candidate.capabilities?.includes(capability)),
+        );
       const missing = requested.find((id) => !ready.some((candidate) => candidate.id === id));
       if (missing) throw new Error(`broadcast Android device ${missing} is not ready`);
       if (requested.every((id) => !this.#leasedDevices.has(id))) {

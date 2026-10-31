@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
-import type { DeviceState } from "../core/contracts.ts";
+import type { DeviceCapability, DeviceState } from "../core/contracts.ts";
 import type { AdbDevice, AdbTransportState } from "./adb-discovery.ts";
 
 const execFileAsync = promisify(execFile);
@@ -27,6 +27,7 @@ export interface DeviceActorState {
   id: string;
   serial: string;
   state: DeviceState;
+  capabilities: readonly DeviceCapability[];
   transportState: AdbTransportState;
   identity: AndroidIdentity;
   bootCompleted?: boolean;
@@ -35,6 +36,14 @@ export interface DeviceActorState {
   foregroundActivity?: ForegroundActivity;
   observedAt: string;
 }
+
+export const androidDeviceCapabilities = [
+  "semantic-observation",
+  "semantic-action",
+  "raw-input",
+  "screenshot",
+  "shell",
+] as const satisfies readonly DeviceCapability[];
 
 export async function adbShell(serial: string, command: string): Promise<string> {
   const { stdout } = await execFileAsync("adb", ["-s", serial, "shell", command]);
@@ -96,6 +105,7 @@ async function probeConnectedDevice(
     id: device.serial,
     serial: device.serial,
     state: bootCompleted ? (unlocked ? "ready" : "locked") : "booting",
+    capabilities: androidDeviceCapabilities,
     transportState: device.transportState,
     identity: {
       ...(manufacturer ? { manufacturer } : {}),
@@ -125,6 +135,7 @@ export class DeviceActor {
       id: serial,
       serial,
       state: "offline",
+      capabilities: androidDeviceCapabilities,
       transportState: "offline",
       identity: {},
       observedAt: now(),
@@ -140,6 +151,7 @@ export class DeviceActor {
           id: this.#state.id,
           serial: this.#state.serial,
           state: "offline",
+          capabilities: androidDeviceCapabilities,
           transportState: "offline",
           identity: { ...this.#state.identity },
           observedAt,
@@ -149,6 +161,7 @@ export class DeviceActor {
           id: this.#state.id,
           serial: this.#state.serial,
           state: device.transportState === "unauthorized" ? "unauthorized" : "offline",
+          capabilities: androidDeviceCapabilities,
           transportState: device.transportState,
           identity: { ...this.#state.identity },
           observedAt,
@@ -161,6 +174,7 @@ export class DeviceActor {
             id: this.#state.id,
             serial: this.#state.serial,
             state: "degraded",
+            capabilities: androidDeviceCapabilities,
             transportState: "device",
             identity: { ...this.#state.identity },
             observedAt,
@@ -173,7 +187,11 @@ export class DeviceActor {
   }
 
   snapshot(): DeviceActorState {
-    return { ...this.#state, identity: { ...this.#state.identity } };
+    return {
+      ...this.#state,
+      capabilities: [...this.#state.capabilities],
+      identity: { ...this.#state.identity },
+    };
   }
 }
 

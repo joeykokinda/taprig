@@ -27,6 +27,7 @@ test("persists private devices, run events, questions, and checkpoints", async (
     id: "phone-1",
     serial: "phone-1",
     state: "ready",
+    capabilities: ["semantic-observation", "semantic-action", "raw-input", "screenshot", "shell"],
     transportState: "device",
     identity: { model: "Test phone" },
     observedAt: "2026-10-29T12:00:00.000Z",

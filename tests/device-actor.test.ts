@@ -34,6 +34,13 @@ test("the registry probes connected devices and preserves identity across discon
 
   const ready = await registry.refresh([connected]);
   assert.equal(ready[0]?.state, "ready");
+  assert.deepEqual(ready[0]?.capabilities, [
+    "semantic-observation",
+    "semantic-action",
+    "raw-input",
+    "screenshot",
+    "shell",
+  ]);
   assert.deepEqual(ready[0]?.identity, {
     manufacturer: "Google",
     model: "Pixel 8",
