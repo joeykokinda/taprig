@@ -11,7 +11,7 @@ This is the ordered product queue. The canonical architecture remains in
 - Fleet orchestration: **65%**
 - Desktop application: **45%**
 - Public website/distribution: **45%**
-- Complete launch-ready product: **66%**
+- Complete launch-ready product: **67%**
 
 Percentages describe demonstrated functionality, not lines of code.
 
@@ -57,5 +57,6 @@ Percentages describe demonstrated functionality, not lines of code.
 - [ ] GitHub Release download automation and checksums.
 - [x] First public website design and interactive product preview.
 - [ ] Connect website download buttons to signed releases.
+- [x] Add a repeatable synthetic orchestration regression harness.
 - [ ] Publish repeatable cost, latency, and success benchmarks.
 - [ ] Record the hero demo and launch the public repository.
