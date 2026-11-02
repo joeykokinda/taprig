@@ -24,6 +24,21 @@ test("a run follows valid lifecycle transitions", () => {
   assert.equal(state.updatedAt, "2026-10-28T00:00:04.000Z");
 });
 
+test("an interrupted running run records a same-state recovery event", () => {
+  const running = { ...created, status: "running" } satisfies RunState;
+  const recovered = applyRunEvent(running, {
+    type: "run.recovered",
+    at: "2026-10-28T00:00:02.000Z",
+  });
+
+  assert.equal(recovered.status, "running");
+  assert.equal(recovered.updatedAt, "2026-10-28T00:00:02.000Z");
+  assert.throws(
+    () => applyRunEvent(running, { type: "run.started", at: "2026-10-28T00:00:02.000Z" }),
+    /cannot transition/,
+  );
+});
+
 test("a terminal run cannot restart", () => {
   const completed = { ...created, status: "completed" } satisfies RunState;
   assert.throws(

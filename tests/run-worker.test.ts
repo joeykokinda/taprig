@@ -8,6 +8,7 @@ import type {
   Observation,
   RunTelemetry,
 } from "../src/core/contracts.ts";
+import type { CoordinatedNodeResult } from "../src/orchestration/coordinated.ts";
 import { TapRigStore } from "../src/persistence/store.ts";
 import { RunService } from "../src/runs/service.ts";
 import { RunWorker } from "../src/runs/worker.ts";
@@ -101,6 +102,51 @@ test("a worker records an explicit failure when no phone is ready", async () => 
 
   assert.equal(runs.get(run.id)?.status, "failed");
   assert.match(runs.get(run.id)?.error?.message ?? "", /no ready Android device/);
+  store.close();
+});
+
+test("a worker recovers an interrupted run on its original phone with durable progress", async () => {
+  const store = new TapRigStore(":memory:");
+  const runs = new RunService(store);
+  const run = runs.create("Open Settings");
+  runs.record(run.id, { type: "run.started", at: "2026-11-01T12:00:00.000Z" });
+  runs.saveRecovery(run.id, {
+    deviceIds: ["phone-2"],
+    batches: {
+      "phone-2": {
+        requestId: "open",
+        steps: [{ stepId: "open", status: "verified", actionType: "app.launch" }],
+      },
+    },
+  });
+  let assigned = "";
+  const worker = new RunWorker({
+    runs,
+    devices: { list: async () => [readyDevice("phone-1"), readyDevice("phone-2")] },
+    adapter: {
+      observe: async (deviceId) => {
+        assigned = deviceId;
+        return { ...observation("recovered"), deviceId };
+      },
+      execute: async () => {
+        throw new Error("unused");
+      },
+    },
+    decide: (task) => async () => {
+      assert.match(task, /TapRig restarted/);
+      assert.match(task, /Previously verified progress/);
+      return { type: "complete", evidence: "Settings is visible" };
+    },
+  });
+  worker.recover(run.id);
+  await worker.idle();
+
+  assert.equal(assigned, "phone-2");
+  assert.equal(runs.get(run.id)?.status, "completed");
+  assert.deepEqual(
+    runs.events(run.id).map(({ event }) => event.type),
+    ["run.created", "run.started", "run.recovered", "run.completed"],
+  );
   store.close();
 });
 
@@ -270,6 +316,37 @@ test("a broadcast run shares actions across leased phones and persists aggregate
   store.close();
 });
 
+test("broadcast restart retains its original phone cohort", async () => {
+  const store = new TapRigStore(":memory:");
+  const runs = new RunService(store);
+  const run = runs.create("Finish everywhere", "broadcast");
+  runs.record(run.id, { type: "run.started", at: "2026-11-01T12:00:00.000Z" });
+  runs.saveRecovery(run.id, { deviceIds: ["phone-1", "phone-2"] });
+  const observed = new Set<string>();
+  const worker = new RunWorker({
+    runs,
+    devices: {
+      list: async () => [readyDevice("phone-1"), readyDevice("phone-2"), readyDevice("phone-3")],
+    },
+    adapter: {
+      observe: async (deviceId) => {
+        observed.add(deviceId);
+        return { ...observation("current"), deviceId };
+      },
+      execute: async () => {
+        throw new Error("unused");
+      },
+    },
+    decide: () => async () => ({ type: "complete", evidence: "done" }),
+  });
+  worker.recover(run.id);
+  await worker.idle();
+
+  assert.equal(runs.get(run.id)?.status, "completed");
+  assert.deepEqual([...observed].sort(), ["phone-1", "phone-2"]);
+  store.close();
+});
+
 test("a coordinated run leases parallel phones and persists node results", async () => {
   const store = new TapRigStore(":memory:");
   const runs = new RunService(store);
@@ -373,6 +450,66 @@ test("coordinated branches reserve model budget without oversubscribing it", asy
   assert.equal(runs.get(run.id)?.error?.code, "budget-exhausted");
   const telemetry = runs.telemetry(run.id)?.evidence as RunTelemetry | undefined;
   assert.equal(telemetry?.modelCalls, 2);
+  store.close();
+});
+
+test("coordinated restart reuses its durable plan and completed nodes", async () => {
+  const store = new TapRigStore(":memory:");
+  const runs = new RunService(store);
+  const run = runs.create("Finish the workflow", "coordinated");
+  runs.record(run.id, { type: "run.started", at: "2026-11-01T12:00:00.000Z" });
+  runs.saveRecovery(run.id, {
+    plan: {
+      nodes: [
+        { id: "done", task: "Done", dependsOn: [] },
+        { id: "finish", task: "Finish", dependsOn: ["done"] },
+      ],
+    },
+    nodes: [
+      {
+        id: "done",
+        status: "completed",
+        deviceId: "phone-1",
+        evidence: "first result",
+        actions: [],
+      },
+    ],
+  });
+  let plannerCalls = 0;
+  const tasks: string[] = [];
+  const worker = new RunWorker({
+    runs,
+    devices: { list: async () => [readyDevice("phone-1")] },
+    adapter: {
+      observe: async (deviceId) => ({ ...observation("current"), deviceId }),
+      execute: async () => {
+        throw new Error("unused");
+      },
+    },
+    planCoordinated: async () => {
+      plannerCalls += 1;
+      throw new Error("must reuse durable plan");
+    },
+    decide: (task) => async () => {
+      tasks.push(task);
+      assert.match(task, /done: first result/);
+      return { type: "complete", evidence: "finished" };
+    },
+  });
+  worker.recover(run.id);
+  await worker.idle();
+
+  assert.equal(plannerCalls, 0);
+  assert.equal(tasks.length, 1);
+  assert.equal(runs.get(run.id)?.status, "completed");
+  const progress = runs.recovery(run.id)?.evidence as { nodes?: CoordinatedNodeResult[] };
+  assert.deepEqual(
+    progress.nodes?.map(({ id, status }) => [id, status]),
+    [
+      ["done", "completed"],
+      ["finish", "completed"],
+    ],
+  );
   store.close();
 });
 
@@ -570,6 +707,7 @@ test("a resumed sensitive answer reaches the phone but is redacted from evidence
   const persisted = JSON.stringify(runs.completion(run.id)?.evidence);
   assert.equal(persisted.includes("123456"), false);
   assert.match(persisted, /REDACTED/);
+  assert.equal(JSON.stringify(runs.recovery(run.id)?.evidence).includes("123456"), false);
   store.close();
 });
 

@@ -39,6 +39,61 @@ export interface RunningRuntime {
   stop(): Promise<void>;
 }
 
+interface DurableRunWorker {
+  start(runId: string): void;
+  recover(runId: string): void;
+}
+
+export function scheduleDurableRuns(
+  runs: RunService,
+  worker: DurableRunWorker,
+  devices: readonly { id: string; state: string }[],
+): void {
+  const ready = new Set(devices.filter((device) => device.state === "ready").map(({ id }) => id));
+  if (ready.size === 0) return;
+  for (const run of runs.list().reverse()) {
+    if (run.status === "created") {
+      worker.start(run.id);
+      continue;
+    }
+    if (run.status !== "running") continue;
+    const stored = runs.recovery(run.id)?.evidence as
+      | { deviceIds?: unknown; plan?: { nodes?: unknown }; nodes?: unknown }
+      | undefined;
+    const deviceIds = Array.isArray(stored?.deviceIds)
+      ? stored.deviceIds.filter((id): id is string => typeof id === "string")
+      : [];
+    const completed = new Set(
+      Array.isArray(stored?.nodes)
+        ? stored.nodes.flatMap((node) =>
+            node &&
+            typeof node === "object" &&
+            "id" in node &&
+            typeof node.id === "string" &&
+            "status" in node &&
+            node.status === "completed"
+              ? [node.id]
+              : [],
+          )
+        : [],
+    );
+    const pinned = Array.isArray(stored?.plan?.nodes)
+      ? stored.plan.nodes.flatMap((node) =>
+          node &&
+          typeof node === "object" &&
+          "id" in node &&
+          typeof node.id === "string" &&
+          !completed.has(node.id) &&
+          "deviceId" in node &&
+          typeof node.deviceId === "string"
+            ? [node.deviceId]
+            : [],
+        )
+      : [];
+    if ([...deviceIds, ...pinned].every((id) => ready.has(id))) worker.recover(run.id);
+  }
+}
+
 export async function startRuntime(options: RuntimeOptions): Promise<RunningRuntime> {
   const discover = options.discover ?? discoverAdbDevices;
   const registry = options.registry ?? new DeviceRegistry();
@@ -80,12 +135,14 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
             : {}),
         })
       : undefined;
+  let schedulingEnabled = false;
   let refreshTail = Promise.resolve();
   const refresh = (): Promise<void> => {
     const operation = refreshTail.then(async () => {
       try {
         const devices = await registry.refresh(await discover());
         for (const device of devices) store.saveDevice(device);
+        if (worker && schedulingEnabled) scheduleDurableRuns(runs, worker, devices);
       } catch (error) {
         const devices = await registry.refresh([]);
         for (const device of devices) store.saveDevice(device);
@@ -120,6 +177,8 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
         }),
       manualTap: executeNormalizedTap,
     });
+    schedulingEnabled = true;
+    if (worker) scheduleDurableRuns(runs, worker, await registry.list());
   } catch (error) {
     store.close();
     throw error;

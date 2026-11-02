@@ -37,6 +37,7 @@ export interface CoordinatedOptions {
     node: CoordinatedNode,
     dependencies: readonly Extract<CoordinatedNodeResult, { status: "completed" }>[],
   ): Promise<CoordinatedNodeResult>;
+  onProgress?(results: readonly CoordinatedNodeResult[]): void | Promise<void>;
 }
 
 const knownCapabilities = new Set<DeviceCapability>([
@@ -167,6 +168,7 @@ export async function runCoordinated(options: CoordinatedOptions): Promise<Coord
       };
     });
     for (const result of settled) results.set(result.id, result);
+    await options.onProgress?.([...results.values()]);
   }
 
   const ordered = options.plan.nodes.map((node) => results.get(node.id) as CoordinatedNodeResult);

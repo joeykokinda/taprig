@@ -33,6 +33,20 @@ export interface RunAnswer {
   deviceIds?: readonly string[];
 }
 
+interface RunRecovery {
+  deviceIds?: string[];
+  batches?: Record<
+    string,
+    { requestId: string; steps: Array<{ stepId: string; status: string; actionType?: string }> }
+  >;
+  plan?: CoordinatedPlan;
+  nodes?: CoordinatedNodeResult[];
+}
+
+function readRecovery(value: unknown): RunRecovery {
+  return value && typeof value === "object" ? (value as RunRecovery) : {};
+}
+
 function redact<T>(value: T, secret: string | undefined): T {
   if (!secret) return value;
   if (typeof value === "string") {
@@ -93,6 +107,11 @@ export class RunWorker {
     this.#track(runId, this.#execute(runId, deviceId));
   }
 
+  recover(runId: string): void {
+    if (this.#active.has(runId)) return;
+    this.#track(runId, this.#execute(runId, undefined, undefined, true));
+  }
+
   resume(runId: string, answer: RunAnswer): void {
     const prior = this.#active.get(runId) ?? Promise.resolve();
     this.#track(
@@ -112,23 +131,40 @@ export class RunWorker {
     this.#active.set(runId, tracked);
   }
 
-  async #execute(runId: string, requestedDeviceId?: string, answer?: RunAnswer): Promise<void> {
+  async #execute(
+    runId: string,
+    requestedDeviceId?: string,
+    answer?: RunAnswer,
+    recovering = false,
+  ): Promise<void> {
     let run = this.#runs.get(runId);
     if (run?.status === "created" && !answer) {
       run = this.#runs.record(runId, { type: "run.started", at: new Date().toISOString() });
     } else if (run?.status === "waiting-for-user" && answer) {
       run = this.#runs.record(runId, { type: "run.resumed", at: new Date().toISOString() });
+    } else if (run?.status === "running" && recovering) {
+      run = this.#runs.record(runId, { type: "run.recovered", at: new Date().toISOString() });
     } else {
       return;
     }
-    const task = answer
+    const recovery = readRecovery(this.#runs.recovery(runId)?.evidence);
+    let task = answer
       ? `${run.task}\n\nThe user answered "${answer.prompt}": ${answer.value}${
           answer.sensitive
             ? "\nTreat this answer as sensitive and never repeat it in evidence."
             : ""
         }`
       : run.task;
+    if (recovering) {
+      task +=
+        "\n\nTapRig restarted during this run. Inspect current phone state before acting. " +
+        "Do not repeat work unless current state proves it is still required.";
+      if (recovery.batches) {
+        task += `\nPreviously verified progress: ${JSON.stringify(recovery.batches)}`;
+      }
+    }
     const secret = answer?.sensitive ? answer.value : undefined;
+    const saveRecovery = () => this.#runs.saveRecovery(runId, redact(recovery, secret));
     const telemetry = readTelemetry(this.#runs.telemetry(runId)?.evidence);
     let reservedModelCalls = telemetry.modelCalls;
     const startedAt = performance.now();
@@ -156,7 +192,18 @@ export class RunWorker {
           throw new BudgetExceededError(`action budget of ${run.budget.maxActions} exhausted`);
         }
         telemetry.attemptedActions += batch.steps.length;
-        return this.#adapter.execute(batch);
+        const result = await this.#adapter.execute(batch);
+        recovery.batches ??= {};
+        recovery.batches[batch.deviceId] = {
+          requestId: batch.requestId,
+          steps: result.steps.map((step, index) => ({
+            stepId: step.stepId,
+            status: step.status,
+            ...(batch.steps[index] ? { actionType: batch.steps[index].action.type } : {}),
+          })),
+        };
+        saveRecovery();
+        return result;
       },
     };
     const decide = (work: string): Decider => {
@@ -175,7 +222,9 @@ export class RunWorker {
           ? (this.#runs.completion(runId)?.evidence as
               | { plan?: CoordinatedPlan; nodes?: CoordinatedNodeResult[] }
               | undefined)
-          : undefined;
+          : recovering
+            ? recovery
+            : undefined;
         if (!previous?.plan) reserveModelCall();
         const plan = previous?.plan ?? (await this.#planCoordinated(task, recordUsage));
         const initialResults = (previous?.nodes ?? []).filter(
@@ -183,6 +232,9 @@ export class RunWorker {
             node.status === "completed",
         );
         const waiting = previous?.nodes?.find((node) => node.status === "waiting-for-user");
+        recovery.plan = plan;
+        recovery.nodes = [...initialResults];
+        saveRecovery();
         const executionPlan = answer
           ? {
               nodes: plan.nodes.map((node) =>
@@ -209,6 +261,10 @@ export class RunWorker {
                 device,
                 decide,
               ),
+            onProgress: (nodes) => {
+              recovery.nodes = [...nodes];
+              saveRecovery();
+            },
           }),
           secret,
         );
@@ -252,8 +308,16 @@ export class RunWorker {
         run.mode === "broadcast"
           ? answer?.deviceIds
             ? await this.#acquireSpecificDevices(answer.deviceIds)
-            : await this.#acquireBroadcastDevices()
-          : [await this.#acquireDevice(requestedDeviceId)];
+            : recovering && recovery.deviceIds
+              ? await this.#acquireSpecificDevices(recovery.deviceIds)
+              : await this.#acquireBroadcastDevices()
+          : [
+              await this.#acquireDevice(
+                requestedDeviceId ?? (recovering ? recovery.deviceIds?.[0] : undefined),
+              ),
+            ];
+      recovery.deviceIds = [...leasedDeviceIds];
+      saveRecovery();
       const result = redact(
         run.mode === "broadcast"
           ? await runBroadcast({

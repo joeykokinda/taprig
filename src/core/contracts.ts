@@ -145,6 +145,7 @@ export interface RunTelemetry {
 export type RunEvent =
   | { type: "run.created"; run: RunState }
   | { type: "run.started"; at: string }
+  | { type: "run.recovered"; at: string }
   | { type: "run.paused"; at: string }
   | { type: "run.resumed"; at: string }
   | { type: "run.waitingForUser"; at: string }

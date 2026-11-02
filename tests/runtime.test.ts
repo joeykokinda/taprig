@@ -6,8 +6,9 @@ import test from "node:test";
 
 import type { AdbDevice } from "../src/android/adb-discovery.ts";
 import { DeviceRegistry } from "../src/android/device-actor.ts";
-import { startRuntime } from "../src/daemon/runtime.ts";
+import { scheduleDurableRuns, startRuntime } from "../src/daemon/runtime.ts";
 import { TapRigStore } from "../src/persistence/store.ts";
+import { RunService } from "../src/runs/service.ts";
 
 const token = "runtime-test-token";
 const headers = { authorization: `Bearer ${token}` };
@@ -81,4 +82,45 @@ test("a discovery failure fails closed to offline", async (context) => {
   const recoveredResponse = await fetch(`${runtime.url}/devices`, { headers });
   const recovered = (await recoveredResponse.json()) as { devices: Array<{ state: string }> };
   assert.equal(recovered.devices[0]?.state, "ready");
+});
+
+test("durable run scheduling starts new work and recovers only when its phones are ready", () => {
+  const store = new TapRigStore(":memory:");
+  const runs = new RunService(store);
+  const created = runs.create("New work");
+  const running = runs.create("Interrupted work");
+  runs.record(running.id, { type: "run.started", at: "2026-11-01T12:00:00.000Z" });
+  runs.saveRecovery(running.id, { deviceIds: ["phone-2"] });
+  const coordinated = runs.create("Pinned work", "coordinated");
+  runs.record(coordinated.id, { type: "run.started", at: "2026-11-01T12:00:00.000Z" });
+  runs.saveRecovery(coordinated.id, {
+    plan: { nodes: [{ id: "pending", task: "Pending", dependsOn: [], deviceId: "phone-3" }] },
+    nodes: [],
+  });
+  const started: string[] = [];
+  const recovered: string[] = [];
+  const worker = {
+    start: (runId: string) => {
+      if (!started.includes(runId)) started.push(runId);
+    },
+    recover: (runId: string) => {
+      if (!recovered.includes(runId)) recovered.push(runId);
+    },
+  };
+
+  scheduleDurableRuns(runs, worker, [{ id: "phone-1", state: "ready" }]);
+  assert.deepEqual(started, [created.id]);
+  assert.deepEqual(recovered, []);
+  scheduleDurableRuns(runs, worker, [
+    { id: "phone-1", state: "ready" },
+    { id: "phone-2", state: "ready" },
+  ]);
+  assert.deepEqual(recovered, [running.id]);
+  scheduleDurableRuns(runs, worker, [
+    { id: "phone-1", state: "ready" },
+    { id: "phone-2", state: "ready" },
+    { id: "phone-3", state: "ready" },
+  ]);
+  assert.deepEqual(recovered, [running.id, coordinated.id]);
+  store.close();
 });

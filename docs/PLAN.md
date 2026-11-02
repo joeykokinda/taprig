@@ -557,7 +557,7 @@ Core event families:
 
 ```text
 device.discovered / state_changed / disconnected
-run.created / started / paused / resumed / completed / failed
+run.created / started / recovered / paused / resumed / completed / failed
 lease.acquired / released / revoked
 observation.received
 plan.created
@@ -702,7 +702,8 @@ PhoneFarm fleet with reproducible traces.
 - [ ] Local OCR and perception plugin boundary.
 - [ ] Model routing/evaluation improvements.
 - [x] Durable run-level model, token, action, and latency telemetry.
-- [ ] Restart recovery and long-duration soak testing.
+- [x] Durable restart recovery on the original ready phone cohort.
+- [ ] Long-duration soak testing.
 - [x] Synthetic runtime and fleet-scaling regression harness.
 - [ ] Public benchmark suite and comparison methodology.
 

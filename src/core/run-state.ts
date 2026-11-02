@@ -2,7 +2,7 @@ import type { RunEvent, RunState, RunStatus } from "./contracts.ts";
 
 const allowedTransitions: Readonly<Record<RunStatus, readonly RunStatus[]>> = {
   created: ["running", "stopped"],
-  running: ["paused", "waiting-for-user", "completed", "failed", "stopped"],
+  running: ["running", "paused", "waiting-for-user", "completed", "failed", "stopped"],
   paused: ["running", "stopped"],
   "waiting-for-user": ["running", "failed", "stopped"],
   completed: [],
@@ -20,6 +20,12 @@ export function applyRunEvent(current: RunState | undefined, event: RunEvent): R
   if (!current) throw new Error(`${event.type} requires an existing run`);
 
   const nextStatus = statusFor(event);
+  if (event.type === "run.recovered" && current.status !== "running") {
+    throw new Error(`cannot recover run ${current.id} from ${current.status}`);
+  }
+  if (current.status === "running" && nextStatus === "running" && event.type !== "run.recovered") {
+    throw new Error(`cannot transition run ${current.id} from running with ${event.type}`);
+  }
   if (!allowedTransitions[current.status].includes(nextStatus)) {
     throw new Error(`cannot transition run ${current.id} from ${current.status} to ${nextStatus}`);
   }
@@ -37,6 +43,7 @@ export function applyRunEvent(current: RunState | undefined, event: RunEvent): R
 function statusFor(event: Exclude<RunEvent, { type: "run.created" }>): RunStatus {
   switch (event.type) {
     case "run.started":
+    case "run.recovered":
     case "run.resumed":
       return "running";
     case "run.paused":

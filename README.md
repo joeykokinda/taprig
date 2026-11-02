@@ -53,8 +53,10 @@ npm run taprig -- daemon stop
 The token, state, log, and SQLite database stay in the OS application-data
 directory with private file permissions. A configured model worker now assigns
 an available phone and durably records verified completion, user questions, or
-typed failure. Independent, broadcast, and dependency-ordered coordinated runs
-share capability-aware device leases and durable evidence. The Electron
+typed failure. Interrupted runs automatically recover on their original phones
+after a daemon restart, using redacted verified progress and the saved fleet
+plan. Independent, broadcast, and dependency-ordered coordinated runs share
+capability-aware device leases and durable evidence. The Electron
 application has local Linux packages; signed cross-platform releases remain in
 progress.
 See [physical hardware results](docs/HARDWARE_VALIDATION.md).

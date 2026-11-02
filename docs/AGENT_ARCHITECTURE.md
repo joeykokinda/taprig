@@ -407,6 +407,14 @@ Recovery is bounded and typed. For an ordinary failed step:
 8. ask the user when information or required human presence is missing;
 9. stop with a typed failure when budgets or recovery limits are exhausted.
 
+After a daemon restart, a run left in `running` waits until its original phone
+or broadcast cohort is ready, records `run.recovered`, and replans from fresh
+phone state plus a redacted structural summary of verified batches. Coordinated
+runs reuse their durable DAG and completed-node evidence. Text values are never
+written to recovery checkpoints. There is an unavoidable phone/database
+atomicity gap if the host dies between a phone action and its checkpoint, so the
+recovered agent must inspect current state before repeating work.
+
 Every error class has a retry budget. Repeating the same action against unchanged
 state does not count as recovery.
 
