@@ -291,6 +291,12 @@ h2 {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.trace-row small {
+  grid-column: 2 / -1;
+  color: #747474;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+}
 .question-row {
   display: grid;
   grid-template-columns: 1fr auto;

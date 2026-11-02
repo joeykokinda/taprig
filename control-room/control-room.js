@@ -110,21 +110,27 @@ $("#devices").addEventListener("click", async (event) => {
   }
 });
 
-function renderRuns(runs) {
+function renderRuns(runs, telemetry) {
   const active = runs.filter((run) => !["completed", "failed", "stopped"].includes(run.status));
   $("#run-count").textContent = active.length;
   $("#runs").innerHTML = runs.length
     ? runs
         .slice(0, 20)
-        .map(
-          (run) => `
+        .map((run) => {
+          const metrics = telemetry.get(run.id);
+          return `
       <article class="trace-row">
         <time>${escapeHtml(new Date(run.updatedAt).toLocaleTimeString())}</time>
         <span>${escapeHtml(run.mode).toUpperCase()}</span>
         <strong>${escapeHtml(run.status).toUpperCase()}</strong>
         <p title="${escapeHtml(run.task)}">${escapeHtml(run.task)}</p>
-      </article>`,
-        )
+        ${
+          metrics
+            ? `<small>${metrics.modelCalls} MODEL / ${metrics.inputTokens + metrics.outputTokens} TOKENS / ${metrics.attemptedActions} ACTIONS / ${Math.round(metrics.elapsedMs)}MS</small>`
+            : ""
+        }
+      </article>`;
+        })
         .join("")
     : '<p class="empty">NO RUNS YET</p>';
 }
@@ -162,13 +168,12 @@ function renderQuestions(questions) {
 
 async function refresh() {
   try {
-    const [{ devices }, { runs }, { scripts }] = await Promise.all([
+    const [{ devices }, { runs, telemetry }, { scripts }] = await Promise.all([
       json("/devices"),
       json("/runs"),
       json("/scripts"),
     ]);
     renderDevices(devices);
-    renderRuns(runs);
     renderScripts(scripts);
     const questionGroups = await Promise.all(
       runs
@@ -179,6 +184,7 @@ async function refresh() {
           ),
         ),
     );
+    renderRuns(runs, new Map(Object.entries(telemetry)));
     renderQuestions(questionGroups.flat().filter((question) => question.status === "open"));
     $("#connection").textContent = "LOCAL DAEMON / ONLINE";
   } catch {

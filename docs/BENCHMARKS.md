@@ -20,3 +20,10 @@ not use a model provider, physical phone, network, or app, so it deliberately
 does not report token cost or claim end-to-end task success. The public product
 benchmark remains open until the same result schema is populated by a pinned
 device/app/task matrix with provider usage and repeated physical trials.
+
+Real runs already persist the raw inputs needed for that report: provider call
+count, input/output tokens, device decision count, attempted action count, and
+accumulated runtime. Inspect them with `taprig attach <run-id>` or
+`GET /runs/<run-id>/telemetry`. TapRig intentionally stores token counts rather
+than a dollar estimate because model prices change; benchmark publication will
+join those counts to a dated, cited price snapshot.

@@ -125,6 +125,16 @@ export interface RunState {
   error?: TapRigError;
 }
 
+export interface RunTelemetry {
+  executions: number;
+  elapsedMs: number;
+  decisionCalls: number;
+  modelCalls: number;
+  inputTokens: number;
+  outputTokens: number;
+  attemptedActions: number;
+}
+
 export type RunEvent =
   | { type: "run.created"; run: RunState }
   | { type: "run.started"; at: string }

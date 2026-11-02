@@ -64,13 +64,18 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
           runs,
           devices: registry,
           adapter: semanticAdapter,
-          decide: (task) => createModelDecider(task, route.target, provider),
+          decide: (task, recordUsage) =>
+            createModelDecider(task, route.target, provider, process.env, fetch, recordUsage),
           ...(coordinatorRoute && coordinatorProvider && process.env[coordinatorProvider.apiKeyEnv]
             ? {
-                planCoordinated: createModelCoordinator(
-                  coordinatorRoute.target,
-                  coordinatorProvider,
-                ),
+                planCoordinated: (task, recordUsage) =>
+                  createModelCoordinator(
+                    coordinatorRoute.target,
+                    coordinatorProvider,
+                    process.env,
+                    fetch,
+                    recordUsage,
+                  )(task),
               }
             : {}),
         })

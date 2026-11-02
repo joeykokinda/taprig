@@ -6,6 +6,7 @@ import type {
   BatchResult,
   DeviceAdapter,
   Observation,
+  RunTelemetry,
 } from "../src/core/contracts.ts";
 import { TapRigStore } from "../src/persistence/store.ts";
 import { RunService } from "../src/runs/service.ts";
@@ -47,9 +48,10 @@ test("a worker assigns a ready phone and durably completes a bounded run", async
     devices: { list: async () => [readyDevice("phone-1")] },
     adapter,
     decide:
-      () =>
-      async ({ decisionNumber }) =>
-        decisionNumber === 0
+      (_task, recordUsage) =>
+      async ({ decisionNumber }) => {
+        recordUsage?.({ inputTokens: 10, outputTokens: 2 });
+        return decisionNumber === 0
           ? {
               type: "execute",
               requestId: "request-1",
@@ -57,7 +59,8 @@ test("a worker assigns a ready phone and durably completes a bounded run", async
                 { id: "open", action: { type: "element.tap", target: { text: "Settings" } } },
               ],
             }
-          : { type: "complete", evidence: "Settings is visible" },
+          : { type: "complete", evidence: "Settings is visible" };
+      },
   });
   worker.start(run.id);
   await worker.idle();
@@ -67,6 +70,14 @@ test("a worker assigns a ready phone and durably completes a bounded run", async
     runs.events(run.id).map(({ event }) => event.type),
     ["run.created", "run.started", "run.completed"],
   );
+  const telemetry = runs.telemetry(run.id)?.evidence as RunTelemetry;
+  assert.equal(telemetry.executions, 1);
+  assert.equal(telemetry.decisionCalls, 2);
+  assert.equal(telemetry.modelCalls, 2);
+  assert.equal(telemetry.inputTokens, 20);
+  assert.equal(telemetry.outputTokens, 4);
+  assert.equal(telemetry.attemptedActions, 1);
+  assert.ok(telemetry.elapsedMs >= 0);
   store.close();
 });
 

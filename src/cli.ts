@@ -5,7 +5,7 @@ import { createInterface } from "node:readline/promises";
 
 import { type AdbDevice, formatAdbDevices } from "./android/adb-discovery.ts";
 import { parseAnswerCommand } from "./answer-command.ts";
-import type { RunEvent, RunMode, RunState } from "./core/contracts.ts";
+import type { RunEvent, RunMode, RunState, RunTelemetry } from "./core/contracts.ts";
 import {
   daemonRequest,
   daemonStatus,
@@ -69,7 +69,7 @@ function printRuns(runs: readonly RunState[]): void {
 }
 
 async function showRun(id: string): Promise<void> {
-  const [{ run }, { events }, { questions }] = await Promise.all([
+  const [{ run }, { events }, { questions }, { telemetry }] = await Promise.all([
     daemonJson<{ run: RunState }>(`/runs/${encodeURIComponent(id)}`),
     daemonJson<{ events: Array<{ sequence: number; event: RunEvent }> }>(
       `/runs/${encodeURIComponent(id)}/events`,
@@ -77,12 +77,18 @@ async function showRun(id: string): Promise<void> {
     daemonJson<{
       questions: Array<{ id: string; prompt: string; status: string; sensitive?: boolean }>;
     }>(`/runs/${encodeURIComponent(id)}/questions`),
+    daemonJson<{ telemetry: RunTelemetry | null }>(`/runs/${encodeURIComponent(id)}/telemetry`),
   ]);
   process.stdout.write(`${run.id} · ${run.status} · ${run.mode}\n${run.task}\n`);
   for (const item of events) process.stdout.write(`  ${item.sequence}  ${item.event.type}\n`);
   for (const question of questions) {
     process.stdout.write(
       `  question ${question.id}  ${question.status}  ${question.prompt}${question.sensitive ? " [sensitive answer]" : ""}\n`,
+    );
+  }
+  if (telemetry) {
+    process.stdout.write(
+      `  telemetry  ${telemetry.modelCalls} model / ${telemetry.decisionCalls} decisions / ${telemetry.inputTokens + telemetry.outputTokens} tokens / ${telemetry.attemptedActions} actions / ${telemetry.elapsedMs}ms\n`,
     );
   }
 }

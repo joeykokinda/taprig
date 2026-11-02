@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { ModelTarget, OpenAiProviderConfig } from "../models/config.ts";
 import { OpenAiResponsesProvider } from "../models/openai.ts";
+import type { RecordModelUsage } from "../models/usage.ts";
 import type { AgentContext, AgentDecision } from "./loop.ts";
 
 const decisionSchema = {
@@ -111,8 +112,8 @@ export function createModelDecider(
   providerConfig: OpenAiProviderConfig,
   environment: NodeJS.ProcessEnv = process.env,
   request: typeof fetch = fetch,
+  recordUsage?: RecordModelUsage,
 ): (context: AgentContext) => Promise<AgentDecision> {
-  const provider = new OpenAiResponsesProvider(providerConfig, environment, request);
   return async (context) => {
     const observation = {
       foregroundPackage: context.observation.foregroundPackage,
@@ -127,15 +128,29 @@ export function createModelDecider(
       })),
       previousBatch: context.previousBatch,
     };
-    const response = await provider.structured({
-      model: target.model,
-      ...(target.reasoningEffort ? { reasoningEffort: target.reasoningEffort } : {}),
-      schemaName: "taprig_phone_decision",
-      schema: decisionSchema,
-      system:
-        "You control one Android phone with typed launch, key, semantic tap, and text-entry actions. For tap/text choose only a visible selector in value; for text put the exact text in input. For launch/key put the package or key in value. Set input null when unused. Take at most three short actions, then observe again. Mark complete only when the current UI visibly proves the user's task. Ask one precise question when required information is missing. Never repeat sensitive input in evidence and never guess success.",
-      input: JSON.stringify({ task, decisionNumber: context.decisionNumber, observation }),
+    let attempted = false;
+    const provider = new OpenAiResponsesProvider(providerConfig, environment, (input, init) => {
+      attempted = true;
+      return request(input, init);
     });
-    return parseDecision(response.value);
+    let usage = { inputTokens: 0, outputTokens: 0 };
+    try {
+      const response = await provider.structured({
+        model: target.model,
+        ...(target.reasoningEffort ? { reasoningEffort: target.reasoningEffort } : {}),
+        schemaName: "taprig_phone_decision",
+        schema: decisionSchema,
+        system:
+          "You control one Android phone with typed launch, key, semantic tap, and text-entry actions. For tap/text choose only a visible selector in value; for text put the exact text in input. For launch/key put the package or key in value. Set input null when unused. Take at most three short actions, then observe again. Mark complete only when the current UI visibly proves the user's task. Ask one precise question when required information is missing. Never repeat sensitive input in evidence and never guess success.",
+        input: JSON.stringify({ task, decisionNumber: context.decisionNumber, observation }),
+      });
+      usage = {
+        inputTokens: response.inputTokens ?? 0,
+        outputTokens: response.outputTokens ?? 0,
+      };
+      return parseDecision(response.value);
+    } finally {
+      if (attempted) recordUsage?.(usage);
+    }
   };
 }

@@ -192,12 +192,28 @@ test("the daemon creates, lists, and attaches to durable runs", async (context) 
   assert.equal(created.status, 201);
   assert.equal(((await created.json()) as { run: { id: string } }).run.id, "run-1");
   assert.deepEqual(started, ["run-1"]);
+  runs.saveTelemetry("run-1", { modelCalls: 2, inputTokens: 100, outputTokens: 20 });
 
   const listed = await fetch(`${daemon.url}/runs`, { headers: authorization });
-  assert.equal(((await listed.json()) as { runs: unknown[] }).runs.length, 1);
+  const inventory = (await listed.json()) as {
+    runs: unknown[];
+    telemetry: Record<string, unknown>;
+  };
+  assert.equal(inventory.runs.length, 1);
+  assert.deepEqual(inventory.telemetry["run-1"], {
+    modelCalls: 2,
+    inputTokens: 100,
+    outputTokens: 20,
+  });
   const attached = await fetch(`${daemon.url}/runs/run-1/events`, { headers: authorization });
   const events = (await attached.json()) as { events: Array<{ event: { type: string } }> };
   assert.equal(events.events[0]?.event.type, "run.created");
+  const telemetry = await fetch(`${daemon.url}/runs/run-1/telemetry`, {
+    headers: authorization,
+  });
+  assert.deepEqual((await telemetry.json()) as unknown, {
+    telemetry: { modelCalls: 2, inputTokens: 100, outputTokens: 20 },
+  });
 });
 
 test("the daemon resumes questions without persisting sensitive answers", async (context) => {

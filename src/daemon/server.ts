@@ -226,7 +226,18 @@ export async function startDaemon(options: TapRigDaemonOptions): Promise<Running
         return;
       }
       if (request.method === "GET" && url.pathname === "/runs") {
-        response.end(JSON.stringify({ runs: options.runs?.list() ?? [] }));
+        const runs = options.runs?.list() ?? [];
+        response.end(
+          JSON.stringify({
+            runs,
+            telemetry: Object.fromEntries(
+              runs.flatMap((run) => {
+                const telemetry = options.runs?.telemetry(run.id)?.evidence;
+                return telemetry === undefined ? [] : [[run.id, telemetry]];
+              }),
+            ),
+          }),
+        );
         return;
       }
       if (request.method === "GET" && url.pathname === "/scripts") {
@@ -333,6 +344,19 @@ export async function startDaemon(options: TapRigDaemonOptions): Promise<Running
           response.statusCode = 404;
           response.end(JSON.stringify({ error: "run-not-found" }));
         }
+        return;
+      }
+      const telemetryRoute = /^\/runs\/([^/]+)\/telemetry$/u.exec(url.pathname);
+      if (request.method === "GET" && telemetryRoute?.[1]) {
+        const runId = decodeURIComponent(telemetryRoute[1]);
+        if (!options.runs?.get(runId)) {
+          response.statusCode = 404;
+          response.end(JSON.stringify({ error: "run-not-found" }));
+          return;
+        }
+        response.end(
+          JSON.stringify({ telemetry: options.runs.telemetry(runId)?.evidence ?? null }),
+        );
         return;
       }
       const answerRoute = /^\/runs\/([^/]+)\/questions\/([^/]+)\/answer$/u.exec(url.pathname);

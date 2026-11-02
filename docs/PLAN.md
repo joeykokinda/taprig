@@ -700,6 +700,7 @@ PhoneFarm fleet with reproducible traces.
 - [ ] Deterministic skill recording/replay.
 - [ ] Local OCR and perception plugin boundary.
 - [ ] Model routing/evaluation improvements.
+- [x] Durable run-level model, token, action, and latency telemetry.
 - [ ] Restart recovery and long-duration soak testing.
 - [x] Synthetic runtime and fleet-scaling regression harness.
 - [ ] Public benchmark suite and comparison methodology.

@@ -109,4 +109,19 @@ export class RunService {
   completion(runId: string) {
     return this.store.getCheckpoint(runId, "completion");
   }
+
+  saveTelemetry(runId: string, telemetry: unknown): void {
+    this.store.saveCheckpoint({
+      id: this.id(),
+      runId,
+      deviceId: "runtime",
+      name: "telemetry",
+      evidence: telemetry,
+      createdAt: this.now(),
+    });
+  }
+
+  telemetry(runId: string) {
+    return this.store.getCheckpoint(runId, "telemetry");
+  }
 }

@@ -1,7 +1,8 @@
 import type { AgentContext, AgentDecision } from "../agents/loop.ts";
 import { runAgentLoop } from "../agents/loop.ts";
-import type { DeviceAdapter, DeviceCapability } from "../core/contracts.ts";
+import type { DeviceAdapter, DeviceCapability, RunTelemetry } from "../core/contracts.ts";
 import type { DeviceInventory } from "../daemon/server.ts";
+import type { RecordModelUsage } from "../models/usage.ts";
 import { runBroadcast } from "../orchestration/broadcast.ts";
 import type {
   CoordinatedNode,
@@ -15,8 +16,8 @@ export interface RunWorkerOptions {
   runs: RunService;
   devices: DeviceInventory;
   adapter: DeviceAdapter;
-  decide(task: string): Decider;
-  planCoordinated?(task: string): Promise<CoordinatedPlan>;
+  decide(task: string, recordUsage?: RecordModelUsage): Decider;
+  planCoordinated?(task: string, recordUsage?: RecordModelUsage): Promise<CoordinatedPlan>;
 }
 
 type Decider = (context: AgentContext) => Promise<AgentDecision>;
@@ -49,6 +50,23 @@ function redact<T>(value: T, secret: string | undefined): T {
   return value;
 }
 
+function metric(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
+}
+
+function readTelemetry(value: unknown): RunTelemetry {
+  const stored = value && typeof value === "object" ? (value as Partial<RunTelemetry>) : {};
+  return {
+    executions: metric(stored.executions),
+    elapsedMs: metric(stored.elapsedMs),
+    decisionCalls: metric(stored.decisionCalls),
+    modelCalls: metric(stored.modelCalls),
+    inputTokens: metric(stored.inputTokens),
+    outputTokens: metric(stored.outputTokens),
+    attemptedActions: metric(stored.attemptedActions),
+  };
+}
+
 export class RunWorker {
   readonly #active = new Map<string, Promise<void>>();
   readonly #leasedDevices = new Set<string>();
@@ -56,8 +74,10 @@ export class RunWorker {
   readonly #runs: RunService;
   readonly #devices: DeviceInventory;
   readonly #adapter: DeviceAdapter;
-  readonly #decide: (task: string) => Decider;
-  readonly #planCoordinated: ((task: string) => Promise<CoordinatedPlan>) | undefined;
+  readonly #decide: (task: string, recordUsage?: RecordModelUsage) => Decider;
+  readonly #planCoordinated:
+    | ((task: string, recordUsage?: RecordModelUsage) => Promise<CoordinatedPlan>)
+    | undefined;
 
   constructor(options: RunWorkerOptions) {
     this.#runs = options.runs;
@@ -108,6 +128,27 @@ export class RunWorker {
         }`
       : run.task;
     const secret = answer?.sensitive ? answer.value : undefined;
+    const telemetry = readTelemetry(this.#runs.telemetry(runId)?.evidence);
+    const startedAt = performance.now();
+    const recordUsage: RecordModelUsage = (usage) => {
+      telemetry.modelCalls += 1;
+      telemetry.inputTokens += usage.inputTokens;
+      telemetry.outputTokens += usage.outputTokens;
+    };
+    const device: DeviceAdapter = {
+      observe: (deviceId) => this.#adapter.observe(deviceId),
+      execute: async (batch) => {
+        telemetry.attemptedActions += batch.steps.length;
+        return this.#adapter.execute(batch);
+      },
+    };
+    const decide = (work: string): Decider => {
+      const selected = this.#decide(work, recordUsage);
+      return async (context) => {
+        telemetry.decisionCalls += 1;
+        return selected(context);
+      };
+    };
     let leasedDeviceIds: string[] = [];
     try {
       if (run.mode === "coordinated") {
@@ -117,7 +158,7 @@ export class RunWorker {
               | { plan?: CoordinatedPlan; nodes?: CoordinatedNodeResult[] }
               | undefined)
           : undefined;
-        const plan = previous?.plan ?? (await this.#planCoordinated(task));
+        const plan = previous?.plan ?? (await this.#planCoordinated(task, recordUsage));
         const initialResults = (previous?.nodes ?? []).filter(
           (node): node is Extract<CoordinatedNodeResult, { status: "completed" }> =>
             node.status === "completed",
@@ -146,6 +187,8 @@ export class RunWorker {
               this.#executeCoordinatedNode(
                 node,
                 dependencies.map(({ id, evidence }) => `${id}: ${evidence}`),
+                device,
+                decide,
               ),
           }),
           secret,
@@ -195,21 +238,21 @@ export class RunWorker {
       const result = redact(
         run.mode === "broadcast"
           ? await runBroadcast({
-              device: this.#adapter,
+              device,
               deviceIds: leasedDeviceIds,
-              decide: this.#decide(task),
+              decide: decide(task),
               recover: (deviceId) =>
                 runAgentLoop({
-                  device: this.#adapter,
+                  device,
                   deviceId,
-                  decide: this.#decide(task),
+                  decide: decide(task),
                   verifyCompletion: async () => undefined,
                 }),
             })
           : await runAgentLoop({
-              device: this.#adapter,
+              device,
               deviceId: leasedDeviceIds[0] as string,
-              decide: this.#decide(task),
+              decide: decide(task),
               verifyCompletion: async () => undefined,
             }),
         secret,
@@ -249,20 +292,26 @@ export class RunWorker {
       });
     } finally {
       for (const deviceId of leasedDeviceIds) this.#releaseDevice(deviceId);
+      telemetry.executions += 1;
+      telemetry.elapsedMs =
+        Math.round((telemetry.elapsedMs + performance.now() - startedAt) * 1000) / 1000;
+      this.#runs.saveTelemetry(runId, telemetry);
     }
   }
 
   async #executeCoordinatedNode(
     node: CoordinatedNode,
     dependencies: readonly string[],
+    device: DeviceAdapter,
+    decide: (task: string) => Decider,
   ): Promise<CoordinatedNodeResult> {
     let deviceId: string | undefined;
     try {
       deviceId = await this.#acquireDevice(node.deviceId, node.capabilities ?? agentCapabilities);
       const result = await runAgentLoop({
-        device: this.#adapter,
+        device,
         deviceId,
-        decide: this.#decide(
+        decide: decide(
           dependencies.length > 0
             ? `${node.task}\n\nVerified dependency results:\n${dependencies.join("\n")}`
             : node.task,

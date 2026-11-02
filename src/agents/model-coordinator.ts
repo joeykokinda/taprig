@@ -1,5 +1,6 @@
 import type { ModelTarget, OpenAiProviderConfig } from "../models/config.ts";
 import { OpenAiResponsesProvider } from "../models/openai.ts";
+import type { RecordModelUsage } from "../models/usage.ts";
 import type { CoordinatedPlan } from "../orchestration/coordinated.ts";
 import { validateCoordinatedPlan } from "../orchestration/coordinated.ts";
 
@@ -62,30 +63,46 @@ export function createModelCoordinator(
   providerConfig: OpenAiProviderConfig,
   environment: NodeJS.ProcessEnv = process.env,
   request: typeof fetch = fetch,
+  recordUsage?: RecordModelUsage,
 ): (task: string) => Promise<CoordinatedPlan> {
-  const provider = new OpenAiResponsesProvider(providerConfig, environment, request);
   return async (task) => {
-    const response = await provider.structured({
-      model: target.model,
-      ...(target.reasoningEffort ? { reasoningEffort: target.reasoningEffort } : {}),
-      schemaName: "taprig_coordinated_plan",
-      schema: planSchema,
-      system:
-        "Decompose one phone-fleet request into the smallest acyclic task graph. Each node is one independently verifiable phone task. Use dependencies only when a node needs an earlier result. Leave deviceId null unless the user explicitly names a device. Require semantic-observation and semantic-action for ordinary phone work; add video, screenshot, raw-input, or shell only when the work specifically needs it. Do not invent tasks, credentials, recipients, content, or success.",
-      input: task,
+    let attempted = false;
+    const provider = new OpenAiResponsesProvider(providerConfig, environment, (input, init) => {
+      attempted = true;
+      return request(input, init);
     });
-    const value = response.value as Partial<ModelPlan>;
-    if (!Array.isArray(value.nodes)) throw new Error("model returned an invalid coordinated plan");
-    const plan: CoordinatedPlan = {
-      nodes: value.nodes.map((node) => ({
-        id: node.id,
-        task: node.task.trim(),
-        dependsOn: node.dependsOn,
-        ...(node.deviceId?.trim() ? { deviceId: node.deviceId.trim() } : {}),
-        ...(node.capabilities?.length ? { capabilities: node.capabilities } : {}),
-      })),
-    };
-    validateCoordinatedPlan(plan);
-    return plan;
+    let usage = { inputTokens: 0, outputTokens: 0 };
+    try {
+      const response = await provider.structured({
+        model: target.model,
+        ...(target.reasoningEffort ? { reasoningEffort: target.reasoningEffort } : {}),
+        schemaName: "taprig_coordinated_plan",
+        schema: planSchema,
+        system:
+          "Decompose one phone-fleet request into the smallest acyclic task graph. Each node is one independently verifiable phone task. Use dependencies only when a node needs an earlier result. Leave deviceId null unless the user explicitly names a device. Require semantic-observation and semantic-action for ordinary phone work; add video, screenshot, raw-input, or shell only when the work specifically needs it. Do not invent tasks, credentials, recipients, content, or success.",
+        input: task,
+      });
+      usage = {
+        inputTokens: response.inputTokens ?? 0,
+        outputTokens: response.outputTokens ?? 0,
+      };
+      const value = response.value as Partial<ModelPlan>;
+      if (!Array.isArray(value.nodes)) {
+        throw new Error("model returned an invalid coordinated plan");
+      }
+      const plan: CoordinatedPlan = {
+        nodes: value.nodes.map((node) => ({
+          id: node.id,
+          task: node.task.trim(),
+          dependsOn: node.dependsOn,
+          ...(node.deviceId?.trim() ? { deviceId: node.deviceId.trim() } : {}),
+          ...(node.capabilities?.length ? { capabilities: node.capabilities } : {}),
+        })),
+      };
+      validateCoordinatedPlan(plan);
+      return plan;
+    } finally {
+      if (attempted) recordUsage?.(usage);
+    }
   };
 }

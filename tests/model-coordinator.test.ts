@@ -4,6 +4,7 @@ import test from "node:test";
 import { createModelCoordinator } from "../src/agents/model-coordinator.ts";
 
 test("turns strict model output into a validated coordinated plan", async () => {
+  const usage: unknown[] = [];
   const plan = await createModelCoordinator(
     { provider: "openai", model: "test-model", reasoningEffort: "low" },
     { type: "openai", apiKeyEnv: "TEST_KEY", baseUrl: "https://example.test/v1" },
@@ -11,6 +12,7 @@ test("turns strict model output into a validated coordinated plan", async () => 
     async () =>
       new Response(
         JSON.stringify({
+          usage: { input_tokens: 20, output_tokens: 8 },
           output_text: JSON.stringify({
             nodes: [
               {
@@ -32,6 +34,7 @@ test("turns strict model output into a validated coordinated plan", async () => 
         }),
         { status: 200 },
       ),
+    (sample) => usage.push(sample),
   )("Collect and send the result");
 
   assert.deepEqual(plan, {
@@ -51,4 +54,5 @@ test("turns strict model output into a validated coordinated plan", async () => 
       },
     ],
   });
+  assert.deepEqual(usage, [{ inputTokens: 20, outputTokens: 8 }]);
 });
