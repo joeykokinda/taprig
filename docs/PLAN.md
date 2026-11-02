@@ -678,7 +678,8 @@ execute and verify reversible actions, and take over manually.
 - [x] Durable secret-safe observation, decision, and action trace replay.
 - [ ] Approvals and artifacts.
 - [x] User script creation, inspection, testing, and deterministic execution.
-- [ ] Full main workspace and onboarding.
+- [x] Guided CLI/control-room readiness onboarding.
+- [ ] Full settings, artifact, and approval workspace.
 - [x] MCP adapter.
 
 Exit: install, connect one phone, type a task in UI or CLI, watch it finish or

@@ -64,6 +64,7 @@ See [physical hardware results](docs/HARDWARE_VALIDATION.md).
 The pre-alpha run shell and its non-interactive equivalents are available now:
 
 ```console
+npm run taprig -- onboard                # start daemon + guided readiness check
 npm run taprig --                       # interactive when attached to a TTY
 npm run taprig -- run "Open Settings"  # create a durable run
 npm run taprig -- run --mode coordinated "Split this workflow across the fleet"
@@ -76,6 +77,9 @@ npm run taprig -- replay <run-id>       # replay secret-safe agent activity
 npm run taprig -- answer <run-id> <question-id> "Personal account"
 npm run taprig -- answer <run-id> <question-id> --sensitive "123456"
 ```
+
+See [first-phone onboarding](docs/ONBOARDING.md) for USB trust, model setup,
+the local UI, and the SSH-first server workflow.
 
 Set the provider key in the daemon environment, restart it, and new runs execute
 through the bounded semantic workers. Without a configured key,

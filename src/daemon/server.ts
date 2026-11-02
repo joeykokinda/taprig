@@ -46,6 +46,8 @@ export interface TapRigDaemonOptions {
   scripts?: ScriptService;
   stream?: (serial: string) => Promise<LiveMjpegStream>;
   manualTap?: (serial: string, xRatio: number, yRatio: number) => Promise<void>;
+  modelProfile?: string;
+  modelKeyEnv?: string;
 }
 
 async function jsonBody(request: import("node:http").IncomingMessage): Promise<unknown> {
@@ -238,6 +240,26 @@ export async function startDaemon(options: TapRigDaemonOptions): Promise<Running
                 return telemetry === undefined ? [] : [[run.id, telemetry]];
               }),
             ),
+          }),
+        );
+        return;
+      }
+      if (request.method === "GET" && url.pathname === "/setup") {
+        const devices = await options.devices.list();
+        const ready = devices.filter((device) => device.state === "ready").length;
+        response.end(
+          JSON.stringify({
+            status: ready > 0 && options.startRun ? "ready" : "needs-attention",
+            platform: process.platform,
+            modelProfile: options.modelProfile ?? null,
+            modelKeyEnv: options.modelKeyEnv ?? null,
+            agentConfigured: Boolean(options.startRun),
+            hasRuns: (options.runs?.list().length ?? 0) > 0,
+            devices: {
+              total: devices.length,
+              ready,
+              states: Object.fromEntries(devices.map((device) => [device.serial, device.state])),
+            },
           }),
         );
         return;

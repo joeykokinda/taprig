@@ -193,6 +193,8 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
           adbExecutable: process.env.TAPRIG_ADB ?? "adb",
         }),
       manualTap: executeNormalizedTap,
+      modelProfile: modelConfig.selectedProfile,
+      ...(provider ? { modelKeyEnv: provider.apiKeyEnv } : {}),
     });
     schedulingEnabled = true;
     if (worker) scheduleDurableRuns(runs, worker, await registry.list());

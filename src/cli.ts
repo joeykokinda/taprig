@@ -25,6 +25,20 @@ import {
 import { parseRunCommand, parseRunMode } from "./run-command.ts";
 import type { ScriptRunResult, TapRigScript } from "./scripts/contracts.ts";
 
+interface SetupStatus {
+  status: "ready" | "needs-attention";
+  platform: string;
+  modelProfile: string | null;
+  modelKeyEnv: string | null;
+  agentConfigured: boolean;
+  hasRuns: boolean;
+  devices: {
+    total: number;
+    ready: number;
+    states: Record<string, string>;
+  };
+}
+
 async function daemonJson<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await daemonRequest(path, init);
   if (!response.ok) throw new Error(`daemon returned HTTP ${response.status}`);
@@ -205,6 +219,44 @@ async function main(): Promise<void> {
   const selectedCommand = command ?? "devices";
   if (selectedCommand === "mcp") {
     serveTapRigMcp();
+    return;
+  }
+  if (selectedCommand === "onboard" || selectedCommand === "setup") {
+    if (!(await daemonStatus())) {
+      process.stdout.write("[..] Starting local daemon\n");
+      await startDaemonProcess();
+    }
+    const setup = await daemonJson<SetupStatus>("/setup");
+    process.stdout.write("\nTapRig setup\n\n[ok] Local daemon is online\n");
+    process.stdout.write(
+      setup.devices.total > 0
+        ? `[ok] ${setup.devices.total} Android phone${setup.devices.total === 1 ? "" : "s"} detected\n`
+        : "[  ] Android phone detected — connect USB, unlock it, enable USB debugging, and accept the trust prompt\n",
+    );
+    process.stdout.write(
+      setup.devices.ready > 0
+        ? `[ok] ${setup.devices.ready} phone${setup.devices.ready === 1 ? " is" : "s are"} ready\n`
+        : `[  ] Phone ready — run taprig doctor${
+            setup.devices.total > 0
+              ? ` (${Object.entries(setup.devices.states)
+                  .map(([serial, state]) => `${serial}: ${state}`)
+                  .join(", ")})`
+              : ""
+          }\n`,
+    );
+    process.stdout.write(
+      setup.agentConfigured
+        ? `[ok] Agent is configured (${setup.modelProfile ?? "default"} profile)\n`
+        : `[  ] Agent configured — set ${setup.modelKeyEnv ?? "the provider API key"} in the daemon environment, then restart it\n`,
+    );
+    process.stdout.write(
+      setup.hasRuns ? "[ok] First run created\n" : '[  ] First run — taprig run "Open Settings"\n',
+    );
+    process.stdout.write(
+      setup.status === "ready"
+        ? "\nReady. Run taprig ui or type taprig for the interactive shell.\n"
+        : "\nComplete the unchecked steps, then run taprig onboard again.\n",
+    );
     return;
   }
   if (selectedCommand === "daemon") {

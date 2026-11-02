@@ -9,9 +9,9 @@ This is the ordered product queue. The canonical architecture remains in
 - Physical Android control: **60%**
 - Agent loop: **80%**
 - Fleet orchestration: **72%**
-- Desktop application: **45%**
+- Desktop application: **48%**
 - Public website/distribution: **45%**
-- Complete launch-ready product: **73%**
+- Complete launch-ready product: **74%**
 
 Percentages describe demonstrated functionality, not lines of code.
 
@@ -47,6 +47,7 @@ Percentages describe demonstrated functionality, not lines of code.
 - [x] Build scripts: create, inspect, run, verify, and emit a typed recovery handoff.
 - [x] Connect script mismatch recovery and successful-run promotion to the agent worker.
 - [x] Serve the control-room web UI from the local daemon.
+- [x] Add one canonical guided-readiness flow to CLI and control room.
 - [x] Package the daemon and UI as an Electron desktop application.
 
 ## P2 — fleet and launch

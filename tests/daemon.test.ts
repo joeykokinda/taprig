@@ -52,7 +52,55 @@ test("the loopback daemon authenticates health and device inventory", async (con
   assert.match(controlRoomHtml, /TAPRIG/);
   assert.match(controlRoomHtml, /ACTIVE REPLAY/);
   assert.match(controlRoomHtml, /DEVICE GROUPS/);
+  assert.match(controlRoomHtml, /GET THE RIG ONLINE/);
   assert.equal((await fetch(sessionUrl, { redirect: "manual" })).status, 401);
+});
+
+test("setup reports actionable readiness without exposing provider secrets", async (context) => {
+  const secret = "never-return-this-provider-secret";
+  process.env.TAPRIG_TEST_PROVIDER_KEY = secret;
+  context.after(() => delete process.env.TAPRIG_TEST_PROVIDER_KEY);
+  const daemon = await startDaemon({
+    token,
+    devices: { list: async () => [{ id: "phone-1", serial: "serial-1", state: "offline" }] },
+    modelProfile: "balanced",
+    modelKeyEnv: "TAPRIG_TEST_PROVIDER_KEY",
+  });
+  context.after(() => daemon.stop());
+
+  const response = await fetch(`${daemon.url}/setup`, { headers: authorization });
+  const body = await response.text();
+  assert.equal(response.status, 200);
+  assert.equal(body.includes(secret), false);
+  assert.deepEqual(JSON.parse(body), {
+    status: "needs-attention",
+    platform: process.platform,
+    modelProfile: "balanced",
+    modelKeyEnv: "TAPRIG_TEST_PROVIDER_KEY",
+    agentConfigured: false,
+    hasRuns: false,
+    devices: { total: 1, ready: 0, states: { "serial-1": "offline" } },
+  });
+});
+
+test("setup is ready when a phone and agent worker are ready", async (context) => {
+  const daemon = await startDaemon({
+    token,
+    devices: { list: async () => [{ id: "phone-1", serial: "serial-1", state: "ready" }] },
+    startRun: () => undefined,
+  });
+  context.after(() => daemon.stop());
+
+  const response = await fetch(`${daemon.url}/setup`, { headers: authorization });
+  const body = (await response.json()) as {
+    status: string;
+    agentConfigured: boolean;
+    devices: { ready: number };
+  };
+  assert.deepEqual(
+    { status: body.status, agentConfigured: body.agentConfigured, ready: body.devices.ready },
+    { status: "ready", agentConfigured: true, ready: 1 },
+  );
 });
 
 test("the daemon rejects non-loopback binding", async () => {

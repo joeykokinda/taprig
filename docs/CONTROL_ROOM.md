@@ -15,6 +15,8 @@ framed.
 
 The current control room provides:
 
+- a live first-run checklist driven by the daemon's canonical phone, agent,
+  model-profile, and first-run readiness status;
 - live one-second device readiness and foreground-package updates;
 - durable run counts and an incremental replay of secret-safe observation,
   decision, and action events;

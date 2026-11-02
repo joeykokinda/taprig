@@ -242,14 +242,48 @@ function renderQuestions(questions) {
     : '<p class="empty">NO OPEN QUESTIONS</p>';
 }
 
+function renderSetup(setup) {
+  const steps = [
+    [true, "LOCAL DAEMON", "ONLINE"],
+    [
+      setup.devices.total > 0,
+      "PHONE CONNECTED",
+      setup.devices.total ? `${setup.devices.total} DETECTED` : "CONNECT USB + ENABLE DEBUGGING",
+    ],
+    [
+      setup.devices.ready > 0,
+      "PHONE READY",
+      setup.devices.ready ? `${setup.devices.ready} READY` : "UNLOCK + ACCEPT TRUST PROMPT",
+    ],
+    [
+      setup.agentConfigured,
+      "AGENT CONFIGURED",
+      setup.agentConfigured
+        ? `${setup.modelProfile ?? "DEFAULT"} PROFILE`
+        : `SET ${setup.modelKeyEnv ?? "PROVIDER API KEY"} + RESTART`,
+    ],
+    [setup.hasRuns, "FIRST RUN", setup.hasRuns ? "CREATED" : "TRY “OPEN SETTINGS” ABOVE"],
+  ];
+  $("#setup-state").textContent = setup.status === "ready" ? "SYSTEM READY" : "ACTION NEEDED";
+  $("#setup-state").className = setup.status === "ready" ? "ready" : "";
+  $("#setup-steps").innerHTML = steps
+    .map(
+      ([complete, label, detail], index) => `
+      <li class="${complete ? "complete" : ""}"><b>${String(index + 1).padStart(2, "0")}</b><span>${escapeHtml(label)}</span><em>${escapeHtml(detail)}</em></li>`,
+    )
+    .join("");
+}
+
 async function refresh() {
   try {
-    const [{ devices }, { runs, telemetry }, { scripts }, { groups }] = await Promise.all([
+    const [{ devices }, { runs, telemetry }, { scripts }, { groups }, setup] = await Promise.all([
       json("/devices"),
       json("/runs"),
       json("/scripts"),
       json("/device-groups"),
+      json("/setup"),
     ]);
+    renderSetup(setup);
     renderDevices(devices);
     renderScripts(scripts);
     renderGroups(groups);
