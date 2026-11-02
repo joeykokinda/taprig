@@ -675,7 +675,8 @@ execute and verify reversible actions, and take over manually.
 - [x] Built-in observe/decide/execute/verify/recover loop.
 - [x] Durable questions and answer/resume flow.
 - [x] Hard model-call and attempted-action budgets across run/resume.
-- [ ] Approvals, artifacts, and replay.
+- [x] Durable secret-safe observation, decision, and action trace replay.
+- [ ] Approvals and artifacts.
 - [x] User script creation, inspection, testing, and deterministic execution.
 - [ ] Full main workspace and onboarding.
 - [x] MCP adapter.

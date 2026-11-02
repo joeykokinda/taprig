@@ -2,6 +2,9 @@ const $ = (selector) => document.querySelector(selector);
 const leases = new Map();
 let renderedDeviceIds = "";
 let renderedQuestions = "";
+let activityRunId = "";
+let activitySequence = 0;
+let activityEvents = [];
 
 function escapeHtml(value) {
   return String(value)
@@ -135,6 +138,48 @@ function renderRuns(runs, telemetry) {
     : '<p class="empty">NO RUNS YET</p>';
 }
 
+function activityLabel(event) {
+  if (event.type !== "run.trace") return event.type.replace("run.", "").toUpperCase();
+  const trace = event.trace;
+  if (trace.phase === "observation") {
+    return `OBSERVE · ${trace.deviceId} · ${trace.foregroundPackage ?? "UNKNOWN"}`;
+  }
+  if (trace.phase === "decision") {
+    return `DECIDE · ${trace.deviceId} · ${trace.decisionType.toUpperCase()} · ${trace.actionCount} ACTIONS`;
+  }
+  return `ACT · ${trace.deviceId} · ${trace.steps.map((step) => `${step.actionType}:${step.status}`).join(" · ")}`;
+}
+
+async function refreshActivity(runs) {
+  const active = runs.find((run) => !["completed", "failed", "stopped"].includes(run.status));
+  const selected = active ?? runs[0];
+  if (!selected) {
+    activityRunId = "";
+    activitySequence = 0;
+    activityEvents = [];
+  } else {
+    if (selected.id !== activityRunId) {
+      activityRunId = selected.id;
+      activitySequence = 0;
+      activityEvents = [];
+    }
+    const { events } = await json(
+      `/runs/${encodeURIComponent(activityRunId)}/events?after=${activitySequence}`,
+    );
+    if (events.length) activitySequence = events.at(-1).sequence;
+    activityEvents = [...activityEvents, ...events].slice(-100);
+  }
+  $("#activity-run").textContent = activityRunId || "NO RUN";
+  $("#activity").innerHTML = activityEvents.length
+    ? activityEvents
+        .map(
+          ({ sequence, event }) => `
+      <div class="activity-row"><b>${sequence}</b><time>${event.at ? escapeHtml(new Date(event.at).toLocaleTimeString()) : "CREATED"}</time><span>${escapeHtml(activityLabel(event))}</span></div>`,
+        )
+        .join("")
+    : '<p class="empty">NO ACTIVITY YET</p>';
+}
+
 function renderScripts(scripts) {
   $("#script-count").textContent = scripts.length;
   $("#scripts").innerHTML = scripts.length
@@ -185,6 +230,7 @@ async function refresh() {
         ),
     );
     renderRuns(runs, new Map(Object.entries(telemetry)));
+    await refreshActivity(runs);
     renderQuestions(questionGroups.flat().filter((question) => question.status === "open"));
     $("#connection").textContent = "LOCAL DAEMON / ONLINE";
   } catch {

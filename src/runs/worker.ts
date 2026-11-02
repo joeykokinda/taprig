@@ -1,6 +1,6 @@
 import type { AgentContext, AgentDecision } from "../agents/loop.ts";
 import { runAgentLoop } from "../agents/loop.ts";
-import type { DeviceAdapter, DeviceCapability, RunTelemetry } from "../core/contracts.ts";
+import type { DeviceAdapter, DeviceCapability, RunTelemetry, RunTrace } from "../core/contracts.ts";
 import { BudgetExceededError } from "../core/errors.ts";
 import type { DeviceInventory } from "../daemon/server.ts";
 import type { RecordModelUsage } from "../models/usage.ts";
@@ -165,6 +165,8 @@ export class RunWorker {
     }
     const secret = answer?.sensitive ? answer.value : undefined;
     const saveRecovery = () => this.#runs.saveRecovery(runId, redact(recovery, secret));
+    const trace = (entry: RunTrace) =>
+      this.#runs.record(runId, { type: "run.trace", at: new Date().toISOString(), trace: entry });
     const telemetry = readTelemetry(this.#runs.telemetry(runId)?.evidence);
     let reservedModelCalls = telemetry.modelCalls;
     const startedAt = performance.now();
@@ -183,7 +185,18 @@ export class RunWorker {
       telemetry.outputTokens += usage.outputTokens;
     };
     const device: DeviceAdapter = {
-      observe: (deviceId) => this.#adapter.observe(deviceId),
+      observe: async (deviceId) => {
+        const observation = await this.#adapter.observe(deviceId);
+        trace({
+          phase: "observation",
+          deviceId,
+          generation: observation.generation,
+          ...(observation.foregroundPackage
+            ? { foregroundPackage: observation.foregroundPackage }
+            : {}),
+        });
+        return observation;
+      },
       execute: async (batch) => {
         if (
           run.budget?.maxActions !== undefined &&
@@ -193,6 +206,16 @@ export class RunWorker {
         }
         telemetry.attemptedActions += batch.steps.length;
         const result = await this.#adapter.execute(batch);
+        trace({
+          phase: "action",
+          deviceId: batch.deviceId,
+          requestId: batch.requestId,
+          steps: batch.steps.map((step, index) => ({
+            stepId: step.id,
+            actionType: step.action.type,
+            status: result.steps[index]?.status ?? "failed",
+          })),
+        });
         recovery.batches ??= {};
         recovery.batches[batch.deviceId] = {
           requestId: batch.requestId,
@@ -211,7 +234,15 @@ export class RunWorker {
       return async (context) => {
         reserveModelCall();
         telemetry.decisionCalls += 1;
-        return selected(context);
+        const decision = await selected(context);
+        trace({
+          phase: "decision",
+          deviceId: context.observation.deviceId,
+          decisionNumber: context.decisionNumber,
+          decisionType: decision.type,
+          actionCount: decision.type === "execute" ? decision.steps.length : 0,
+        });
+        return decision;
       };
     };
     let leasedDeviceIds: string[] = [];

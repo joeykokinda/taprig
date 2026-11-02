@@ -19,6 +19,13 @@ export function applyRunEvent(current: RunState | undefined, event: RunEvent): R
 
   if (!current) throw new Error(`${event.type} requires an existing run`);
 
+  if (event.type === "run.trace") {
+    if (current.status !== "running") {
+      throw new Error(`cannot trace run ${current.id} from ${current.status}`);
+    }
+    return { ...current, updatedAt: event.at };
+  }
+
   const nextStatus = statusFor(event);
   if (event.type === "run.recovered" && current.status !== "running") {
     throw new Error(`cannot recover run ${current.id} from ${current.status}`);
@@ -40,7 +47,7 @@ export function applyRunEvent(current: RunState | undefined, event: RunEvent): R
   return next;
 }
 
-function statusFor(event: Exclude<RunEvent, { type: "run.created" }>): RunStatus {
+function statusFor(event: Exclude<RunEvent, { type: "run.created" | "run.trace" }>): RunStatus {
   switch (event.type) {
     case "run.started":
     case "run.recovered":

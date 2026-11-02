@@ -70,6 +70,7 @@ npm run taprig -- run --mode coordinated "Split this workflow across the fleet"
 npm run taprig -- run --max-model-calls 8 --max-actions 30 "Open Settings"
 npm run taprig -- runs                  # list runs
 npm run taprig -- attach <run-id>       # inspect state and ordered events
+npm run taprig -- replay <run-id>       # replay secret-safe agent activity
 npm run taprig -- answer <run-id> <question-id> "Personal account"
 npm run taprig -- answer <run-id> <question-id> --sensitive "123456"
 ```

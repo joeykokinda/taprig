@@ -39,6 +39,40 @@ test("an interrupted running run records a same-state recovery event", () => {
   );
 });
 
+test("trace events keep a running run active and reject terminal writes", () => {
+  const running = { ...created, status: "running" } satisfies RunState;
+  const traced = applyRunEvent(running, {
+    type: "run.trace",
+    at: "2026-10-28T00:00:02.000Z",
+    trace: {
+      phase: "decision",
+      deviceId: "phone-1",
+      decisionNumber: 0,
+      decisionType: "complete",
+      actionCount: 0,
+    },
+  });
+
+  assert.equal(traced.status, "running");
+  assert.equal(traced.updatedAt, "2026-10-28T00:00:02.000Z");
+  assert.throws(
+    () =>
+      applyRunEvent(
+        { ...created, status: "completed" },
+        {
+          type: "run.trace",
+          at: "2026-10-28T00:00:02.000Z",
+          trace: {
+            phase: "observation",
+            deviceId: "phone-1",
+            generation: "current",
+          },
+        },
+      ),
+    /cannot trace/,
+  );
+});
+
 test("a terminal run cannot restart", () => {
   const completed = { ...created, status: "completed" } satisfies RunState;
   assert.throws(

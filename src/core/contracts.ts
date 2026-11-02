@@ -142,6 +142,31 @@ export interface RunTelemetry {
   attemptedActions: number;
 }
 
+export type RunTrace =
+  | {
+      phase: "observation";
+      deviceId: DeviceId;
+      generation: string;
+      foregroundPackage?: string;
+    }
+  | {
+      phase: "decision";
+      deviceId: DeviceId;
+      decisionNumber: number;
+      decisionType: "execute" | "complete" | "ask_user" | "fail";
+      actionCount: number;
+    }
+  | {
+      phase: "action";
+      deviceId: DeviceId;
+      requestId: string;
+      steps: readonly {
+        stepId: string;
+        actionType: Action["type"];
+        status: StepStatus;
+      }[];
+    };
+
 export type RunEvent =
   | { type: "run.created"; run: RunState }
   | { type: "run.started"; at: string }
@@ -151,4 +176,5 @@ export type RunEvent =
   | { type: "run.waitingForUser"; at: string }
   | { type: "run.completed"; at: string }
   | { type: "run.failed"; at: string; error: TapRigError }
-  | { type: "run.stopped"; at: string };
+  | { type: "run.stopped"; at: string }
+  | { type: "run.trace"; at: string; trace: RunTrace };

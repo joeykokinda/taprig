@@ -415,6 +415,12 @@ written to recovery checkpoints. There is an unavoidable phone/database
 atomicity gap if the host dies between a phone action and its checkpoint, so the
 recovered agent must inspect current state before repeating work.
 
+Every worker also appends a compact replay trace: observation generation and
+foreground package, decision kind and action count, then action type and
+verified status. Selectors, text values, model reasoning, and credentials are
+excluded. The CLI and control room replay the same ordered events, including
+incremental reads by event sequence.
+
 Every error class has a retry budget. Repeating the same action against unchanged
 state does not count as recovery.
 

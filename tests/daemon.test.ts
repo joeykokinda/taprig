@@ -47,7 +47,9 @@ test("the loopback daemon authenticates health and device inventory", async (con
   assert.ok(cookie);
   const controlRoom = await fetch(daemon.url, { headers: { cookie } });
   assert.equal(controlRoom.status, 200);
-  assert.match(await controlRoom.text(), /TAPRIG/);
+  const controlRoomHtml = await controlRoom.text();
+  assert.match(controlRoomHtml, /TAPRIG/);
+  assert.match(controlRoomHtml, /ACTIVE REPLAY/);
   assert.equal((await fetch(sessionUrl, { redirect: "manual" })).status, 401);
 });
 

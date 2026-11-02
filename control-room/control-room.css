@@ -192,10 +192,11 @@ button:focus-visible {
   border-bottom: 1px solid #343434;
 }
 .fleet-panel {
-  grid-row: span 3;
+  grid-row: span 4;
 }
 .scripts-panel,
-.questions-panel {
+.questions-panel,
+.activity-panel {
   border-right: 0;
 }
 .panel-head {
@@ -301,6 +302,27 @@ h2 {
   color: #747474;
   font-size: 9px;
   letter-spacing: 0.08em;
+}
+.activity {
+  max-height: 300px;
+  overflow: auto;
+}
+.activity-row {
+  display: grid;
+  grid-template-columns: 42px 84px 1fr;
+  gap: 10px;
+  padding: 10px 18px;
+  border-bottom: 1px solid #262626;
+  font:
+    10px ui-monospace,
+    monospace;
+}
+.activity-row b {
+  color: #c8ff00;
+  font-weight: 500;
+}
+.activity-row time {
+  color: #747474;
 }
 .question-row {
   display: grid;

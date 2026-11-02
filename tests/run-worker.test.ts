@@ -67,9 +67,14 @@ test("a worker assigns a ready phone and durably completes a bounded run", async
   await worker.idle();
 
   assert.equal(runs.get(run.id)?.status, "completed");
+  const events = runs.events(run.id).map(({ event }) => event);
   assert.deepEqual(
-    runs.events(run.id).map(({ event }) => event.type),
+    events.filter((event) => event.type !== "run.trace").map(({ type }) => type),
     ["run.created", "run.started", "run.completed"],
+  );
+  assert.deepEqual(
+    events.flatMap((event) => (event.type === "run.trace" ? [event.trace.phase] : [])),
+    ["observation", "decision", "action", "observation", "decision"],
   );
   const telemetry = runs.telemetry(run.id)?.evidence as RunTelemetry;
   assert.equal(telemetry.executions, 1);
@@ -144,7 +149,11 @@ test("a worker recovers an interrupted run on its original phone with durable pr
   assert.equal(assigned, "phone-2");
   assert.equal(runs.get(run.id)?.status, "completed");
   assert.deepEqual(
-    runs.events(run.id).map(({ event }) => event.type),
+    runs
+      .events(run.id)
+      .map(({ event }) => event)
+      .filter((event) => event.type !== "run.trace")
+      .map(({ type }) => type),
     ["run.created", "run.started", "run.recovered", "run.completed"],
   );
   store.close();
@@ -598,7 +607,11 @@ test("a worker resumes a waiting run on the same phone with the durable answer",
   assert.equal(runs.get(run.id)?.status, "completed");
   assert.match(tasks[1] ?? "", /Personal/);
   assert.deepEqual(
-    runs.events(run.id).map(({ event }) => event.type),
+    runs
+      .events(run.id)
+      .map(({ event }) => event)
+      .filter((event) => event.type !== "run.trace")
+      .map(({ type }) => type),
     ["run.created", "run.started", "run.waitingForUser", "run.resumed", "run.completed"],
   );
   store.close();
@@ -708,6 +721,7 @@ test("a resumed sensitive answer reaches the phone but is redacted from evidence
   assert.equal(persisted.includes("123456"), false);
   assert.match(persisted, /REDACTED/);
   assert.equal(JSON.stringify(runs.recovery(run.id)?.evidence).includes("123456"), false);
+  assert.equal(JSON.stringify(runs.events(run.id)).includes("123456"), false);
   store.close();
 });
 

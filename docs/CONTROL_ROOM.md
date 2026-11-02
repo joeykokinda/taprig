@@ -16,7 +16,8 @@ framed.
 The current control room provides:
 
 - live one-second device readiness and foreground-package updates;
-- durable run counts and recent trace state;
+- durable run counts and an incremental replay of secret-safe observation,
+  decision, and action events;
 - natural-language task creation with independent, broadcast, or coordinated
   run mode;
 - durable agent questions with answer-and-resume controls; sensitive answers

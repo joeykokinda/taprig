@@ -72,6 +72,18 @@ function printRuns(runs: readonly RunState[]): void {
     process.stdout.write(`${run.id}\t${run.status}\t${run.mode}\t${run.task}\n`);
 }
 
+function formatRunEvent(event: RunEvent): string {
+  if (event.type !== "run.trace") return event.type;
+  const trace = event.trace;
+  if (trace.phase === "observation") {
+    return `OBSERVE ${trace.deviceId} ${trace.foregroundPackage ?? "unknown"} ${trace.generation.slice(0, 12)}`;
+  }
+  if (trace.phase === "decision") {
+    return `DECIDE ${trace.deviceId} #${trace.decisionNumber} ${trace.decisionType} ${trace.actionCount} actions`;
+  }
+  return `ACT ${trace.deviceId} ${trace.requestId} ${trace.steps.map((step) => `${step.actionType}:${step.status}`).join(", ")}`;
+}
+
 async function showRun(id: string): Promise<void> {
   const [{ run }, { events }, { questions }, { telemetry }] = await Promise.all([
     daemonJson<{ run: RunState }>(`/runs/${encodeURIComponent(id)}`),
@@ -84,7 +96,8 @@ async function showRun(id: string): Promise<void> {
     daemonJson<{ telemetry: RunTelemetry | null }>(`/runs/${encodeURIComponent(id)}/telemetry`),
   ]);
   process.stdout.write(`${run.id} · ${run.status} · ${run.mode}\n${run.task}\n`);
-  for (const item of events) process.stdout.write(`  ${item.sequence}  ${item.event.type}\n`);
+  for (const item of events)
+    process.stdout.write(`  ${item.sequence}  ${formatRunEvent(item.event)}\n`);
   for (const question of questions) {
     process.stdout.write(
       `  question ${question.id}  ${question.status}  ${question.prompt}${question.sensitive ? " [sensitive answer]" : ""}\n`,
@@ -114,7 +127,7 @@ async function interactiveSession(): Promise<void> {
   const devices = await loadDevices();
   process.stdout.write(
     `TapRig · ${devices.length} device${devices.length === 1 ? "" : "s"} connected\n` +
-      "Type a task, or /mode, /devices, /runs, /attach, /answer, /quit.\n\n",
+      "Type a task, or /mode, /devices, /runs, /attach, /replay, /answer, /quit.\n\n",
   );
   let mode: RunMode = "independent";
   const terminal = createInterface({ input: process.stdin, output: process.stdout });
@@ -145,6 +158,10 @@ async function interactiveSession(): Promise<void> {
         continue;
       }
       if (line.startsWith("/attach ")) {
+        await showRun(line.slice(8).trim());
+        continue;
+      }
+      if (line.startsWith("/replay ")) {
         await showRun(line.slice(8).trim());
         continue;
       }
@@ -354,9 +371,9 @@ async function main(): Promise<void> {
     printRuns(await listRuns());
     return;
   }
-  if (selectedCommand === "attach") {
+  if (selectedCommand === "attach" || selectedCommand === "replay") {
     const id = process.argv[3];
-    if (!id) throw new Error("attach requires a run ID");
+    if (!id) throw new Error(`${selectedCommand} requires a run ID`);
     await showRun(id);
     return;
   }

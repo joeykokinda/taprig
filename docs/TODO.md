@@ -7,11 +7,11 @@ This is the ordered product queue. The canonical architecture remains in
 
 - Foundation/runtime: **97%**
 - Physical Android control: **60%**
-- Agent loop: **78%**
+- Agent loop: **80%**
 - Fleet orchestration: **65%**
 - Desktop application: **45%**
 - Public website/distribution: **45%**
-- Complete launch-ready product: **70%**
+- Complete launch-ready product: **71%**
 
 Percentages describe demonstrated functionality, not lines of code.
 
@@ -41,6 +41,7 @@ Percentages describe demonstrated functionality, not lines of code.
 - [x] Persist provider calls, tokens, decisions, actions, and runtime per run.
 - [x] Enforce durable per-run model-call and attempted-action budgets.
 - [x] Recover interrupted runs and fleet plans after daemon restart.
+- [x] Replay durable secret-safe observation, decision, and action traces.
 - [x] Connect independent natural-language runs to the bounded ready-device worker.
 - [x] Answer and resume durable agent questions without persisting sensitive values.
 - [x] Build scripts: create, inspect, run, verify, and emit a typed recovery handoff.
