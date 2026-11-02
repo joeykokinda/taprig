@@ -51,7 +51,7 @@ export function scheduleDurableRuns(
 ): void {
   const ready = new Set(devices.filter((device) => device.state === "ready").map(({ id }) => id));
   if (ready.size === 0) return;
-  for (const run of runs.list().reverse()) {
+  for (const run of runs.active()) {
     if (run.status === "created") {
       worker.start(run.id);
       continue;

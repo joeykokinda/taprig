@@ -64,6 +64,8 @@ export class TapRigStore {
         json TEXT NOT NULL,
         occurred_at TEXT NOT NULL
       );
+      CREATE INDEX IF NOT EXISTS runs_status_updated
+        ON runs(json_extract(json, '$.status'), updated_at);
       CREATE TABLE IF NOT EXISTS questions (
         id TEXT PRIMARY KEY,
         run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
@@ -113,6 +115,17 @@ export class TapRigStore {
     const rows = this.#database
       .prepare("SELECT json FROM runs ORDER BY updated_at DESC, id ASC LIMIT ?")
       .all(limit) as unknown as JsonRow[];
+    return rows.map((row) => JSON.parse(row.json) as RunState);
+  }
+
+  listActiveRuns(): RunState[] {
+    const rows = this.#database
+      .prepare(`
+        SELECT json FROM runs
+        WHERE json_extract(json, '$.status') IN ('created', 'running', 'paused', 'waiting-for-user')
+        ORDER BY updated_at ASC, id ASC
+      `)
+      .all() as unknown as JsonRow[];
     return rows.map((row) => JSON.parse(row.json) as RunState);
   }
 

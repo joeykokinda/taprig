@@ -111,6 +111,10 @@ Run `npm run benchmark` for the clearly labeled synthetic orchestration
 regression suite. Its scope and the still-open physical/model benchmark are
 documented in [BENCHMARKS.md](docs/BENCHMARKS.md).
 
+Run `npm run soak -- --iterations=1000 --fleet=4 --restart-every=250 --json`
+to stress durable runs, fleet leases, trace persistence, and SQLite restart
+recovery without claiming physical-device reliability.
+
 The same experience is packaged in a sandboxed Electron shell. See the
 [desktop application](docs/DESKTOP.md) for development and packaging commands.
 

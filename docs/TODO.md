@@ -5,13 +5,13 @@ This is the ordered product queue. The canonical architecture remains in
 
 ## Current estimate
 
-- Foundation/runtime: **97%**
+- Foundation/runtime: **98%**
 - Physical Android control: **60%**
 - Agent loop: **80%**
 - Fleet orchestration: **65%**
 - Desktop application: **45%**
 - Public website/distribution: **45%**
-- Complete launch-ready product: **71%**
+- Complete launch-ready product: **72%**
 
 Percentages describe demonstrated functionality, not lines of code.
 
@@ -62,5 +62,6 @@ Percentages describe demonstrated functionality, not lines of code.
 - [x] First public website design and interactive product preview.
 - [ ] Connect website download buttons to signed releases.
 - [x] Add a repeatable synthetic orchestration regression harness.
+- [x] Add a repeatable fleet/SQLite/restart soak harness.
 - [ ] Publish repeatable cost, latency, and success benchmarks.
 - [ ] Record the hero demo and launch the public repository.

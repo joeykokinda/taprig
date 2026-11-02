@@ -44,6 +44,10 @@ export class RunService {
     return this.store.listRuns();
   }
 
+  active(): RunState[] {
+    return this.store.listActiveRuns();
+  }
+
   get(id: string): RunState | undefined {
     return this.store.getRun(id);
   }

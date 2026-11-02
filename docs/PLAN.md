@@ -704,7 +704,8 @@ PhoneFarm fleet with reproducible traces.
 - [ ] Model routing/evaluation improvements.
 - [x] Durable run-level model, token, action, and latency telemetry.
 - [x] Durable restart recovery on the original ready phone cohort.
-- [ ] Long-duration soak testing.
+- [x] Repeatable fleet/SQLite/restart synthetic soak harness.
+- [ ] Multi-hour physical-device and provider soak testing.
 - [x] Synthetic runtime and fleet-scaling regression harness.
 - [ ] Public benchmark suite and comparison methodology.
 

@@ -65,3 +65,27 @@ test("persists private devices, run events, questions, and checkpoints", async (
   assert.equal(store.eventCount(run.id), 2);
   store.close();
 });
+
+test("active-run recovery is not limited to the recent dashboard window", () => {
+  const store = new TapRigStore(":memory:");
+  store.recordRunEvent(undefined, { type: "run.created", run: created });
+  for (let index = 0; index < 105; index += 1) {
+    const at = `2026-10-30T12:${String(Math.floor(index / 60)).padStart(2, "0")}:${String(index % 60).padStart(2, "0")}.000Z`;
+    const terminal = store.recordRunEvent(undefined, {
+      type: "run.created",
+      run: { ...created, id: `terminal-${index}`, createdAt: at, updatedAt: at },
+    });
+    const running = store.recordRunEvent(terminal, { type: "run.started", at });
+    store.recordRunEvent(running, { type: "run.completed", at });
+  }
+
+  assert.equal(
+    store.listRuns().some((run) => run.id === created.id),
+    false,
+  );
+  assert.deepEqual(
+    store.listActiveRuns().map(({ id }) => id),
+    [created.id],
+  );
+  store.close();
+});
