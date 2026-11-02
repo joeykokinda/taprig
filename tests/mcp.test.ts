@@ -7,8 +7,10 @@ import { createTapRigMcpServer } from "../src/mcp/server.ts";
 
 test("MCP lists and calls the daemon-backed TapRig tools", async (context) => {
   const calls: string[] = [];
+  const bodies: unknown[] = [];
   const server = createTapRigMcpServer(async (path, init) => {
     calls.push(`${init?.method ?? "GET"} ${path}`);
+    if (init?.body) bodies.push(JSON.parse(String(init.body)) as unknown);
     if (path === "/devices") {
       return Response.json({ devices: [{ id: "phone-1", state: "ready" }] });
     }
@@ -36,5 +38,19 @@ test("MCP lists and calls the daemon-backed TapRig tools", async (context) => {
     arguments: { deviceId: "phone-1", action: { type: "key.press", key: "home" } },
   });
   assert.match(JSON.stringify(action.content), /accepted/);
-  assert.deepEqual(calls, ["GET /devices", "POST /devices/phone-1/actions"]);
+  await client.callTool({
+    name: "taprig_task",
+    arguments: {
+      task: "Open Settings",
+      mode: "coordinated",
+      maxModelCalls: 4,
+      maxActions: 10,
+    },
+  });
+  assert.deepEqual(calls, ["GET /devices", "POST /devices/phone-1/actions", "POST /runs"]);
+  assert.deepEqual(bodies.at(-1), {
+    task: "Open Settings",
+    mode: "coordinated",
+    budget: { maxModelCalls: 4, maxActions: 10 },
+  });
 });

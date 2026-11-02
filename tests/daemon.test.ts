@@ -187,11 +187,29 @@ test("the daemon creates, lists, and attaches to durable runs", async (context) 
   const created = await fetch(`${daemon.url}/runs`, {
     method: "POST",
     headers: { ...authorization, "content-type": "application/json" },
-    body: JSON.stringify({ task: "Open System settings", mode: "independent" }),
+    body: JSON.stringify({
+      task: "Open System settings",
+      mode: "independent",
+      budget: { maxModelCalls: 6, maxActions: 20 },
+    }),
   });
   assert.equal(created.status, 201);
-  assert.equal(((await created.json()) as { run: { id: string } }).run.id, "run-1");
+  assert.deepEqual(((await created.json()) as { run: { id: string; budget: unknown } }).run, {
+    id: "run-1",
+    mode: "independent",
+    budget: { maxModelCalls: 6, maxActions: 20 },
+    task: "Open System settings",
+    status: "created",
+    createdAt: "2026-10-29T12:00:00.000Z",
+    updatedAt: "2026-10-29T12:00:00.000Z",
+  });
   assert.deepEqual(started, ["run-1"]);
+  const rejected = await fetch(`${daemon.url}/runs`, {
+    method: "POST",
+    headers: { ...authorization, "content-type": "application/json" },
+    body: JSON.stringify({ task: "Bad", budget: { maxActions: -1 } }),
+  });
+  assert.equal(rejected.status, 400);
   runs.saveTelemetry("run-1", { modelCalls: 2, inputTokens: 100, outputTokens: 20 });
 
   const listed = await fetch(`${daemon.url}/runs`, { headers: authorization });

@@ -55,14 +55,22 @@ export function createTapRigMcpServer(request: RequestDaemon = daemonRequest): M
       inputSchema: z.object({
         task: z.string().min(1).max(10_000),
         mode: z.enum(["independent", "broadcast", "coordinated"]).default("independent"),
+        maxModelCalls: z.number().int().min(1).max(10_000).optional(),
+        maxActions: z.number().int().min(1).max(10_000).optional(),
       }),
     },
-    async ({ task, mode }) =>
+    async ({ task, mode, maxModelCalls, maxActions }) =>
       text(
         await json(request, "/runs", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ task, mode: mode as RunMode }),
+          body: JSON.stringify({
+            task,
+            mode: mode as RunMode,
+            ...((maxModelCalls ?? maxActions) !== undefined
+              ? { budget: { maxModelCalls, maxActions } }
+              : {}),
+          }),
         }),
       ),
   );

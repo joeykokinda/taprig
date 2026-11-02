@@ -65,6 +65,7 @@ The pre-alpha run shell and its non-interactive equivalents are available now:
 npm run taprig --                       # interactive when attached to a TTY
 npm run taprig -- run "Open Settings"  # create a durable run
 npm run taprig -- run --mode coordinated "Split this workflow across the fleet"
+npm run taprig -- run --max-model-calls 8 --max-actions 30 "Open Settings"
 npm run taprig -- runs                  # list runs
 npm run taprig -- attach <run-id>       # inspect state and ordered events
 npm run taprig -- answer <run-id> <question-id> "Personal account"
@@ -89,7 +90,8 @@ npm run taprig -- model show
 npm run taprig -- model profile economy   # economy | balanced | best
 ```
 
-See [model routing](docs/MODELS.md) for role budgets and editable targets.
+See [model routing](docs/MODELS.md) for role budgets, hard per-run spend guards,
+and editable targets.
 
 Repeated workflows can run as parameterized, checkpointed scripts without a
 model call while the UI remains on the verified path. See

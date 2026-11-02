@@ -5,7 +5,7 @@ import { createInterface } from "node:readline/promises";
 
 import { type AdbDevice, formatAdbDevices } from "./android/adb-discovery.ts";
 import { parseAnswerCommand } from "./answer-command.ts";
-import type { RunEvent, RunMode, RunState, RunTelemetry } from "./core/contracts.ts";
+import type { RunBudget, RunEvent, RunMode, RunState, RunTelemetry } from "./core/contracts.ts";
 import {
   daemonRequest,
   daemonStatus,
@@ -46,11 +46,15 @@ async function loadDevices(): Promise<AdbDevice[]> {
   }));
 }
 
-async function createRun(task: string, mode: RunMode = "independent"): Promise<RunState> {
+async function createRun(
+  task: string,
+  mode: RunMode = "independent",
+  budget?: RunBudget,
+): Promise<RunState> {
   const result = await daemonJson<{ run: RunState }>("/runs", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ task, mode }),
+    body: JSON.stringify({ task, mode, ...(budget ? { budget } : {}) }),
   });
   return result.run;
 }
@@ -342,7 +346,7 @@ async function main(): Promise<void> {
   }
   if (selectedCommand === "run") {
     const command = parseRunCommand(process.argv.slice(3));
-    const run = await createRun(command.task, command.mode);
+    const run = await createRun(command.task, command.mode, command.budget);
     process.stdout.write(`${run.id}\t${run.status}\n`);
     return;
   }

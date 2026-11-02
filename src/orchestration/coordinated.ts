@@ -1,4 +1,5 @@
 import type { ActionStep, DeviceCapability } from "../core/contracts.ts";
+import { BudgetExceededError } from "../core/errors.ts";
 
 export interface CoordinatedNode {
   id: string;
@@ -134,7 +135,7 @@ export async function runCoordinated(options: CoordinatedOptions): Promise<Coord
         node.dependsOn.every((id) => results.get(id)?.status === "completed"),
     );
     if (ready.length === 0) continue;
-    const settled = await Promise.all(
+    const attempts = await Promise.allSettled(
       ready.map(async (node): Promise<CoordinatedNodeResult> => {
         try {
           const dependencies = node.dependsOn.map(
@@ -144,6 +145,7 @@ export async function runCoordinated(options: CoordinatedOptions): Promise<Coord
           if (result.id !== node.id) throw new Error(`executor returned result for ${result.id}`);
           return result;
         } catch (error) {
+          if (error instanceof BudgetExceededError) throw error;
           return {
             id: node.id,
             status: "failed",
@@ -152,6 +154,18 @@ export async function runCoordinated(options: CoordinatedOptions): Promise<Coord
         }
       }),
     );
+    const budgetFailure = attempts.find(
+      (attempt) => attempt.status === "rejected" && attempt.reason instanceof BudgetExceededError,
+    );
+    if (budgetFailure?.status === "rejected") throw budgetFailure.reason;
+    const settled = attempts.map((attempt, index): CoordinatedNodeResult => {
+      if (attempt.status === "fulfilled") return attempt.value;
+      return {
+        id: ready[index]?.id ?? "unknown",
+        status: "failed",
+        reason: attempt.reason instanceof Error ? attempt.reason.message : String(attempt.reason),
+      };
+    });
     for (const result of settled) results.set(result.id, result);
   }
 

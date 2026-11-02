@@ -1,6 +1,7 @@
 import type { AgentContext, AgentDecision } from "../agents/loop.ts";
 import { runAgentLoop } from "../agents/loop.ts";
 import type { DeviceAdapter, DeviceCapability, RunTelemetry } from "../core/contracts.ts";
+import { BudgetExceededError } from "../core/errors.ts";
 import type { DeviceInventory } from "../daemon/server.ts";
 import type { RecordModelUsage } from "../models/usage.ts";
 import { runBroadcast } from "../orchestration/broadcast.ts";
@@ -129,7 +130,17 @@ export class RunWorker {
       : run.task;
     const secret = answer?.sensitive ? answer.value : undefined;
     const telemetry = readTelemetry(this.#runs.telemetry(runId)?.evidence);
+    let reservedModelCalls = telemetry.modelCalls;
     const startedAt = performance.now();
+    const reserveModelCall = () => {
+      if (
+        run.budget?.maxModelCalls !== undefined &&
+        reservedModelCalls >= run.budget.maxModelCalls
+      ) {
+        throw new BudgetExceededError(`model-call budget of ${run.budget.maxModelCalls} exhausted`);
+      }
+      reservedModelCalls += 1;
+    };
     const recordUsage: RecordModelUsage = (usage) => {
       telemetry.modelCalls += 1;
       telemetry.inputTokens += usage.inputTokens;
@@ -138,6 +149,12 @@ export class RunWorker {
     const device: DeviceAdapter = {
       observe: (deviceId) => this.#adapter.observe(deviceId),
       execute: async (batch) => {
+        if (
+          run.budget?.maxActions !== undefined &&
+          telemetry.attemptedActions + batch.steps.length > run.budget.maxActions
+        ) {
+          throw new BudgetExceededError(`action budget of ${run.budget.maxActions} exhausted`);
+        }
         telemetry.attemptedActions += batch.steps.length;
         return this.#adapter.execute(batch);
       },
@@ -145,6 +162,7 @@ export class RunWorker {
     const decide = (work: string): Decider => {
       const selected = this.#decide(work, recordUsage);
       return async (context) => {
+        reserveModelCall();
         telemetry.decisionCalls += 1;
         return selected(context);
       };
@@ -158,6 +176,7 @@ export class RunWorker {
               | { plan?: CoordinatedPlan; nodes?: CoordinatedNodeResult[] }
               | undefined)
           : undefined;
+        if (!previous?.plan) reserveModelCall();
         const plan = previous?.plan ?? (await this.#planCoordinated(task, recordUsage));
         const initialResults = (previous?.nodes ?? []).filter(
           (node): node is Extract<CoordinatedNodeResult, { status: "completed" }> =>
@@ -281,13 +300,14 @@ export class RunWorker {
         });
       }
     } catch (error) {
+      const budgetExceeded = error instanceof BudgetExceededError;
       this.#runs.record(runId, {
         type: "run.failed",
         at: new Date().toISOString(),
         error: {
-          code: "transport-failed",
+          code: budgetExceeded ? "budget-exhausted" : "transport-failed",
           message: redact(error instanceof Error ? error.message : String(error), secret),
-          retryable: true,
+          retryable: !budgetExceeded,
         },
       });
     } finally {

@@ -86,6 +86,7 @@ export interface BatchResult {
 }
 
 export type ErrorCode =
+  | "budget-exhausted"
   | "device-not-ready"
   | "stale-observation"
   | "ambiguous-selector"
@@ -106,6 +107,11 @@ export interface DeviceAdapter {
 }
 
 export type RunMode = "independent" | "broadcast" | "coordinated";
+export interface RunBudget {
+  maxModelCalls?: number;
+  maxActions?: number;
+}
+
 export type RunStatus =
   | "created"
   | "running"
@@ -118,6 +124,7 @@ export type RunStatus =
 export interface RunState {
   id: RunId;
   mode: RunMode;
+  budget?: RunBudget;
   task: string;
   status: RunStatus;
   createdAt: string;

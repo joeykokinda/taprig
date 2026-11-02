@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import type { RunEvent, RunMode, RunState } from "../core/contracts.ts";
+import type { RunBudget, RunEvent, RunMode, RunState } from "../core/contracts.ts";
 import type { StoredQuestion, StoredRunEvent, TapRigStore } from "../persistence/store.ts";
 
 export class RunService {
@@ -18,7 +18,7 @@ export class RunService {
     this.id = id;
   }
 
-  create(task: string, mode: RunMode = "independent"): RunState {
+  create(task: string, mode: RunMode = "independent", budget?: RunBudget): RunState {
     const normalized = task.trim();
     if (!normalized || normalized.length > 10_000) {
       throw new Error("task must contain from 1 to 10000 characters");
@@ -26,10 +26,12 @@ export class RunService {
     if (mode !== "independent" && mode !== "broadcast" && mode !== "coordinated") {
       throw new Error("invalid run mode");
     }
+    const normalizedBudget = normalizeBudget(budget);
     const at = this.now();
     const run: RunState = {
       id: this.id(),
       mode,
+      ...(normalizedBudget ? { budget: normalizedBudget } : {}),
       task: normalized,
       status: "created",
       createdAt: at,
@@ -124,4 +126,21 @@ export class RunService {
   telemetry(runId: string) {
     return this.store.getCheckpoint(runId, "telemetry");
   }
+}
+
+function normalizeBudget(budget: RunBudget | undefined): RunBudget | undefined {
+  if (budget === undefined) return undefined;
+  if (!budget || typeof budget !== "object" || Array.isArray(budget)) {
+    throw new Error("budget must be an object");
+  }
+  const values = budget as Record<string, unknown>;
+  if (Object.keys(values).some((key) => key !== "maxModelCalls" && key !== "maxActions")) {
+    throw new Error("budget contains an unknown field");
+  }
+  for (const [name, value] of Object.entries(values)) {
+    if (!Number.isSafeInteger(value) || (value as number) < 1 || (value as number) > 10_000) {
+      throw new Error(`${name} must be an integer from 1 to 10000`);
+    }
+  }
+  return Object.keys(values).length > 0 ? { ...budget } : undefined;
 }

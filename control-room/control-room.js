@@ -198,10 +198,20 @@ $("#task-form").addEventListener("submit", async (event) => {
   if (!task) return;
   $("#task-result").textContent = "CREATING RUN…";
   try {
+    const maxModelCalls = $("#max-model-calls").valueAsNumber;
+    const maxActions = $("#max-actions").valueAsNumber;
+    const budget = {
+      ...(Number.isNaN(maxModelCalls) ? {} : { maxModelCalls }),
+      ...(Number.isNaN(maxActions) ? {} : { maxActions }),
+    };
     const { run } = await json("/runs", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ task, mode: $("#mode").value }),
+      body: JSON.stringify({
+        task,
+        mode: $("#mode").value,
+        ...(Object.keys(budget).length > 0 ? { budget } : {}),
+      }),
     });
     $("#task-result").textContent = `CREATED ${run.id}`;
     $("#task").value = "";

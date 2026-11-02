@@ -28,3 +28,23 @@ test("rejects empty and unbounded run requests", () => {
   assert.throws(() => runs.create("x".repeat(10_001)), /1 to 10000/);
   store.close();
 });
+
+test("persists validated hard run budgets", () => {
+  const store = new TapRigStore(":memory:");
+  const runs = new RunService(store);
+  const run = runs.create("Open Settings", "independent", {
+    maxModelCalls: 4,
+    maxActions: 12,
+  });
+
+  assert.deepEqual(run.budget, { maxModelCalls: 4, maxActions: 12 });
+  assert.throws(
+    () => runs.create("Bad budget", "independent", { maxActions: 0 }),
+    /integer from 1/,
+  );
+  assert.throws(
+    () => runs.create("Unknown budget", "independent", { other: 1 } as never),
+    /unknown field/,
+  );
+  store.close();
+});

@@ -126,6 +126,7 @@ textarea:focus {
   gap: 8px;
 }
 select,
+input[type="number"],
 button {
   min-height: 42px;
   border: 1px solid #4a4a4a;
@@ -139,6 +140,10 @@ button {
 }
 select {
   flex: 1;
+}
+input[type="number"] {
+  min-width: 0;
+  width: 145px;
 }
 button {
   background: #f4f4ef;

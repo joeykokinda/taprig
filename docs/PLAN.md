@@ -674,7 +674,8 @@ execute and verify reversible actions, and take over manually.
 - [x] Provider configuration and model profiles.
 - [x] Built-in observe/decide/execute/verify/recover loop.
 - [x] Durable questions and answer/resume flow.
-- [ ] Approvals, budgets, artifacts, and replay.
+- [x] Hard model-call and attempted-action budgets across run/resume.
+- [ ] Approvals, artifacts, and replay.
 - [x] User script creation, inspection, testing, and deterministic execution.
 - [ ] Full main workspace and onboarding.
 - [x] MCP adapter.

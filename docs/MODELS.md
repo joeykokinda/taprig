@@ -39,6 +39,21 @@ available only when semantic/local perception is insufficient. A route returns
 no model when its budget is exhausted; callers must recover, ask, or fail rather
 than silently spend through the limit.
 
+Every run can also carry hard end-to-end limits. `maxModelCalls` counts the
+coordinator and every phone-agent provider attempt; `maxActions` counts action
+steps handed to phones. Reservations happen synchronously before concurrent
+branches start, and accumulated telemetry keeps the same limits across a
+question/resume cycle. A run stops with non-retryable `budget-exhausted` before
+the next call or batch would cross either limit.
+
+```console
+taprig run --max-model-calls 8 --max-actions 30 "Open Settings"
+taprig run --mode=coordinated --max-model-calls=20 "Process the fleet"
+```
+
+The same optional limits are available in the control room, the `POST /runs`
+API under `budget`, and the `taprig_task` MCP tool.
+
 Device workers use the `fast` route. Independent runs lease distinct ready
 devices and execute concurrently; excess runs wait for a lease. Broadcast runs
 share one bounded plan, while coordinated runs use the budgeted `strong` route

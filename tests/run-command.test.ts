@@ -16,10 +16,28 @@ test("parses independent and explicit fleet run modes", () => {
     mode: "coordinated",
     task: "Collect results",
   });
+  assert.deepEqual(
+    parseRunCommand([
+      "--max-actions=12",
+      "--mode",
+      "broadcast",
+      "--max-model-calls",
+      "5",
+      "Open",
+      "Settings",
+    ]),
+    {
+      mode: "broadcast",
+      budget: { maxActions: 12, maxModelCalls: 5 },
+      task: "Open Settings",
+    },
+  );
 });
 
 test("rejects missing tasks and unknown modes", () => {
   assert.throws(() => parseRunCommand([]), /requires a task/);
   assert.throws(() => parseRunCommand(["--mode", "swarm", "Do it"]), /mode must be/);
   assert.throws(() => parseRunMode(undefined), /mode must be/);
+  assert.throws(() => parseRunCommand(["--max-actions", "0", "Do it"]), /integer from 1/);
+  assert.throws(() => parseRunCommand(["--unknown", "value", "Do it"]), /unknown run option/);
 });

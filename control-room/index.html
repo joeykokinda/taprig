@@ -29,6 +29,8 @@
               <option value="broadcast">BROADCAST</option>
               <option value="coordinated">COORDINATED</option>
             </select>
+            <input id="max-model-calls" type="number" min="1" max="10000" placeholder="MAX MODEL CALLS" aria-label="Maximum model calls" />
+            <input id="max-actions" type="number" min="1" max="10000" placeholder="MAX ACTIONS" aria-label="Maximum attempted phone actions" />
             <button type="submit">START RUN →</button>
           </div>
           <p id="task-result" role="status"></p>

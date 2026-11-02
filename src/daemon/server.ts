@@ -5,7 +5,7 @@ import { isAbsolute, join } from "node:path";
 
 import { parseRawAction } from "../android/raw-actions.ts";
 import { TakeoverLeases } from "../control/takeover.ts";
-import type { Action, DeviceCapability, RunMode } from "../core/contracts.ts";
+import type { Action, DeviceCapability, RunBudget, RunMode } from "../core/contracts.ts";
 import type { RunService } from "../runs/service.ts";
 import type { ScriptService } from "../scripts/service.ts";
 import { CredentialBroker } from "../security/credential-broker.ts";
@@ -303,11 +303,16 @@ export async function startDaemon(options: TapRigDaemonOptions): Promise<Running
       if (request.method === "POST" && url.pathname === "/runs") {
         if (!options.runs) throw new Error("run service is unavailable");
         try {
-          const body = (await jsonBody(request)) as { task?: unknown; mode?: unknown };
+          const body = (await jsonBody(request)) as {
+            task?: unknown;
+            mode?: unknown;
+            budget?: unknown;
+          };
           if (typeof body.task !== "string") throw new Error("task must be a string");
           const run = options.runs.create(
             body.task,
             body.mode === undefined ? undefined : (body.mode as RunMode),
+            body.budget as RunBudget | undefined,
           );
           response.statusCode = 201;
           response.end(JSON.stringify({ run }));

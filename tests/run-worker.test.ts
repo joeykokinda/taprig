@@ -104,6 +104,83 @@ test("a worker records an explicit failure when no phone is ready", async () => 
   store.close();
 });
 
+test("a worker stops before exceeding its model-call budget", async () => {
+  const store = new TapRigStore(":memory:");
+  const runs = new RunService(store);
+  const run = runs.create("Open Settings", "independent", { maxModelCalls: 1 });
+  let current = observation("before");
+  const worker = new RunWorker({
+    runs,
+    devices: { list: async () => [readyDevice("phone-1")] },
+    adapter: {
+      observe: async () => current,
+      execute: async (batch) => {
+        current = observation("after");
+        return {
+          requestId: batch.requestId,
+          deviceId: batch.deviceId,
+          replayed: false,
+          steps: [{ stepId: "open", status: "verified", durationMs: 1 }],
+        };
+      },
+    },
+    decide: (_task, recordUsage) => async () => {
+      recordUsage?.({ inputTokens: 3, outputTokens: 1 });
+      return {
+        type: "execute",
+        requestId: "open",
+        steps: [{ id: "open", action: { type: "key.press", key: "home" } }],
+      };
+    },
+  });
+  worker.start(run.id);
+  await worker.idle();
+
+  assert.deepEqual(runs.get(run.id)?.error, {
+    code: "budget-exhausted",
+    message: "model-call budget of 1 exhausted",
+    retryable: false,
+  });
+  const telemetry = runs.telemetry(run.id)?.evidence as RunTelemetry;
+  assert.equal(telemetry.modelCalls, 1);
+  assert.equal(telemetry.attemptedActions, 1);
+  store.close();
+});
+
+test("a worker rejects a batch that would exceed its action budget", async () => {
+  const store = new TapRigStore(":memory:");
+  const runs = new RunService(store);
+  const run = runs.create("Do two things", "independent", { maxActions: 1 });
+  let executions = 0;
+  const worker = new RunWorker({
+    runs,
+    devices: { list: async () => [readyDevice("phone-1")] },
+    adapter: {
+      observe: async () => observation("current"),
+      execute: async () => {
+        executions += 1;
+        throw new Error("must not execute");
+      },
+    },
+    decide: () => async () => ({
+      type: "execute",
+      requestId: "too-large",
+      steps: [
+        { id: "one", action: { type: "key.press", key: "back" } },
+        { id: "two", action: { type: "key.press", key: "home" } },
+      ],
+    }),
+  });
+  worker.start(run.id);
+  await worker.idle();
+
+  assert.equal(executions, 0);
+  assert.equal(runs.get(run.id)?.error?.code, "budget-exhausted");
+  const telemetry = runs.telemetry(run.id)?.evidence as RunTelemetry | undefined;
+  assert.equal(telemetry?.attemptedActions, 0);
+  store.close();
+});
+
 test("independent runs lease distinct ready phones and execute concurrently", async () => {
   const store = new TapRigStore(":memory:");
   const runs = new RunService(store);
@@ -258,6 +335,47 @@ test("a coordinated run leases parallel phones and persists node results", async
   store.close();
 });
 
+test("coordinated branches reserve model budget without oversubscribing it", async () => {
+  const store = new TapRigStore(":memory:");
+  const runs = new RunService(store);
+  const run = runs.create("Do two tasks", "coordinated", { maxModelCalls: 2 });
+  let decisions = 0;
+  const worker = new RunWorker({
+    runs,
+    devices: {
+      list: async () => [readyDevice("phone-1"), readyDevice("phone-2")],
+    },
+    adapter: {
+      observe: async (deviceId) => ({ ...observation("current"), deviceId }),
+      execute: async () => {
+        throw new Error("unused");
+      },
+    },
+    planCoordinated: async (_task, recordUsage) => {
+      recordUsage?.({ inputTokens: 4, outputTokens: 2 });
+      return {
+        nodes: [
+          { id: "one", task: "One", dependsOn: [] },
+          { id: "two", task: "Two", dependsOn: [] },
+        ],
+      };
+    },
+    decide: (_task, recordUsage) => async () => {
+      decisions += 1;
+      recordUsage?.({ inputTokens: 2, outputTokens: 1 });
+      return { type: "complete", evidence: "done" };
+    },
+  });
+  worker.start(run.id);
+  await worker.idle();
+
+  assert.equal(decisions, 1);
+  assert.equal(runs.get(run.id)?.error?.code, "budget-exhausted");
+  const telemetry = runs.telemetry(run.id)?.evidence as RunTelemetry | undefined;
+  assert.equal(telemetry?.modelCalls, 2);
+  store.close();
+});
+
 test("a coordinated node leases only a phone with its required capabilities", async () => {
   const store = new TapRigStore(":memory:");
   const runs = new RunService(store);
@@ -336,7 +454,7 @@ test("a worker resumes a waiting run on the same phone with the durable answer",
     prompt: question.prompt,
     value: "Personal",
     sensitive: false,
-    deviceId: question.deviceId,
+    ...(question.deviceId ? { deviceId: question.deviceId } : {}),
   });
   await worker.idle();
 
@@ -346,6 +464,45 @@ test("a worker resumes a waiting run on the same phone with the durable answer",
     runs.events(run.id).map(({ event }) => event.type),
     ["run.created", "run.started", "run.waitingForUser", "run.resumed", "run.completed"],
   );
+  store.close();
+});
+
+test("a resumed run keeps the model-call budget already spent", async () => {
+  const store = new TapRigStore(":memory:");
+  const runs = new RunService(store);
+  const run = runs.create("Choose an account", "independent", { maxModelCalls: 1 });
+  let decisions = 0;
+  const worker = new RunWorker({
+    runs,
+    devices: { list: async () => [readyDevice("phone-1")] },
+    adapter: {
+      observe: async (deviceId) => ({ ...observation("current"), deviceId }),
+      execute: async () => {
+        throw new Error("unused");
+      },
+    },
+    decide: (_task, recordUsage) => async () => {
+      decisions += 1;
+      recordUsage?.({ inputTokens: 2, outputTokens: 1 });
+      return { type: "ask_user", question: "Which account?" };
+    },
+  });
+  worker.start(run.id);
+  await worker.idle();
+  const question = runs.questions(run.id)[0];
+  assert.ok(question);
+  runs.answer(run.id, question.id, "Personal");
+  worker.resume(run.id, {
+    prompt: question.prompt,
+    value: "Personal",
+    sensitive: false,
+    ...(question.deviceId ? { deviceId: question.deviceId } : {}),
+  });
+  await worker.idle();
+
+  assert.equal(decisions, 1);
+  assert.equal(runs.get(run.id)?.error?.code, "budget-exhausted");
+  assert.equal((runs.telemetry(run.id)?.evidence as RunTelemetry | undefined)?.modelCalls, 1);
   store.close();
 });
 
