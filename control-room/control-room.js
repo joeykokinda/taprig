@@ -18,6 +18,7 @@ function escapeHtml(value) {
 async function json(path, options) {
   const response = await fetch(path, options);
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  if (response.status === 204) return {};
   return response.json();
 }
 
@@ -37,6 +38,12 @@ function renderDevices(devices) {
     return;
   }
   renderedDeviceIds = ids;
+  $("#group-form").elements.deviceIds.innerHTML = devices
+    .map(
+      (device) =>
+        `<option value="${escapeHtml(device.serial)}">${escapeHtml(device.identity?.model ?? device.serial)} · ${escapeHtml(device.serial)}</option>`,
+    )
+    .join("");
   $("#devices").innerHTML = devices.length
     ? devices
         .map(
@@ -124,7 +131,7 @@ function renderRuns(runs, telemetry) {
           return `
       <article class="trace-row">
         <time>${escapeHtml(new Date(run.updatedAt).toLocaleTimeString())}</time>
-        <span>${escapeHtml(run.mode).toUpperCase()}</span>
+        <span>${escapeHtml(`${run.mode}${run.affinity?.group ? ` / ${run.affinity.group}` : run.affinity ? ` / ${run.affinity.deviceIds.length} DEVICES` : ""}`).toUpperCase()}</span>
         <strong>${escapeHtml(run.status).toUpperCase()}</strong>
         <p title="${escapeHtml(run.task)}">${escapeHtml(run.task)}</p>
         ${
@@ -192,6 +199,30 @@ function renderScripts(scripts) {
     : '<p class="empty">NO SCRIPTS YET</p>';
 }
 
+function renderGroups(groups) {
+  const selected = $("#run-group").value;
+  $("#run-group").innerHTML = [
+    '<option value="">ALL READY DEVICES</option>',
+    ...groups.map(
+      (group) =>
+        `<option value="${escapeHtml(group.name)}">${escapeHtml(group.name.toUpperCase())} · ${group.deviceIds.length}</option>`,
+    ),
+  ].join("");
+  if (groups.some((group) => group.name === selected)) $("#run-group").value = selected;
+  $("#groups").innerHTML = groups.length
+    ? groups
+        .map(
+          (group) => `
+      <article class="group-row" data-group="${escapeHtml(group.name)}">
+        <span>${escapeHtml(group.name)}</span>
+        <small>${group.deviceIds.map(escapeHtml).join(" · ")}</small>
+        <button type="button" data-action="delete-group">DELETE</button>
+      </article>`,
+        )
+        .join("")
+    : '<p class="empty">NO DEVICE GROUPS</p>';
+}
+
 function renderQuestions(questions) {
   const signature = questions.map(({ runId, id, prompt }) => `${runId}:${id}:${prompt}`).join("|");
   if (signature === renderedQuestions) return;
@@ -213,13 +244,15 @@ function renderQuestions(questions) {
 
 async function refresh() {
   try {
-    const [{ devices }, { runs, telemetry }, { scripts }] = await Promise.all([
+    const [{ devices }, { runs, telemetry }, { scripts }, { groups }] = await Promise.all([
       json("/devices"),
       json("/runs"),
       json("/scripts"),
+      json("/device-groups"),
     ]);
     renderDevices(devices);
     renderScripts(scripts);
+    renderGroups(groups);
     const questionGroups = await Promise.all(
       runs
         .filter((run) => run.status === "waiting-for-user")
@@ -256,6 +289,7 @@ $("#task-form").addEventListener("submit", async (event) => {
       body: JSON.stringify({
         task,
         mode: $("#mode").value,
+        ...($("#run-group").value ? { group: $("#run-group").value } : {}),
         ...(Object.keys(budget).length > 0 ? { budget } : {}),
       }),
     });
@@ -264,6 +298,37 @@ $("#task-form").addEventListener("submit", async (event) => {
     await refresh();
   } catch (error) {
     $("#task-result").textContent = `FAILED: ${error.message}`;
+  }
+});
+
+$("#group-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const name = form.elements.name.value.trim();
+  const deviceIds = [...form.elements.deviceIds.selectedOptions].map((option) => option.value);
+  try {
+    await json(`/device-groups/${encodeURIComponent(name)}`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ deviceIds }),
+    });
+    form.reset();
+    $("#task-result").textContent = `SAVED GROUP ${name}`;
+    await refresh();
+  } catch (error) {
+    $("#task-result").textContent = `GROUP FAILED: ${error.message}`;
+  }
+});
+
+$("#groups").addEventListener("click", async (event) => {
+  const row = event.target.closest("[data-group]");
+  if (!row || event.target.dataset.action !== "delete-group") return;
+  try {
+    await json(`/device-groups/${encodeURIComponent(row.dataset.group)}`, { method: "DELETE" });
+    $("#task-result").textContent = `DELETED GROUP ${row.dataset.group}`;
+    await refresh();
+  } catch (error) {
+    $("#task-result").textContent = `GROUP DELETE FAILED: ${error.message}`;
   }
 });
 

@@ -6,6 +6,7 @@ import { Readable } from "node:stream";
 import test from "node:test";
 
 import { startDaemon } from "../src/daemon/server.ts";
+import { DeviceGroupService } from "../src/devices/groups.ts";
 import { TapRigStore } from "../src/persistence/store.ts";
 import { RunService } from "../src/runs/service.ts";
 import { ScriptService } from "../src/scripts/service.ts";
@@ -50,6 +51,7 @@ test("the loopback daemon authenticates health and device inventory", async (con
   const controlRoomHtml = await controlRoom.text();
   assert.match(controlRoomHtml, /TAPRIG/);
   assert.match(controlRoomHtml, /ACTIVE REPLAY/);
+  assert.match(controlRoomHtml, /DEVICE GROUPS/);
   assert.equal((await fetch(sessionUrl, { redirect: "manual" })).status, 401);
 });
 
@@ -234,6 +236,70 @@ test("the daemon creates, lists, and attaches to durable runs", async (context) 
   assert.deepEqual((await telemetry.json()) as unknown, {
     telemetry: { modelCalls: 2, inputTokens: 100, outputTokens: 20 },
   });
+});
+
+test("the daemon manages groups and resolves immutable run affinity", async (context) => {
+  const store = new TapRigStore(":memory:");
+  const runs = new RunService(store);
+  const groups = new DeviceGroupService(store);
+  const started: string[] = [];
+  const daemon = await startDaemon({
+    token,
+    devices: {
+      list: async () => [
+        { id: "phone-1", serial: "phone-1", state: "ready" },
+        { id: "phone-2", serial: "phone-2", state: "ready" },
+        { id: "phone-3", serial: "phone-3", state: "ready" },
+      ],
+    },
+    groups,
+    runs,
+    startRun: (runId) => started.push(runId),
+  });
+  context.after(async () => {
+    await daemon.stop();
+    store.close();
+  });
+
+  const saved = await fetch(`${daemon.url}/device-groups/social`, {
+    method: "PUT",
+    headers: { ...authorization, "content-type": "application/json" },
+    body: JSON.stringify({ deviceIds: ["phone-1", "phone-2"] }),
+  });
+  assert.equal(saved.status, 200);
+  const created = await fetch(`${daemon.url}/runs`, {
+    method: "POST",
+    headers: { ...authorization, "content-type": "application/json" },
+    body: JSON.stringify({ task: "Post everywhere", mode: "broadcast", group: "social" }),
+  });
+  const run = ((await created.json()) as { run: { id: string; affinity: unknown } }).run;
+  assert.deepEqual(run.affinity, {
+    group: "social",
+    deviceIds: ["phone-1", "phone-2"],
+  });
+  assert.deepEqual(started, [run.id]);
+
+  groups.set("social", ["phone-3"]);
+  assert.deepEqual(runs.get(run.id)?.affinity?.deviceIds, ["phone-1", "phone-2"]);
+  groups.set("offline", ["phone-4"]);
+  const queued = await fetch(`${daemon.url}/runs`, {
+    method: "POST",
+    headers: { ...authorization, "content-type": "application/json" },
+    body: JSON.stringify({ task: "Wait for phone", group: "offline" }),
+  });
+  const queuedRun = ((await queued.json()) as { run: { id: string; status: string } }).run;
+  assert.equal(queuedRun.status, "created");
+  assert.deepEqual(started, [run.id]);
+  const listed = await fetch(`${daemon.url}/device-groups`, { headers: authorization });
+  const inventory = (await listed.json()) as {
+    groups: Array<{ name: string; deviceIds: string[] }>;
+  };
+  assert.deepEqual(inventory.groups.find(({ name }) => name === "social")?.deviceIds, ["phone-3"]);
+  const removed = await fetch(`${daemon.url}/device-groups/social`, {
+    method: "DELETE",
+    headers: authorization,
+  });
+  assert.equal(removed.status, 204);
 });
 
 test("the daemon resumes questions without persisting sensitive answers", async (context) => {

@@ -35,6 +35,13 @@ export interface StoredRunEvent {
   event: RunEvent;
 }
 
+export interface StoredDeviceGroup {
+  name: string;
+  deviceIds: readonly string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export class TapRigStore {
   readonly #database: DatabaseSync;
 
@@ -52,6 +59,11 @@ export class TapRigStore {
         id TEXT PRIMARY KEY,
         json TEXT NOT NULL,
         observed_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS device_groups (
+        name TEXT PRIMARY KEY,
+        json TEXT NOT NULL,
+        updated_at TEXT NOT NULL
       );
       CREATE TABLE IF NOT EXISTS runs (
         id TEXT PRIMARY KEY,
@@ -99,6 +111,33 @@ export class TapRigStore {
       | JsonRow
       | undefined;
     return row ? (JSON.parse(row.json) as DeviceActorState) : undefined;
+  }
+
+  saveDeviceGroup(group: StoredDeviceGroup): void {
+    this.#database
+      .prepare(`
+        INSERT INTO device_groups (name, json, updated_at) VALUES (?, ?, ?)
+        ON CONFLICT(name) DO UPDATE SET json = excluded.json, updated_at = excluded.updated_at
+      `)
+      .run(group.name, JSON.stringify(group), group.updatedAt);
+  }
+
+  getDeviceGroup(name: string): StoredDeviceGroup | undefined {
+    const row = this.#database.prepare("SELECT json FROM device_groups WHERE name = ?").get(name) as
+      | JsonRow
+      | undefined;
+    return row ? (JSON.parse(row.json) as StoredDeviceGroup) : undefined;
+  }
+
+  listDeviceGroups(): StoredDeviceGroup[] {
+    const rows = this.#database
+      .prepare("SELECT json FROM device_groups ORDER BY name ASC")
+      .all() as unknown as JsonRow[];
+    return rows.map((row) => JSON.parse(row.json) as StoredDeviceGroup);
+  }
+
+  deleteDeviceGroup(name: string): boolean {
+    return this.#database.prepare("DELETE FROM device_groups WHERE name = ?").run(name).changes > 0;
   }
 
   getRun(id: string): RunState | undefined {

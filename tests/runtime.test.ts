@@ -88,6 +88,13 @@ test("durable run scheduling starts new work and recovers only when its phones a
   const store = new TapRigStore(":memory:");
   const runs = new RunService(store);
   const created = runs.create("New work");
+  const affinity = runs.create("Affinity work", "independent", undefined, {
+    deviceIds: ["phone-3"],
+  });
+  const broadcast = runs.create("Group broadcast", "broadcast", undefined, {
+    group: "social",
+    deviceIds: ["phone-2", "phone-3"],
+  });
   const running = runs.create("Interrupted work");
   runs.record(running.id, { type: "run.started", at: "2026-11-01T12:00:00.000Z" });
   runs.saveRecovery(running.id, { deviceIds: ["phone-2"] });
@@ -96,6 +103,13 @@ test("durable run scheduling starts new work and recovers only when its phones a
   runs.saveRecovery(coordinated.id, {
     plan: { nodes: [{ id: "pending", task: "Pending", dependsOn: [], deviceId: "phone-3" }] },
     nodes: [],
+  });
+  const affinityRecovery = runs.create("Affinity recovery", "independent", undefined, {
+    deviceIds: ["phone-4"],
+  });
+  runs.record(affinityRecovery.id, {
+    type: "run.started",
+    at: "2026-11-01T12:00:00.000Z",
   });
   const started: string[] = [];
   const recovered: string[] = [];
@@ -116,11 +130,20 @@ test("durable run scheduling starts new work and recovers only when its phones a
     { id: "phone-2", state: "ready" },
   ]);
   assert.deepEqual(recovered, [running.id]);
+  assert.deepEqual(started, [created.id]);
   scheduleDurableRuns(runs, worker, [
     { id: "phone-1", state: "ready" },
     { id: "phone-2", state: "ready" },
     { id: "phone-3", state: "ready" },
   ]);
   assert.deepEqual(recovered, [running.id, coordinated.id]);
+  assert.deepEqual([...started].sort(), [created.id, affinity.id, broadcast.id].sort());
+  scheduleDurableRuns(runs, worker, [
+    { id: "phone-1", state: "ready" },
+    { id: "phone-2", state: "ready" },
+    { id: "phone-3", state: "ready" },
+    { id: "phone-4", state: "ready" },
+  ]);
+  assert.deepEqual([...recovered].sort(), [running.id, coordinated.id, affinityRecovery.id].sort());
   store.close();
 });

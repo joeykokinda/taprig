@@ -68,6 +68,8 @@ npm run taprig --                       # interactive when attached to a TTY
 npm run taprig -- run "Open Settings"  # create a durable run
 npm run taprig -- run --mode coordinated "Split this workflow across the fleet"
 npm run taprig -- run --max-model-calls 8 --max-actions 30 "Open Settings"
+npm run taprig -- group set social phone-1 phone-2
+npm run taprig -- run --group social --mode broadcast "Post on both phones"
 npm run taprig -- runs                  # list runs
 npm run taprig -- attach <run-id>       # inspect state and ordered events
 npm run taprig -- replay <run-id>       # replay secret-safe agent activity

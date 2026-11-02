@@ -3,12 +3,16 @@ import type { RunBudget, RunMode } from "./core/contracts.ts";
 export interface RunCommand {
   mode: RunMode;
   budget?: RunBudget;
+  group?: string;
+  deviceIds?: string[];
   task: string;
 }
 
 export function parseRunCommand(args: readonly string[]): RunCommand {
   let mode: RunMode = "independent";
   const budget: RunBudget = {};
+  let group: string | undefined;
+  const deviceIds: string[] = [];
   let index = 0;
   while (args[index]?.startsWith("--")) {
     const argument = args[index] as string;
@@ -17,12 +21,28 @@ export function parseRunCommand(args: readonly string[]): RunCommand {
     if (flag === "--mode") mode = parseRunMode(value);
     else if (flag === "--max-model-calls") budget.maxModelCalls = parseLimit(flag, value);
     else if (flag === "--max-actions") budget.maxActions = parseLimit(flag, value);
+    else if (flag === "--group") group = parseTarget(flag, value);
+    else if (flag === "--device") deviceIds.push(parseTarget(flag, value));
     else throw new Error(`unknown run option: ${flag}`);
     index += inline === undefined ? 2 : 1;
   }
   const task = args.slice(index).join(" ").trim();
   if (!task) throw new Error("run requires a task");
-  return { mode, ...(Object.keys(budget).length > 0 ? { budget } : {}), task };
+  if (group && deviceIds.length > 0) throw new Error("choose --group or --device, not both");
+  return {
+    mode,
+    ...(Object.keys(budget).length > 0 ? { budget } : {}),
+    ...(group ? { group } : {}),
+    ...(deviceIds.length > 0 ? { deviceIds } : {}),
+    task,
+  };
+}
+
+function parseTarget(flag: string, value: string | undefined): string {
+  if (!value?.trim() || value.length > 300 || value.startsWith("--")) {
+    throw new Error(`${flag} requires a valid value`);
+  }
+  return value.trim();
 }
 
 function parseLimit(flag: string, value: string | undefined): number {

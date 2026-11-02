@@ -14,7 +14,8 @@ MCP JSON-RPC; diagnostics go to standard error.
 The compact tool surface is:
 
 - `taprig_devices`: current phone inventory and readiness;
-- `taprig_task`: create a durable natural-language run;
+- `taprig_task`: create a durable natural-language run, optionally constrained
+  to a named group or explicit device IDs;
 - `taprig_run`: inspect run state and ordered events;
 - `taprig_action`: send one schema-validated raw action to one phone.
 

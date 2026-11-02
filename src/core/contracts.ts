@@ -112,6 +112,11 @@ export interface RunBudget {
   maxActions?: number;
 }
 
+export interface RunAffinity {
+  deviceIds: readonly DeviceId[];
+  group?: string;
+}
+
 export type RunStatus =
   | "created"
   | "running"
@@ -125,6 +130,7 @@ export interface RunState {
   id: RunId;
   mode: RunMode;
   budget?: RunBudget;
+  affinity?: RunAffinity;
   task: string;
   status: RunStatus;
   createdAt: string;

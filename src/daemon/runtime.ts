@@ -6,6 +6,7 @@ import { discoverAdbDevices } from "../android/adb-discovery.ts";
 import { DeviceRegistry } from "../android/device-actor.ts";
 import { executeNormalizedTap, executeRawAction } from "../android/raw-actions.ts";
 import { AndroidSemanticAdapter } from "../android/semantic-adapter.ts";
+import { DeviceGroupService } from "../devices/groups.ts";
 import { loadOrCreateModelConfig } from "../models/config.ts";
 import { routeModel } from "../models/router.ts";
 import { dataDirectory } from "../paths.ts";
@@ -53,7 +54,13 @@ export function scheduleDurableRuns(
   if (ready.size === 0) return;
   for (const run of runs.active()) {
     if (run.status === "created") {
-      worker.start(run.id);
+      const targets = run.affinity?.deviceIds ?? [];
+      const affinityReady =
+        targets.length === 0 ||
+        (run.mode === "broadcast"
+          ? targets.every((id) => ready.has(id))
+          : targets.some((id) => ready.has(id)));
+      if (affinityReady) worker.start(run.id);
       continue;
     }
     if (run.status !== "running") continue;
@@ -90,7 +97,15 @@ export function scheduleDurableRuns(
             : [],
         )
       : [];
-    if ([...deviceIds, ...pinned].every((id) => ready.has(id))) worker.recover(run.id);
+    const affinityTargets = run.affinity?.deviceIds ?? [];
+    const affinityReady =
+      affinityTargets.length === 0 ||
+      (run.mode === "broadcast"
+        ? affinityTargets.every((id) => ready.has(id))
+        : affinityTargets.some((id) => ready.has(id)));
+    if (affinityReady && [...deviceIds, ...pinned].every((id) => ready.has(id))) {
+      worker.recover(run.id);
+    }
   }
 }
 
@@ -100,6 +115,7 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
   const databasePath = options.databasePath ?? defaultDatabasePath();
   const store = new TapRigStore(databasePath);
   const runs = new RunService(store);
+  const groups = new DeviceGroupService(store);
   const semanticAdapter = new AndroidSemanticAdapter();
   const scripts = new ScriptService(
     new ScriptStore(join(dirname(databasePath), "scripts")),
@@ -160,6 +176,7 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
       token: options.token,
       devices: registry,
       execute: executeRawAction,
+      groups,
       runs,
       ...(worker
         ? {

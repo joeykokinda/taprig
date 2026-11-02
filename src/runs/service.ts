@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import type { RunBudget, RunEvent, RunMode, RunState } from "../core/contracts.ts";
+import type { RunAffinity, RunBudget, RunEvent, RunMode, RunState } from "../core/contracts.ts";
 import type { StoredQuestion, StoredRunEvent, TapRigStore } from "../persistence/store.ts";
 
 export class RunService {
@@ -18,7 +18,12 @@ export class RunService {
     this.id = id;
   }
 
-  create(task: string, mode: RunMode = "independent", budget?: RunBudget): RunState {
+  create(
+    task: string,
+    mode: RunMode = "independent",
+    budget?: RunBudget,
+    affinity?: RunAffinity,
+  ): RunState {
     const normalized = task.trim();
     if (!normalized || normalized.length > 10_000) {
       throw new Error("task must contain from 1 to 10000 characters");
@@ -27,11 +32,13 @@ export class RunService {
       throw new Error("invalid run mode");
     }
     const normalizedBudget = normalizeBudget(budget);
+    const normalizedAffinity = normalizeAffinity(affinity, mode);
     const at = this.now();
     const run: RunState = {
       id: this.id(),
       mode,
       ...(normalizedBudget ? { budget: normalizedBudget } : {}),
+      ...(normalizedAffinity ? { affinity: normalizedAffinity } : {}),
       task: normalized,
       status: "created",
       createdAt: at,
@@ -145,6 +152,40 @@ export class RunService {
   telemetry(runId: string) {
     return this.store.getCheckpoint(runId, "telemetry");
   }
+}
+
+function normalizeAffinity(
+  affinity: RunAffinity | undefined,
+  mode: RunMode,
+): RunAffinity | undefined {
+  if (affinity === undefined) return undefined;
+  if (!affinity || typeof affinity !== "object" || Array.isArray(affinity)) {
+    throw new Error("affinity must be an object");
+  }
+  const values = affinity as unknown as Record<string, unknown>;
+  if (Object.keys(values).some((key) => key !== "deviceIds" && key !== "group")) {
+    throw new Error("affinity contains an unknown field");
+  }
+  if (
+    !Array.isArray(affinity.deviceIds) ||
+    affinity.deviceIds.length < (mode === "broadcast" ? 2 : 1) ||
+    affinity.deviceIds.length > 100 ||
+    affinity.deviceIds.some((id) => typeof id !== "string" || !id.trim() || id.length > 300) ||
+    new Set(affinity.deviceIds).size !== affinity.deviceIds.length
+  ) {
+    throw new Error(
+      mode === "broadcast"
+        ? "broadcast affinity requires from 2 to 100 unique device IDs"
+        : "affinity requires from 1 to 100 unique device IDs",
+    );
+  }
+  if (affinity.group !== undefined && (!affinity.group.trim() || affinity.group.length > 64)) {
+    throw new Error("affinity group is invalid");
+  }
+  return {
+    deviceIds: affinity.deviceIds.map((id) => id.trim()),
+    ...(affinity.group ? { group: affinity.group } : {}),
+  };
 }
 
 function normalizeBudget(budget: RunBudget | undefined): RunBudget | undefined {

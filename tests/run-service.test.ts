@@ -48,3 +48,22 @@ test("persists validated hard run budgets", () => {
   );
   store.close();
 });
+
+test("persists an immutable validated run affinity", () => {
+  const store = new TapRigStore(":memory:");
+  const runs = new RunService(store);
+  const run = runs.create("Reply to messages", "broadcast", undefined, {
+    group: "social",
+    deviceIds: ["phone-1", "phone-2"],
+  });
+
+  assert.deepEqual(run.affinity, {
+    group: "social",
+    deviceIds: ["phone-1", "phone-2"],
+  });
+  assert.throws(
+    () => runs.create("Bad", "broadcast", undefined, { deviceIds: ["phone-1"] }),
+    /broadcast affinity/,
+  );
+  store.close();
+});

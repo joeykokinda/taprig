@@ -19,7 +19,8 @@ The current control room provides:
 - durable run counts and an incremental replay of secret-safe observation,
   decision, and action events;
 - natural-language task creation with independent, broadcast, or coordinated
-  run mode;
+  run mode and optional named-device-group affinity;
+- named device-group creation, updates, deletion, and run selection;
 - durable agent questions with answer-and-resume controls; sensitive answers
   use a password field, pass through one-time scoped memory, and are redacted
   from persisted evidence;

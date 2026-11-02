@@ -279,6 +279,36 @@ test("independent runs lease distinct ready phones and execute concurrently", as
   store.close();
 });
 
+test("an independent run leases only a phone in its resolved affinity", async () => {
+  const store = new TapRigStore(":memory:");
+  const runs = new RunService(store);
+  const run = runs.create("Use social phone", "independent", undefined, {
+    group: "social",
+    deviceIds: ["phone-2"],
+  });
+  let assigned = "";
+  const worker = new RunWorker({
+    runs,
+    devices: { list: async () => [readyDevice("phone-1"), readyDevice("phone-2")] },
+    adapter: {
+      observe: async (deviceId) => {
+        assigned = deviceId;
+        return { ...observation("current"), deviceId };
+      },
+      execute: async () => {
+        throw new Error("unused");
+      },
+    },
+    decide: () => async () => ({ type: "complete", evidence: "done" }),
+  });
+  worker.start(run.id);
+  await worker.idle();
+
+  assert.equal(assigned, "phone-2");
+  assert.equal(runs.get(run.id)?.status, "completed");
+  store.close();
+});
+
 test("a broadcast run shares actions across leased phones and persists aggregate completion", async () => {
   const store = new TapRigStore(":memory:");
   const runs = new RunService(store);
@@ -322,6 +352,38 @@ test("a broadcast run shares actions across leased phones and persists aggregate
   assert.deepEqual(executions.sort(), ["phone-1", "phone-2", "phone-2"]);
   const completion = runs.completion(run.id)?.evidence as { devices?: string[] } | undefined;
   assert.deepEqual(completion?.devices, ["phone-1", "phone-2"]);
+  store.close();
+});
+
+test("a broadcast run leases exactly its resolved device group", async () => {
+  const store = new TapRigStore(":memory:");
+  const runs = new RunService(store);
+  const run = runs.create("Use social fleet", "broadcast", undefined, {
+    group: "social",
+    deviceIds: ["phone-1", "phone-2"],
+  });
+  const observed = new Set<string>();
+  const worker = new RunWorker({
+    runs,
+    devices: {
+      list: async () => [readyDevice("phone-1"), readyDevice("phone-2"), readyDevice("phone-3")],
+    },
+    adapter: {
+      observe: async (deviceId) => {
+        observed.add(deviceId);
+        return { ...observation("current"), deviceId };
+      },
+      execute: async () => {
+        throw new Error("unused");
+      },
+    },
+    decide: () => async () => ({ type: "complete", evidence: "done" }),
+  });
+  worker.start(run.id);
+  await worker.idle();
+
+  assert.equal(runs.get(run.id)?.status, "completed");
+  assert.deepEqual([...observed].sort(), ["phone-1", "phone-2"]);
   store.close();
 });
 
@@ -564,6 +626,40 @@ test("a coordinated node leases only a phone with its required capabilities", as
 
   assert.equal(runs.get(run.id)?.status, "completed");
   assert.equal(assigned, "phone-2");
+  store.close();
+});
+
+test("a coordinated node cannot escape its run affinity", async () => {
+  const store = new TapRigStore(":memory:");
+  const runs = new RunService(store);
+  const run = runs.create("Stay in group", "coordinated", undefined, {
+    group: "social",
+    deviceIds: ["phone-1"],
+  });
+  let decisions = 0;
+  const worker = new RunWorker({
+    runs,
+    devices: { list: async () => [readyDevice("phone-1"), readyDevice("phone-2")] },
+    adapter: {
+      observe: async (deviceId) => ({ ...observation("current"), deviceId }),
+      execute: async () => {
+        throw new Error("unused");
+      },
+    },
+    planCoordinated: async () => ({
+      nodes: [{ id: "outside", task: "Outside", dependsOn: [], deviceId: "phone-2" }],
+    }),
+    decide: () => async () => {
+      decisions += 1;
+      return { type: "complete", evidence: "unused" };
+    },
+  });
+  worker.start(run.id);
+  await worker.idle();
+
+  assert.equal(decisions, 0);
+  assert.equal(runs.get(run.id)?.status, "failed");
+  assert.match(runs.get(run.id)?.error?.message ?? "", /outside the run affinity/);
   store.close();
 });
 

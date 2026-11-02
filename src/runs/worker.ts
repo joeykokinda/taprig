@@ -291,6 +291,7 @@ export class RunWorker {
                 dependencies.map(({ id, evidence }) => `${id}: ${evidence}`),
                 device,
                 decide,
+                run.affinity?.deviceIds,
               ),
             onProgress: (nodes) => {
               recovery.nodes = [...nodes];
@@ -341,10 +342,14 @@ export class RunWorker {
             ? await this.#acquireSpecificDevices(answer.deviceIds)
             : recovering && recovery.deviceIds
               ? await this.#acquireSpecificDevices(recovery.deviceIds)
-              : await this.#acquireBroadcastDevices()
+              : run.affinity
+                ? await this.#acquireSpecificDevices(run.affinity.deviceIds)
+                : await this.#acquireBroadcastDevices()
           : [
               await this.#acquireDevice(
                 requestedDeviceId ?? (recovering ? recovery.deviceIds?.[0] : undefined),
+                agentCapabilities,
+                run.affinity?.deviceIds,
               ),
             ];
       recovery.deviceIds = [...leasedDeviceIds];
@@ -419,10 +424,15 @@ export class RunWorker {
     dependencies: readonly string[],
     device: DeviceAdapter,
     decide: (task: string) => Decider,
+    allowedDeviceIds?: readonly string[],
   ): Promise<CoordinatedNodeResult> {
     let deviceId: string | undefined;
     try {
-      deviceId = await this.#acquireDevice(node.deviceId, node.capabilities ?? agentCapabilities);
+      deviceId = await this.#acquireDevice(
+        node.deviceId,
+        node.capabilities ?? agentCapabilities,
+        allowedDeviceIds,
+      );
       const result = await runAgentLoop({
         device,
         deviceId,
@@ -454,12 +464,20 @@ export class RunWorker {
   async #acquireDevice(
     requestedDeviceId?: string,
     capabilities: readonly DeviceCapability[] = agentCapabilities,
+    allowedDeviceIds?: readonly string[],
   ): Promise<string> {
+    if (requestedDeviceId && allowedDeviceIds && !allowedDeviceIds.includes(requestedDeviceId)) {
+      throw new Error(`requested Android device ${requestedDeviceId} is outside the run affinity`);
+    }
     while (true) {
-      const ready = (await this.#devices.list())
+      const allReady = (await this.#devices.list())
         .filter((candidate) => candidate.state === "ready")
         .sort((left, right) => left.id.localeCompare(right.id));
-      if (ready.length === 0) throw new Error("no ready Android device is connected");
+      if (allReady.length === 0) throw new Error("no ready Android device is connected");
+      const ready = allowedDeviceIds
+        ? allReady.filter((candidate) => allowedDeviceIds.includes(candidate.id))
+        : allReady;
+      if (ready.length === 0) throw new Error("no Android device in the run affinity is ready");
       const eligible = ready.filter((candidate) =>
         capabilities.every((capability) => candidate.capabilities?.includes(capability)),
       );

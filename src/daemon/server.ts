@@ -6,6 +6,7 @@ import { isAbsolute, join } from "node:path";
 import { parseRawAction } from "../android/raw-actions.ts";
 import { TakeoverLeases } from "../control/takeover.ts";
 import type { Action, DeviceCapability, RunBudget, RunMode } from "../core/contracts.ts";
+import type { DeviceGroupService } from "../devices/groups.ts";
 import type { RunService } from "../runs/service.ts";
 import type { ScriptService } from "../scripts/service.ts";
 import { CredentialBroker } from "../security/credential-broker.ts";
@@ -41,6 +42,7 @@ export interface TapRigDaemonOptions {
     },
   ) => void;
   credentials?: CredentialBroker;
+  groups?: DeviceGroupService;
   scripts?: ScriptService;
   stream?: (serial: string) => Promise<LiveMjpegStream>;
   manualTap?: (serial: string, xRatio: number, yRatio: number) => Promise<void>;
@@ -240,6 +242,34 @@ export async function startDaemon(options: TapRigDaemonOptions): Promise<Running
         );
         return;
       }
+      if (request.method === "GET" && url.pathname === "/device-groups") {
+        response.end(JSON.stringify({ groups: options.groups?.list() ?? [] }));
+        return;
+      }
+      const groupRoute = /^\/device-groups\/([^/]+)$/u.exec(url.pathname);
+      if ((request.method === "PUT" || request.method === "DELETE") && groupRoute?.[1]) {
+        if (!options.groups) throw new Error("device groups are unavailable");
+        try {
+          const name = decodeURIComponent(groupRoute[1]);
+          if (request.method === "DELETE") {
+            if (!options.groups.delete(name)) {
+              response.statusCode = 404;
+              response.end(JSON.stringify({ error: "group-not-found" }));
+            } else {
+              response.statusCode = 204;
+              response.end();
+            }
+          } else {
+            const body = (await jsonBody(request)) as { deviceIds?: unknown };
+            const group = options.groups.set(name, body.deviceIds as string[]);
+            response.end(JSON.stringify({ group }));
+          }
+        } catch {
+          response.statusCode = 400;
+          response.end(JSON.stringify({ error: "invalid-device-group" }));
+        }
+        return;
+      }
       if (request.method === "GET" && url.pathname === "/scripts") {
         response.end(JSON.stringify({ scripts: options.scripts?.list() ?? [] }));
         return;
@@ -307,16 +337,43 @@ export async function startDaemon(options: TapRigDaemonOptions): Promise<Running
             task?: unknown;
             mode?: unknown;
             budget?: unknown;
+            group?: unknown;
+            deviceIds?: unknown;
           };
           if (typeof body.task !== "string") throw new Error("task must be a string");
+          if (body.group !== undefined && body.deviceIds !== undefined) {
+            throw new Error("choose a group or explicit devices");
+          }
+          let affinity: { deviceIds: readonly string[]; group?: string } | undefined;
+          if (body.group !== undefined) {
+            if (typeof body.group !== "string" || !options.groups) {
+              throw new Error("invalid group");
+            }
+            const group = options.groups.get(body.group);
+            if (!group) throw new Error("group not found");
+            affinity = { deviceIds: group.deviceIds, group: group.name };
+          } else if (body.deviceIds !== undefined) {
+            affinity = { deviceIds: body.deviceIds as string[] };
+          }
           const run = options.runs.create(
             body.task,
             body.mode === undefined ? undefined : (body.mode as RunMode),
             body.budget as RunBudget | undefined,
+            affinity,
           );
+          const ready = new Set(
+            (await options.devices.list().catch(() => []))
+              .filter((device) => device.state === "ready")
+              .map(({ id }) => id),
+          );
+          const affinityReady =
+            !run.affinity ||
+            (run.mode === "broadcast"
+              ? run.affinity.deviceIds.every((id) => ready.has(id))
+              : run.affinity.deviceIds.some((id) => ready.has(id)));
+          if (affinityReady) options.startRun?.(run.id);
           response.statusCode = 201;
           response.end(JSON.stringify({ run }));
-          options.startRun?.(run.id);
         } catch {
           response.statusCode = 400;
           response.end(JSON.stringify({ error: "invalid-run" }));

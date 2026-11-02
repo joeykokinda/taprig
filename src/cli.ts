@@ -50,11 +50,12 @@ async function createRun(
   task: string,
   mode: RunMode = "independent",
   budget?: RunBudget,
+  target?: { group?: string; deviceIds?: readonly string[] },
 ): Promise<RunState> {
   const result = await daemonJson<{ run: RunState }>("/runs", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ task, mode, ...(budget ? { budget } : {}) }),
+    body: JSON.stringify({ task, mode, ...(budget ? { budget } : {}), ...target }),
   });
   return result.run;
 }
@@ -68,8 +69,10 @@ function printRuns(runs: readonly RunState[]): void {
     process.stdout.write("No runs yet.\n");
     return;
   }
-  for (const run of runs)
-    process.stdout.write(`${run.id}\t${run.status}\t${run.mode}\t${run.task}\n`);
+  for (const run of runs) {
+    const target = run.affinity?.group ?? (run.affinity ? run.affinity.deviceIds.join(",") : "all");
+    process.stdout.write(`${run.id}\t${run.status}\t${run.mode}\t${target}\t${run.task}\n`);
+  }
 }
 
 function formatRunEvent(event: RunEvent): string {
@@ -95,7 +98,8 @@ async function showRun(id: string): Promise<void> {
     }>(`/runs/${encodeURIComponent(id)}/questions`),
     daemonJson<{ telemetry: RunTelemetry | null }>(`/runs/${encodeURIComponent(id)}/telemetry`),
   ]);
-  process.stdout.write(`${run.id} · ${run.status} · ${run.mode}\n${run.task}\n`);
+  const target = run.affinity?.group ?? (run.affinity ? run.affinity.deviceIds.join(", ") : "all");
+  process.stdout.write(`${run.id} · ${run.status} · ${run.mode} · ${target}\n${run.task}\n`);
   for (const item of events)
     process.stdout.write(`  ${item.sequence}  ${formatRunEvent(item.event)}\n`);
   for (const question of questions) {
@@ -127,9 +131,10 @@ async function interactiveSession(): Promise<void> {
   const devices = await loadDevices();
   process.stdout.write(
     `TapRig · ${devices.length} device${devices.length === 1 ? "" : "s"} connected\n` +
-      "Type a task, or /mode, /devices, /runs, /attach, /replay, /answer, /quit.\n\n",
+      "Type a task, or /mode, /group, /devices, /runs, /attach, /replay, /answer, /quit.\n\n",
   );
   let mode: RunMode = "independent";
+  let group: string | undefined;
   const terminal = createInterface({ input: process.stdin, output: process.stdout });
   try {
     while (true) {
@@ -157,6 +162,16 @@ async function interactiveSession(): Promise<void> {
         }
         continue;
       }
+      if (line === "/group") {
+        process.stdout.write(`Device group is ${group ?? "all ready devices"}.\n`);
+        continue;
+      }
+      if (line.startsWith("/group ")) {
+        const selected = line.slice(7).trim();
+        group = selected === "off" ? undefined : selected;
+        process.stdout.write(`Device group set to ${group ?? "all ready devices"}.\n`);
+        continue;
+      }
       if (line.startsWith("/attach ")) {
         await showRun(line.slice(8).trim());
         continue;
@@ -173,7 +188,7 @@ async function interactiveSession(): Promise<void> {
         process.stdout.write("Unknown command.\n");
         continue;
       }
-      const run = await createRun(line, mode);
+      const run = await createRun(line, mode, undefined, group ? { group } : undefined);
       process.stdout.write(`Created ${run.id}. Use /attach ${run.id} to inspect it.\n`);
     }
   } finally {
@@ -342,6 +357,44 @@ async function main(): Promise<void> {
     }
     throw new Error(`unknown script command: ${operation}`);
   }
+  if (selectedCommand === "group") {
+    const operation = process.argv[3] ?? "list";
+    if (operation === "list") {
+      const { groups } = await daemonJson<{
+        groups: Array<{ name: string; deviceIds: readonly string[] }>;
+      }>("/device-groups");
+      if (groups.length === 0) process.stdout.write("No device groups yet.\n");
+      else {
+        for (const group of groups)
+          process.stdout.write(`${group.name}\t${group.deviceIds.join(",")}\n`);
+      }
+      return;
+    }
+    const name = process.argv[4];
+    if (!name) throw new Error(`group ${operation} requires a name`);
+    if (operation === "set") {
+      const deviceIds = process.argv.slice(5);
+      const { group } = await daemonJson<{ group: { name: string; deviceIds: string[] } }>(
+        `/device-groups/${encodeURIComponent(name)}`,
+        {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ deviceIds }),
+        },
+      );
+      process.stdout.write(`Saved ${group.name}: ${group.deviceIds.join(", ")}\n`);
+      return;
+    }
+    if (operation === "delete") {
+      const response = await daemonRequest(`/device-groups/${encodeURIComponent(name)}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) throw new Error(`daemon returned HTTP ${response.status}`);
+      process.stdout.write(`Deleted ${name}.\n`);
+      return;
+    }
+    throw new Error(`unknown group command: ${operation}`);
+  }
   if (selectedCommand === "ui") {
     const { url } = await daemonJson<{ url: string }>("/browser-sessions", { method: "POST" });
     process.stdout.write(`${url}\n`);
@@ -363,7 +416,10 @@ async function main(): Promise<void> {
   }
   if (selectedCommand === "run") {
     const command = parseRunCommand(process.argv.slice(3));
-    const run = await createRun(command.task, command.mode, command.budget);
+    const run = await createRun(command.task, command.mode, command.budget, {
+      ...(command.group ? { group: command.group } : {}),
+      ...(command.deviceIds ? { deviceIds: command.deviceIds } : {}),
+    });
     process.stdout.write(`${run.id}\t${run.status}\n`);
     return;
   }

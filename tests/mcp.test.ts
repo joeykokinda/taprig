@@ -45,6 +45,7 @@ test("MCP lists and calls the daemon-backed TapRig tools", async (context) => {
       mode: "coordinated",
       maxModelCalls: 4,
       maxActions: 10,
+      group: "social",
     },
   });
   assert.deepEqual(calls, ["GET /devices", "POST /devices/phone-1/actions", "POST /runs"]);
@@ -52,5 +53,6 @@ test("MCP lists and calls the daemon-backed TapRig tools", async (context) => {
     task: "Open Settings",
     mode: "coordinated",
     budget: { maxModelCalls: 4, maxActions: 10 },
+    group: "social",
   });
 });

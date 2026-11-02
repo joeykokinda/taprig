@@ -29,6 +29,9 @@
               <option value="broadcast">BROADCAST</option>
               <option value="coordinated">COORDINATED</option>
             </select>
+            <select id="run-group" aria-label="Device group">
+              <option value="">ALL READY DEVICES</option>
+            </select>
             <input id="max-model-calls" type="number" min="1" max="10000" placeholder="MAX MODEL CALLS" aria-label="Maximum model calls" />
             <input id="max-actions" type="number" min="1" max="10000" placeholder="MAX ACTIONS" aria-label="Maximum attempted phone actions" />
             <button type="submit">START RUN →</button>
@@ -58,6 +61,16 @@
         <div class="panel activity-panel">
           <div class="panel-head"><h2>ACTIVE REPLAY</h2><span id="activity-run">NO RUN</span></div>
           <div id="activity" class="activity"><p class="empty">NO ACTIVITY YET</p></div>
+        </div>
+
+        <div class="panel groups-panel">
+          <div class="panel-head"><h2>DEVICE GROUPS</h2><span>AFFINITY</span></div>
+          <form id="group-form" class="group-form">
+            <input name="name" required maxlength="64" placeholder="GROUP NAME" aria-label="Group name" />
+            <select name="deviceIds" multiple required aria-label="Devices in group"></select>
+            <button type="submit">SAVE GROUP →</button>
+          </form>
+          <div id="groups" class="group-list"><p class="empty">NO DEVICE GROUPS</p></div>
         </div>
 
         <div class="panel questions-panel">

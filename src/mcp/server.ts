@@ -57,10 +57,13 @@ export function createTapRigMcpServer(request: RequestDaemon = daemonRequest): M
         mode: z.enum(["independent", "broadcast", "coordinated"]).default("independent"),
         maxModelCalls: z.number().int().min(1).max(10_000).optional(),
         maxActions: z.number().int().min(1).max(10_000).optional(),
+        group: z.string().min(1).max(64).optional(),
+        deviceIds: z.array(z.string().min(1).max(300)).min(1).max(100).optional(),
       }),
     },
-    async ({ task, mode, maxModelCalls, maxActions }) =>
-      text(
+    async ({ task, mode, maxModelCalls, maxActions, group, deviceIds }) => {
+      if (group && deviceIds) throw new Error("choose a group or explicit device IDs");
+      return text(
         await json(request, "/runs", {
           method: "POST",
           headers: { "content-type": "application/json" },
@@ -70,9 +73,12 @@ export function createTapRigMcpServer(request: RequestDaemon = daemonRequest): M
             ...((maxModelCalls ?? maxActions) !== undefined
               ? { budget: { maxModelCalls, maxActions } }
               : {}),
+            ...(group ? { group } : {}),
+            ...(deviceIds ? { deviceIds } : {}),
           }),
         }),
-      ),
+      );
+    },
   );
   server.registerTool(
     "taprig_run",
