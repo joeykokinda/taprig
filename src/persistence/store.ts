@@ -10,6 +10,7 @@ export interface StoredQuestion {
   id: string;
   runId: string;
   prompt: string;
+  kind?: "question" | "approval";
   status: "open" | "answered" | "dismissed";
   createdAt: string;
   deviceId?: string;

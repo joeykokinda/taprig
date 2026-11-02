@@ -8,7 +8,12 @@ export type BroadcastResult =
       actions: readonly ActionStep[];
       decisions: number;
     }
-  | { status: "waiting-for-user"; question: string; decisions: number }
+  | {
+      status: "waiting-for-user";
+      interaction: "question" | "approval";
+      question: string;
+      decisions: number;
+    }
   | { status: "failed"; reason: string; decisions: number };
 
 export interface BroadcastOptions {
@@ -39,7 +44,16 @@ export async function runBroadcast(options: BroadcastOptions): Promise<Broadcast
     if (decision.type === "ask_user") {
       return {
         status: "waiting-for-user",
+        interaction: "question",
         question: decision.question,
+        decisions: decisionNumber + 1,
+      };
+    }
+    if (decision.type === "request_approval") {
+      return {
+        status: "waiting-for-user",
+        interaction: "approval",
+        question: decision.prompt,
         decisions: decisionNumber + 1,
       };
     }
@@ -58,6 +72,7 @@ export async function runBroadcast(options: BroadcastOptions): Promise<Broadcast
         if (item.result.status === "waiting-for-user") {
           return {
             status: "waiting-for-user",
+            interaction: item.result.interaction,
             question: `${item.deviceId}: ${item.result.question}`,
             decisions: decisionNumber + 1,
           };
@@ -105,6 +120,7 @@ export async function runBroadcast(options: BroadcastOptions): Promise<Broadcast
     if (failed?.result.status === "waiting-for-user") {
       return {
         status: "waiting-for-user",
+        interaction: failed.result.interaction,
         question: `${failed.deviceId}: ${failed.result.question}`,
         decisions: decisionNumber + 1,
       };

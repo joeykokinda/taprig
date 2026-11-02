@@ -91,7 +91,31 @@ export function createTapRigMcpServer(request: RequestDaemon = daemonRequest): M
       text({
         ...((await json(request, `/runs/${encodeURIComponent(runId)}`)) as object),
         ...((await json(request, `/runs/${encodeURIComponent(runId)}/events`)) as object),
+        ...((await json(request, `/runs/${encodeURIComponent(runId)}/approvals`)) as object),
       }),
+  );
+  server.registerTool(
+    "taprig_approval",
+    {
+      description: "Approve or deny one open TapRig run approval.",
+      inputSchema: z.object({
+        runId: z.string().min(1).max(200),
+        approvalId: z.string().min(1).max(200),
+        decision: z.enum(["approved", "denied"]),
+      }),
+    },
+    async ({ runId, approvalId, decision }) =>
+      text(
+        await json(
+          request,
+          `/runs/${encodeURIComponent(runId)}/approvals/${encodeURIComponent(approvalId)}/resolve`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ decision }),
+          },
+        ),
+      ),
   );
   server.registerTool(
     "taprig_action",

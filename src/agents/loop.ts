@@ -10,6 +10,7 @@ export type AgentDecision =
   | { type: "execute"; requestId: string; steps: readonly ActionStep[] }
   | { type: "complete"; evidence: string }
   | { type: "ask_user"; question: string }
+  | { type: "request_approval"; prompt: string }
   | { type: "fail"; reason: string };
 
 export interface AgentContext {
@@ -20,7 +21,12 @@ export interface AgentContext {
 
 export type AgentLoopResult =
   | { status: "completed"; evidence: string; decisions: number; actions: readonly ActionStep[] }
-  | { status: "waiting-for-user"; question: string; decisions: number }
+  | {
+      status: "waiting-for-user";
+      interaction: "question" | "approval";
+      question: string;
+      decisions: number;
+    }
   | { status: "failed"; reason: string; decisions: number };
 
 export interface AgentLoopOptions {
@@ -70,7 +76,16 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
     if (decision.type === "ask_user") {
       return {
         status: "waiting-for-user",
+        interaction: "question",
         question: decision.question,
+        decisions: decisionNumber + 1,
+      };
+    }
+    if (decision.type === "request_approval") {
+      return {
+        status: "waiting-for-user",
+        interaction: "approval",
+        question: decision.prompt,
         decisions: decisionNumber + 1,
       };
     }

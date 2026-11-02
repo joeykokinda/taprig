@@ -76,6 +76,8 @@ npm run taprig -- attach <run-id>       # inspect state and ordered events
 npm run taprig -- replay <run-id>       # replay secret-safe agent activity
 npm run taprig -- answer <run-id> <question-id> "Personal account"
 npm run taprig -- answer <run-id> <question-id> --sensitive "123456"
+npm run taprig -- approve <run-id> <approval-id>
+npm run taprig -- deny <run-id> <approval-id>
 ```
 
 See [first-phone onboarding](docs/ONBOARDING.md) for USB trust, model setup,
@@ -101,6 +103,10 @@ npm run taprig -- model profile economy   # economy | balanced | best
 
 See [model routing](docs/MODELS.md) for role budgets, hard per-run spend guards,
 and editable targets.
+
+Typed approvals can suspend a run before an explicitly confirmation-gated
+action and resume or stop it from CLI, UI, API, or MCP. See
+[approval behavior and current policy boundary](docs/APPROVALS.md).
 
 Repeated workflows can run as parameterized, checkpointed scripts without a
 model call while the UI remains on the verified path. See

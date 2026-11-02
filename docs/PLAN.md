@@ -393,6 +393,9 @@ metric is cost per verified successful task, not tokens in isolation.
 
 The runtime can suspend a run with a typed question or approval request. UI and
 CLI answer through the same run API. Runs remain durable while waiting.
+Approval requests are typed model decisions for explicitly confirmation-gated
+tasks; the deterministic executor receives no action batch until approval. The
+default remains autonomous, and configurable owner policy is still open.
 
 ## 8. Orchestration
 
@@ -676,7 +679,8 @@ execute and verify reversible actions, and take over manually.
 - [x] Durable questions and answer/resume flow.
 - [x] Hard model-call and attempted-action budgets across run/resume.
 - [x] Durable secret-safe observation, decision, and action trace replay.
-- [ ] Approvals and artifacts.
+- [x] Durable typed approvals across single-phone and fleet runs.
+- [ ] Run artifact inventory, inspection, retention, and export.
 - [x] User script creation, inspection, testing, and deterministic execution.
 - [x] Guided CLI/control-room readiness onboarding.
 - [ ] Full settings, artifact, and approval workspace.

@@ -159,7 +159,7 @@ export type RunTrace =
       phase: "decision";
       deviceId: DeviceId;
       decisionNumber: number;
-      decisionType: "execute" | "complete" | "ask_user" | "fail";
+      decisionType: "execute" | "complete" | "ask_user" | "request_approval" | "fail";
       actionCount: number;
     }
   | {
@@ -183,4 +183,11 @@ export type RunEvent =
   | { type: "run.completed"; at: string }
   | { type: "run.failed"; at: string; error: TapRigError }
   | { type: "run.stopped"; at: string }
+  | { type: "approval.requested"; at: string; approvalId: string; prompt: string }
+  | {
+      type: "approval.resolved";
+      at: string;
+      approvalId: string;
+      decision: "approved" | "denied";
+    }
   | { type: "run.trace"; at: string; trace: RunTrace };

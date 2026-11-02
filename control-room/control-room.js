@@ -2,6 +2,7 @@ const $ = (selector) => document.querySelector(selector);
 const leases = new Map();
 let renderedDeviceIds = "";
 let renderedQuestions = "";
+let renderedApprovals = "";
 let activityRunId = "";
 let activitySequence = 0;
 let activityEvents = [];
@@ -242,6 +243,24 @@ function renderQuestions(questions) {
     : '<p class="empty">NO OPEN QUESTIONS</p>';
 }
 
+function renderApprovals(approvals) {
+  const signature = approvals.map(({ runId, id, prompt }) => `${runId}:${id}:${prompt}`).join("|");
+  if (signature === renderedApprovals) return;
+  renderedApprovals = signature;
+  $("#approvals").innerHTML = approvals.length
+    ? approvals
+        .map(
+          ({ runId, id, prompt }) => `
+      <article class="approval-row" data-run-id="${escapeHtml(runId)}" data-approval-id="${escapeHtml(id)}">
+        <p>${escapeHtml(prompt)}</p>
+        <button data-decision="denied">DENY</button>
+        <button data-decision="approved">APPROVE →</button>
+      </article>`,
+        )
+        .join("")
+    : '<p class="empty">NO OPEN APPROVALS</p>';
+}
+
 function renderSetup(setup) {
   const steps = [
     [true, "LOCAL DAEMON", "ONLINE"],
@@ -296,9 +315,19 @@ async function refresh() {
           ),
         ),
     );
+    const approvalGroups = await Promise.all(
+      runs
+        .filter((run) => run.status === "waiting-for-user")
+        .map((run) =>
+          json(`/runs/${encodeURIComponent(run.id)}/approvals`).then(({ approvals }) =>
+            approvals.map((approval) => ({ ...approval, runId: run.id })),
+          ),
+        ),
+    );
     renderRuns(runs, new Map(Object.entries(telemetry)));
     await refreshActivity(runs);
     renderQuestions(questionGroups.flat().filter((question) => question.status === "open"));
+    renderApprovals(approvalGroups.flat().filter((approval) => approval.status === "open"));
     $("#connection").textContent = "LOCAL DAEMON / ONLINE";
   } catch {
     $("#connection").textContent = "LOCAL DAEMON / OFFLINE";
@@ -391,6 +420,27 @@ $("#questions").addEventListener("submit", async (event) => {
     await refresh();
   } catch (error) {
     $("#task-result").textContent = `ANSWER FAILED: ${error.message}`;
+  }
+});
+
+$("#approvals").addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-decision]");
+  const row = event.target.closest("[data-approval-id]");
+  if (!button || !row) return;
+  try {
+    await json(
+      `/runs/${encodeURIComponent(row.dataset.runId)}/approvals/${encodeURIComponent(row.dataset.approvalId)}/resolve`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ decision: button.dataset.decision }),
+      },
+    );
+    $("#task-result").textContent =
+      `${button.dataset.decision.toUpperCase()} ${row.dataset.approvalId}`;
+    await refresh();
+  } catch (error) {
+    $("#task-result").textContent = `APPROVAL FAILED: ${error.message}`;
   }
 });
 

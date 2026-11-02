@@ -126,3 +126,35 @@ test("records a failed provider attempt without inventing token usage", async ()
   );
   assert.deepEqual(usage, [{ inputTokens: 0, outputTokens: 0 }]);
 });
+
+test("parses a strict explicit approval request", async () => {
+  const decide = createModelDecider(
+    "Ask me before sending",
+    { provider: "openai", model: "test-model" },
+    { type: "openai", apiKeyEnv: "TEST_KEY", baseUrl: "https://example.test/v1" },
+    { TEST_KEY: "secret" },
+    async () =>
+      new Response(
+        JSON.stringify({
+          output_text: JSON.stringify({
+            type: "request_approval",
+            evidence: null,
+            question: null,
+            approval: "Send the drafted message?",
+            reason: null,
+            steps: [],
+          }),
+        }),
+      ),
+  );
+  const decision = await decide({
+    decisionNumber: 0,
+    observation: {
+      deviceId: "phone-1",
+      generation: "one",
+      capturedAt: "2026-11-02T12:00:00.000Z",
+      elements: [],
+    },
+  });
+  assert.deepEqual(decision, { type: "request_approval", prompt: "Send the drafted message?" });
+});

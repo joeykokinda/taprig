@@ -26,6 +26,8 @@ The current control room provides:
 - durable agent questions with answer-and-resume controls; sensitive answers
   use a password field, pass through one-time scoped memory, and are redacted
   from persisted evidence;
+- typed approval requests with explicit approve/deny controls; denial stops the
+  run before the gated action, while approval resumes its pinned phone cohort;
 - versioned deterministic-script inventory;
 - per-phone scrcpy live video with an automatic screenshot fallback for static
   streams;

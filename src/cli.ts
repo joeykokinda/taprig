@@ -102,7 +102,7 @@ function formatRunEvent(event: RunEvent): string {
 }
 
 async function showRun(id: string): Promise<void> {
-  const [{ run }, { events }, { questions }, { telemetry }] = await Promise.all([
+  const [{ run }, { events }, { questions }, { approvals }, { telemetry }] = await Promise.all([
     daemonJson<{ run: RunState }>(`/runs/${encodeURIComponent(id)}`),
     daemonJson<{ events: Array<{ sequence: number; event: RunEvent }> }>(
       `/runs/${encodeURIComponent(id)}/events`,
@@ -110,6 +110,9 @@ async function showRun(id: string): Promise<void> {
     daemonJson<{
       questions: Array<{ id: string; prompt: string; status: string; sensitive?: boolean }>;
     }>(`/runs/${encodeURIComponent(id)}/questions`),
+    daemonJson<{
+      approvals: Array<{ id: string; prompt: string; status: string; answer?: string }>;
+    }>(`/runs/${encodeURIComponent(id)}/approvals`),
     daemonJson<{ telemetry: RunTelemetry | null }>(`/runs/${encodeURIComponent(id)}/telemetry`),
   ]);
   const target = run.affinity?.group ?? (run.affinity ? run.affinity.deviceIds.join(", ") : "all");
@@ -119,6 +122,11 @@ async function showRun(id: string): Promise<void> {
   for (const question of questions) {
     process.stdout.write(
       `  question ${question.id}  ${question.status}  ${question.prompt}${question.sensitive ? " [sensitive answer]" : ""}\n`,
+    );
+  }
+  for (const approval of approvals) {
+    process.stdout.write(
+      `  approval ${approval.id}  ${approval.status}  ${approval.prompt}${approval.answer ? ` [${approval.answer}]` : ""}\n`,
     );
   }
   if (telemetry) {
@@ -139,6 +147,23 @@ async function answerQuestion(args: readonly string[]): Promise<void> {
     },
   );
   process.stdout.write(`Answered ${command.questionId}; run ${command.runId} resumed.\n`);
+}
+
+async function resolveApproval(decision: "approved" | "denied", args: readonly string[]) {
+  const [runId, approvalId] = args;
+  if (!runId || !approvalId)
+    throw new Error(
+      `${decision === "approved" ? "approve" : "deny"} requires a run ID and approval ID`,
+    );
+  await daemonJson(
+    `/runs/${encodeURIComponent(runId)}/approvals/${encodeURIComponent(approvalId)}/resolve`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ decision }),
+    },
+  );
+  process.stdout.write(`${decision === "approved" ? "Approved" : "Denied"} ${approvalId}.\n`);
 }
 
 async function interactiveSession(): Promise<void> {
@@ -196,6 +221,17 @@ async function interactiveSession(): Promise<void> {
       }
       if (line.startsWith("/answer ")) {
         await answerQuestion(line.slice(8).trim().split(/\s+/u));
+        continue;
+      }
+      if (line.startsWith("/approve ") || line.startsWith("/deny ")) {
+        const approved = line.startsWith("/approve ");
+        await resolveApproval(
+          approved ? "approved" : "denied",
+          line
+            .slice(approved ? 9 : 6)
+            .trim()
+            .split(/\s+/u),
+        );
         continue;
       }
       if (line.startsWith("/")) {
@@ -487,6 +523,13 @@ async function main(): Promise<void> {
   }
   if (selectedCommand === "answer") {
     await answerQuestion(process.argv.slice(3));
+    return;
+  }
+  if (selectedCommand === "approve" || selectedCommand === "deny") {
+    await resolveApproval(
+      selectedCommand === "approve" ? "approved" : "denied",
+      process.argv.slice(3),
+    );
     return;
   }
 

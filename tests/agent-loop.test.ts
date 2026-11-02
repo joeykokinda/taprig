@@ -101,3 +101,23 @@ test("accepts model-provided visible completion evidence", async () => {
     actions: [],
   });
 });
+
+test("suspends before an explicitly approval-gated action", async () => {
+  const result = await runAgentLoop({
+    device: {
+      observe: async () => observation("ready"),
+      execute: async () => {
+        throw new Error("approval-gated action must not execute");
+      },
+    },
+    deviceId: "phone-1",
+    decide: async () => ({ type: "request_approval", prompt: "Send this message now?" }),
+    verifyCompletion: async () => undefined,
+  });
+  assert.deepEqual(result, {
+    status: "waiting-for-user",
+    interaction: "approval",
+    question: "Send this message now?",
+    decisions: 1,
+  });
+});

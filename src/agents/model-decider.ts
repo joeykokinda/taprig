@@ -7,11 +7,15 @@ import type { AgentContext, AgentDecision } from "./loop.ts";
 const decisionSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["type", "evidence", "question", "reason", "steps"],
+  required: ["type", "evidence", "question", "approval", "reason", "steps"],
   properties: {
-    type: { type: "string", enum: ["execute", "complete", "ask_user", "fail"] },
+    type: {
+      type: "string",
+      enum: ["execute", "complete", "ask_user", "request_approval", "fail"],
+    },
     evidence: { type: ["string", "null"] },
     question: { type: ["string", "null"] },
+    approval: { type: ["string", "null"] },
     reason: { type: ["string", "null"] },
     steps: {
       type: "array",
@@ -37,9 +41,10 @@ const decisionSchema = {
 } as const;
 
 type ModelDecision = {
-  type: "execute" | "complete" | "ask_user" | "fail";
+  type: "execute" | "complete" | "ask_user" | "request_approval" | "fail";
   evidence: string | null;
   question: string | null;
+  approval: string | null;
   reason: string | null;
   steps: Array<{
     id: string;
@@ -58,6 +63,9 @@ function parseDecision(value: unknown): AgentDecision {
   }
   if (decision.type === "ask_user" && decision.question?.trim()) {
     return { type: "ask_user", question: decision.question.trim() };
+  }
+  if (decision.type === "request_approval" && decision.approval?.trim()) {
+    return { type: "request_approval", prompt: decision.approval.trim() };
   }
   if (decision.type === "fail" && decision.reason?.trim()) {
     return { type: "fail", reason: decision.reason.trim() };
@@ -141,7 +149,7 @@ export function createModelDecider(
         schemaName: "taprig_phone_decision",
         schema: decisionSchema,
         system:
-          "You control one Android phone with typed launch, key, semantic tap, and text-entry actions. For tap/text choose only a visible selector in value; for text put the exact text in input. For launch/key put the package or key in value. Set input null when unused. Take at most three short actions, then observe again. Mark complete only when the current UI visibly proves the user's task. Ask one precise question when required information is missing. Never repeat sensitive input in evidence and never guess success.",
+          "You control one Android phone with typed launch, key, semantic tap, and text-entry actions. For tap/text choose only a visible selector in value; for text put the exact text in input. For launch/key put the package or key in value. Set input null when unused. Take at most three short actions, then observe again. Mark complete only when the current UI visibly proves the user's task. Ask one precise question when required information is missing. Request approval only when the user's task explicitly requires confirmation before a consequential action; otherwise work autonomously. Never repeat sensitive input in evidence and never guess success.",
         input: JSON.stringify({ task, decisionNumber: context.decisionNumber, observation }),
       });
       usage = {

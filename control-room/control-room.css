@@ -265,6 +265,7 @@ h2 {
 }
 .scripts-panel,
 .questions-panel,
+.approvals-panel,
 .activity-panel,
 .groups-panel {
   border-right: 0;
@@ -434,6 +435,22 @@ h2 {
   padding: 16px 18px;
   border: 0;
   border-bottom: 1px solid #262626;
+}
+.approval-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+  padding: 16px 18px;
+  border-bottom: 1px solid #262626;
+}
+.approval-row p {
+  margin: 0;
+  font-size: 14px;
+}
+.approval-row button[data-decision="denied"] {
+  background: #111;
+  color: #fff;
 }
 .question-row p {
   grid-column: 1 / -1;

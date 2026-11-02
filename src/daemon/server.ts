@@ -37,6 +37,7 @@ export interface TapRigDaemonOptions {
       prompt: string;
       value: string;
       sensitive: boolean;
+      kind?: "question" | "approval";
       deviceId?: string;
       deviceIds?: readonly string[];
     },
@@ -430,6 +431,17 @@ export async function startDaemon(options: TapRigDaemonOptions): Promise<Running
         }
         return;
       }
+      const approvalsRoute = /^\/runs\/([^/]+)\/approvals$/u.exec(url.pathname);
+      if (request.method === "GET" && approvalsRoute?.[1]) {
+        try {
+          const runId = decodeURIComponent(approvalsRoute[1]);
+          response.end(JSON.stringify({ approvals: options.runs?.approvals(runId) ?? [] }));
+        } catch {
+          response.statusCode = 404;
+          response.end(JSON.stringify({ error: "run-not-found" }));
+        }
+        return;
+      }
       const telemetryRoute = /^\/runs\/([^/]+)\/telemetry$/u.exec(url.pathname);
       if (request.method === "GET" && telemetryRoute?.[1]) {
         const runId = decodeURIComponent(telemetryRoute[1]);
@@ -482,6 +494,36 @@ export async function startDaemon(options: TapRigDaemonOptions): Promise<Running
         } catch {
           response.statusCode = 400;
           response.end(JSON.stringify({ error: "invalid-answer" }));
+        }
+        return;
+      }
+      const approvalRoute = /^\/runs\/([^/]+)\/approvals\/([^/]+)\/resolve$/u.exec(url.pathname);
+      if (request.method === "POST" && approvalRoute?.[1] && approvalRoute[2]) {
+        if (!options.runs || !options.resumeRun) throw new Error("run approvals are unavailable");
+        try {
+          const runId = decodeURIComponent(approvalRoute[1]);
+          const approvalId = decodeURIComponent(approvalRoute[2]);
+          const body = (await jsonBody(request)) as { decision?: unknown };
+          if (body.decision !== "approved" && body.decision !== "denied") {
+            throw new Error("invalid approval decision");
+          }
+          const approval = options.runs.resolveApproval(runId, approvalId, body.decision);
+          if (body.decision === "approved") {
+            options.resumeRun(runId, {
+              prompt: approval.prompt,
+              value: "Approved",
+              sensitive: false,
+              kind: "approval",
+              ...(approval.deviceId ? { deviceId: approval.deviceId } : {}),
+              ...(approval.deviceIds ? { deviceIds: approval.deviceIds } : {}),
+            });
+          } else {
+            options.runs.record(runId, { type: "run.stopped", at: new Date().toISOString() });
+          }
+          response.end(JSON.stringify({ approval }));
+        } catch {
+          response.statusCode = 400;
+          response.end(JSON.stringify({ error: "invalid-approval" }));
         }
         return;
       }

@@ -79,6 +79,7 @@ export class RunService {
       id: this.id(),
       runId,
       prompt,
+      kind: "question",
       status: "open",
       createdAt: this.now(),
       ...(deviceId ? { deviceId } : {}),
@@ -90,7 +91,38 @@ export class RunService {
 
   questions(runId: string): StoredQuestion[] {
     if (!this.get(runId)) throw new Error(`run ${runId} not found`);
-    return this.store.listQuestions(runId);
+    return this.store.listQuestions(runId).filter((item) => item.kind !== "approval");
+  }
+
+  approval(
+    runId: string,
+    prompt: string,
+    deviceId?: string,
+    deviceIds?: readonly string[],
+  ): StoredQuestion {
+    const approval: StoredQuestion = {
+      id: this.id(),
+      runId,
+      prompt,
+      kind: "approval",
+      status: "open",
+      createdAt: this.now(),
+      ...(deviceId ? { deviceId } : {}),
+      ...(deviceIds ? { deviceIds: [...deviceIds] } : {}),
+    };
+    this.store.saveQuestion(approval);
+    this.record(runId, {
+      type: "approval.requested",
+      at: approval.createdAt,
+      approvalId: approval.id,
+      prompt: approval.prompt,
+    });
+    return approval;
+  }
+
+  approvals(runId: string): StoredQuestion[] {
+    if (!this.get(runId)) throw new Error(`run ${runId} not found`);
+    return this.store.listQuestions(runId).filter((item) => item.kind === "approval");
   }
 
   answer(runId: string, questionId: string, answer: string, sensitive = false): StoredQuestion {
@@ -99,6 +131,9 @@ export class RunService {
     if (!answer.trim() || answer.length > 10_000) {
       throw new Error("answer must contain from 1 to 10000 characters");
     }
+    if (!this.questions(runId).some((question) => question.id === questionId)) {
+      throw new Error("question is not open");
+    }
     return this.store.answerQuestion(
       runId,
       questionId,
@@ -106,6 +141,23 @@ export class RunService {
       sensitive,
       this.now(),
     );
+  }
+
+  resolveApproval(
+    runId: string,
+    approvalId: string,
+    decision: "approved" | "denied",
+  ): StoredQuestion {
+    const run = this.get(runId);
+    if (run?.status !== "waiting-for-user") throw new Error("run is not waiting for approval");
+    const approval = this.approvals(runId).find(
+      (item) => item.id === approvalId && item.status === "open",
+    );
+    if (!approval) throw new Error("approval is not open");
+    const at = this.now();
+    const resolved = this.store.answerQuestion(runId, approvalId, decision, false, at);
+    this.record(runId, { type: "approval.resolved", at, approvalId, decision });
+    return resolved;
   }
 
   checkpoint(runId: string, deviceId: string, evidence: unknown): void {

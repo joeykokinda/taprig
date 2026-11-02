@@ -19,9 +19,19 @@ export function applyRunEvent(current: RunState | undefined, event: RunEvent): R
 
   if (!current) throw new Error(`${event.type} requires an existing run`);
 
-  if (event.type === "run.trace") {
-    if (current.status !== "running") {
+  if (
+    event.type === "run.trace" ||
+    event.type === "approval.requested" ||
+    event.type === "approval.resolved"
+  ) {
+    if (event.type === "run.trace" && current.status !== "running") {
       throw new Error(`cannot trace run ${current.id} from ${current.status}`);
+    }
+    if (event.type === "approval.requested" && current.status !== "running") {
+      throw new Error(`cannot request approval for run ${current.id} from ${current.status}`);
+    }
+    if (event.type === "approval.resolved" && current.status !== "waiting-for-user") {
+      throw new Error(`cannot resolve approval for run ${current.id} from ${current.status}`);
     }
     return { ...current, updatedAt: event.at };
   }
@@ -47,7 +57,12 @@ export function applyRunEvent(current: RunState | undefined, event: RunEvent): R
   return next;
 }
 
-function statusFor(event: Exclude<RunEvent, { type: "run.created" | "run.trace" }>): RunStatus {
+function statusFor(
+  event: Exclude<
+    RunEvent,
+    { type: "run.created" | "run.trace" | "approval.requested" | "approval.resolved" }
+  >,
+): RunStatus {
   switch (event.type) {
     case "run.started":
     case "run.recovered":

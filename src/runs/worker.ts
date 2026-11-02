@@ -29,6 +29,7 @@ export interface RunAnswer {
   prompt: string;
   value: string;
   sensitive: boolean;
+  kind?: "question" | "approval";
   deviceId?: string;
   deviceIds?: readonly string[];
 }
@@ -149,7 +150,7 @@ export class RunWorker {
     }
     const recovery = readRecovery(this.#runs.recovery(runId)?.evidence);
     let task = answer
-      ? `${run.task}\n\nThe user answered "${answer.prompt}": ${answer.value}${
+      ? `${run.task}\n\nThe user ${answer.kind === "approval" ? "resolved the approval" : "answered"} "${answer.prompt}": ${answer.value}${
           answer.sensitive
             ? "\nTreat this answer as sensitive and never repeat it in evidence."
             : ""
@@ -321,7 +322,7 @@ export class RunWorker {
           this.#runs.record(runId, { type: "run.completed", at });
         } else if (result.status === "waiting-for-user") {
           const waiting = result.nodes.find((node) => node.status === "waiting-for-user");
-          this.#runs.question(
+          this.#runs[result.interaction === "approval" ? "approval" : "question"](
             runId,
             result.question,
             waiting && "deviceId" in waiting ? waiting.deviceId : undefined,
@@ -385,7 +386,7 @@ export class RunWorker {
         });
         this.#runs.record(runId, { type: "run.completed", at });
       } else if (result.status === "waiting-for-user") {
-        this.#runs.question(
+        this.#runs[result.interaction === "approval" ? "approval" : "question"](
           runId,
           result.question,
           leasedDeviceIds[0],
@@ -453,7 +454,13 @@ export class RunWorker {
         };
       }
       if (result.status === "waiting-for-user") {
-        return { id: node.id, status: "waiting-for-user", deviceId, question: result.question };
+        return {
+          id: node.id,
+          status: "waiting-for-user",
+          deviceId,
+          interaction: result.interaction,
+          question: result.question,
+        };
       }
       return { id: node.id, status: "failed", deviceId, reason: result.reason };
     } finally {

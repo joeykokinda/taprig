@@ -923,3 +923,43 @@ test("a broadcast resume keeps its original phone cohort", async () => {
   assert.deepEqual([...observed].sort(), ["phone-1", "phone-2"]);
   store.close();
 });
+
+test("an approved action resumes on the same phone without executing before approval", async () => {
+  const store = new TapRigStore(":memory:");
+  const runs = new RunService(store);
+  const run = runs.create("Ask before sending the message");
+  const tasks: string[] = [];
+  const worker = new RunWorker({
+    runs,
+    devices: { list: async () => [readyDevice("phone-1")] },
+    adapter: {
+      observe: async (deviceId) => ({ ...observation("current"), deviceId }),
+      execute: async () => {
+        throw new Error("unused");
+      },
+    },
+    decide: (task) => async () => {
+      tasks.push(task);
+      return task.includes("resolved the approval")
+        ? { type: "complete", evidence: "Message sent" }
+        : { type: "request_approval", prompt: "Send the drafted message?" };
+    },
+  });
+  worker.start(run.id);
+  await worker.idle();
+  const approval = runs.approvals(run.id)[0];
+  assert.ok(approval);
+  assert.equal(runs.questions(run.id).length, 0);
+  runs.resolveApproval(run.id, approval.id, "approved");
+  worker.resume(run.id, {
+    prompt: approval.prompt,
+    value: "Approved",
+    sensitive: false,
+    kind: "approval",
+    ...(approval.deviceId ? { deviceId: approval.deviceId } : {}),
+  });
+  await worker.idle();
+  assert.equal(runs.get(run.id)?.status, "completed");
+  assert.match(tasks[1] ?? "", /resolved the approval/);
+  store.close();
+});

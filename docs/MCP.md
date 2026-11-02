@@ -17,6 +17,7 @@ The compact tool surface is:
 - `taprig_task`: create a durable natural-language run, optionally constrained
   to a named group or explicit device IDs;
 - `taprig_run`: inspect run state and ordered events;
+- `taprig_approval`: approve or deny one open typed approval;
 - `taprig_action`: send one schema-validated raw action to one phone.
 
 Every tool calls the loopback daemon. MCP does not open a second ADB connection,

@@ -7,11 +7,11 @@ This is the ordered product queue. The canonical architecture remains in
 
 - Foundation/runtime: **98%**
 - Physical Android control: **60%**
-- Agent loop: **80%**
+- Agent loop: **83%**
 - Fleet orchestration: **72%**
-- Desktop application: **48%**
+- Desktop application: **52%**
 - Public website/distribution: **45%**
-- Complete launch-ready product: **74%**
+- Complete launch-ready product: **75%**
 
 Percentages describe demonstrated functionality, not lines of code.
 
@@ -44,6 +44,7 @@ Percentages describe demonstrated functionality, not lines of code.
 - [x] Replay durable secret-safe observation, decision, and action traces.
 - [x] Connect independent natural-language runs to the bounded ready-device worker.
 - [x] Answer and resume durable agent questions without persisting sensitive values.
+- [x] Request, persist, approve, or deny typed action approvals across fleet modes.
 - [x] Build scripts: create, inspect, run, verify, and emit a typed recovery handoff.
 - [x] Connect script mismatch recovery and successful-run promotion to the agent worker.
 - [x] Serve the control-room web UI from the local daemon.

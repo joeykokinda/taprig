@@ -21,13 +21,24 @@ export type CoordinatedNodeResult =
       evidence: string;
       actions: readonly ActionStep[];
     }
-  | { id: string; status: "waiting-for-user"; deviceId: string; question: string }
+  | {
+      id: string;
+      status: "waiting-for-user";
+      deviceId: string;
+      interaction: "question" | "approval";
+      question: string;
+    }
   | { id: string; status: "failed"; deviceId?: string; reason: string }
   | { id: string; status: "skipped"; reason: string };
 
 export type CoordinatedResult =
   | { status: "completed"; nodes: readonly CoordinatedNodeResult[] }
-  | { status: "waiting-for-user"; question: string; nodes: readonly CoordinatedNodeResult[] }
+  | {
+      status: "waiting-for-user";
+      interaction: "question" | "approval";
+      question: string;
+      nodes: readonly CoordinatedNodeResult[];
+    }
   | { status: "failed"; reason: string; nodes: readonly CoordinatedNodeResult[] };
 
 export interface CoordinatedOptions {
@@ -176,6 +187,7 @@ export async function runCoordinated(options: CoordinatedOptions): Promise<Coord
   if (waiting?.status === "waiting-for-user") {
     return {
       status: "waiting-for-user",
+      interaction: waiting.interaction,
       question: `${waiting.id}: ${waiting.question}`,
       nodes: ordered,
     };

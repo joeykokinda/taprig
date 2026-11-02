@@ -401,6 +401,68 @@ test("the daemon resumes questions without persisting sensitive answers", async 
   assert.equal(JSON.stringify(await listed.json()).includes("123456"), false);
 });
 
+test("the daemon lists and resolves typed approvals", async (context) => {
+  const store = new TapRigStore(":memory:");
+  const runs = new RunService(store);
+  const approvedRun = runs.create("Send a message");
+  runs.record(approvedRun.id, { type: "run.started", at: "2026-11-02T12:00:01.000Z" });
+  const approval = runs.approval(approvedRun.id, "Send the drafted message?", "phone-1");
+  runs.record(approvedRun.id, {
+    type: "run.waitingForUser",
+    at: "2026-11-02T12:00:02.000Z",
+  });
+  const deniedRun = runs.create("Delete a draft");
+  runs.record(deniedRun.id, { type: "run.started", at: "2026-11-02T12:00:03.000Z" });
+  const denied = runs.approval(deniedRun.id, "Delete the draft?", "phone-1");
+  runs.record(deniedRun.id, { type: "run.waitingForUser", at: "2026-11-02T12:00:04.000Z" });
+  const resumed: unknown[] = [];
+  const daemon = await startDaemon({
+    token,
+    devices: { list: async () => [] },
+    runs,
+    resumeRun: (runId, answer) => resumed.push({ runId, ...answer }),
+  });
+  context.after(async () => {
+    await daemon.stop();
+    store.close();
+  });
+
+  const listed = await fetch(`${daemon.url}/runs/${approvedRun.id}/approvals`, {
+    headers: authorization,
+  });
+  assert.equal(listed.status, 200);
+  assert.equal(((await listed.json()) as { approvals: unknown[] }).approvals.length, 1);
+  const accepted = await fetch(
+    `${daemon.url}/runs/${approvedRun.id}/approvals/${approval.id}/resolve`,
+    {
+      method: "POST",
+      headers: { ...authorization, "content-type": "application/json" },
+      body: JSON.stringify({ decision: "approved" }),
+    },
+  );
+  assert.equal(accepted.status, 200);
+  assert.deepEqual(resumed, [
+    {
+      runId: approvedRun.id,
+      prompt: "Send the drafted message?",
+      value: "Approved",
+      sensitive: false,
+      kind: "approval",
+      deviceId: "phone-1",
+    },
+  ]);
+  const rejected = await fetch(
+    `${daemon.url}/runs/${deniedRun.id}/approvals/${denied.id}/resolve`,
+    {
+      method: "POST",
+      headers: { ...authorization, "content-type": "application/json" },
+      body: JSON.stringify({ decision: "denied" }),
+    },
+  );
+  assert.equal(rejected.status, 200);
+  assert.equal(runs.get(deniedRun.id)?.status, "stopped");
+});
+
 test("the daemon creates, inspects, and runs verified scripts", async (context) => {
   const directory = await mkdtemp(join(tmpdir(), "taprig-script-api-"));
   const store = new TapRigStore(":memory:");
