@@ -44,3 +44,6 @@ packages as workflow artifacts. A matching `v<package-version>` tag creates a
 draft prerelease with a sorted `SHA256SUMS`; it refuses to overwrite a published
 release. This is build automation, not evidence of signing or platform launch
 quality, so the normal-user website download remains disabled.
+
+The first manual matrix run passed on 2026-11-04 and retained all three preview
+artifact sets: [GitHub Actions run 41918799082](https://github.com/joeykokinda/taprig/actions/runs/41918799082).

@@ -9,7 +9,7 @@ This is the ordered product queue. The canonical architecture remains in
 - Physical Android control: **60%**
 - Agent loop: **88%**
 - Fleet orchestration: **72%**
-- Desktop application: **61%**
+- Desktop application: **64%**
 - Public website/distribution: **45%**
 - Complete launch-ready product: **78%**
 
@@ -64,6 +64,7 @@ Percentages describe demonstrated functionality, not lines of code.
 - [x] Persist named device groups and enforce immutable per-run affinity.
 - [x] MCP adapter over the same daemon API.
 - [ ] Signed macOS, Windows, and Linux installers.
+- [x] Build unsigned Linux, Windows, and Intel macOS previews in GitHub Actions.
 - [ ] GitHub Release download automation and checksums.
 - [x] First public website design and interactive product preview.
 - [ ] Connect website download buttons to signed releases.
