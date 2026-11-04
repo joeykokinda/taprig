@@ -30,7 +30,8 @@ const readyDevice = (id: string) => ({
 test("a worker assigns a ready phone and durably completes a bounded run", async () => {
   const store = new TapRigStore(":memory:");
   const runs = new RunService(store);
-  const run = runs.create("Open Settings");
+  const run = runs.create("Open Settings", "independent", undefined, undefined, true);
+  const captured: string[] = [];
   let current = observation("before");
   const adapter: DeviceAdapter = {
     observe: async () => current,
@@ -48,6 +49,9 @@ test("a worker assigns a ready phone and durably completes a bounded run", async
     runs,
     devices: { list: async () => [readyDevice("phone-1")] },
     adapter,
+    captureArtifact: async (runId, deviceId) => {
+      captured.push(`${runId}:${deviceId}`);
+    },
     decide:
       (_task, recordUsage) =>
       async ({ decisionNumber }) => {
@@ -67,6 +71,7 @@ test("a worker assigns a ready phone and durably completes a bounded run", async
   await worker.idle();
 
   assert.equal(runs.get(run.id)?.status, "completed");
+  assert.deepEqual(captured, [`${run.id}:phone-1`]);
   const events = runs.events(run.id).map(({ event }) => event);
   assert.deepEqual(
     events.filter((event) => event.type !== "run.trace").map(({ type }) => type),
@@ -84,6 +89,11 @@ test("a worker assigns a ready phone and durably completes a bounded run", async
   assert.equal(telemetry.outputTokens, 4);
   assert.equal(telemetry.attemptedActions, 1);
   assert.ok(telemetry.elapsedMs >= 0);
+  const privateRun = runs.create("Do not retain screen pixels");
+  worker.start(privateRun.id);
+  await worker.idle();
+  assert.equal(runs.get(privateRun.id)?.status, "completed");
+  assert.deepEqual(captured, [`${run.id}:phone-1`]);
   store.close();
 });
 

@@ -43,6 +43,18 @@ export interface StoredDeviceGroup {
   updatedAt: string;
 }
 
+export interface StoredArtifact {
+  id: string;
+  runId: string;
+  deviceId?: string;
+  kind: "screenshot" | "video" | "data";
+  name: string;
+  mimeType: string;
+  relativePath: string;
+  bytes: number;
+  createdAt: string;
+}
+
 export class TapRigStore {
   readonly #database: DatabaseSync;
 
@@ -86,6 +98,12 @@ export class TapRigStore {
         created_at TEXT NOT NULL
       );
       CREATE TABLE IF NOT EXISTS checkpoints (
+        id TEXT PRIMARY KEY,
+        run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+        json TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS artifacts (
         id TEXT PRIMARY KEY,
         run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
         json TEXT NOT NULL,
@@ -255,6 +273,27 @@ export class TapRigStore {
     return rows
       .map((row) => JSON.parse(row.json) as StoredCheckpoint)
       .find((item) => item.name === name);
+  }
+
+  saveArtifact(artifact: StoredArtifact): void {
+    this.#database
+      .prepare("INSERT INTO artifacts (id, run_id, json, created_at) VALUES (?, ?, ?, ?)")
+      .run(artifact.id, artifact.runId, JSON.stringify(artifact), artifact.createdAt);
+  }
+
+  listArtifacts(runId: string): StoredArtifact[] {
+    return (
+      this.#database
+        .prepare("SELECT json FROM artifacts WHERE run_id = ? ORDER BY rowid ASC")
+        .all(runId) as unknown as JsonRow[]
+    ).map((row) => JSON.parse(row.json) as StoredArtifact);
+  }
+
+  getArtifact(runId: string, artifactId: string): StoredArtifact | undefined {
+    const row = this.#database
+      .prepare("SELECT json FROM artifacts WHERE run_id = ? AND id = ?")
+      .get(runId, artifactId) as JsonRow | undefined;
+    return row ? (JSON.parse(row.json) as StoredArtifact) : undefined;
   }
 
   eventCount(runId: string): number {

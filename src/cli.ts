@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { createInterface } from "node:readline/promises";
 
 import { type AdbDevice, formatAdbDevices } from "./android/adb-discovery.ts";
@@ -65,11 +65,18 @@ async function createRun(
   mode: RunMode = "independent",
   budget?: RunBudget,
   target?: { group?: string; deviceIds?: readonly string[] },
+  retainScreenshots = false,
 ): Promise<RunState> {
   const result = await daemonJson<{ run: RunState }>("/runs", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ task, mode, ...(budget ? { budget } : {}), ...target }),
+    body: JSON.stringify({
+      task,
+      mode,
+      ...(budget ? { budget } : {}),
+      ...target,
+      ...(retainScreenshots ? { retainScreenshots: true } : {}),
+    }),
   });
   return result.run;
 }
@@ -102,19 +109,23 @@ function formatRunEvent(event: RunEvent): string {
 }
 
 async function showRun(id: string): Promise<void> {
-  const [{ run }, { events }, { questions }, { approvals }, { telemetry }] = await Promise.all([
-    daemonJson<{ run: RunState }>(`/runs/${encodeURIComponent(id)}`),
-    daemonJson<{ events: Array<{ sequence: number; event: RunEvent }> }>(
-      `/runs/${encodeURIComponent(id)}/events`,
-    ),
-    daemonJson<{
-      questions: Array<{ id: string; prompt: string; status: string; sensitive?: boolean }>;
-    }>(`/runs/${encodeURIComponent(id)}/questions`),
-    daemonJson<{
-      approvals: Array<{ id: string; prompt: string; status: string; answer?: string }>;
-    }>(`/runs/${encodeURIComponent(id)}/approvals`),
-    daemonJson<{ telemetry: RunTelemetry | null }>(`/runs/${encodeURIComponent(id)}/telemetry`),
-  ]);
+  const [{ run }, { events }, { questions }, { approvals }, { artifacts }, { telemetry }] =
+    await Promise.all([
+      daemonJson<{ run: RunState }>(`/runs/${encodeURIComponent(id)}`),
+      daemonJson<{ events: Array<{ sequence: number; event: RunEvent }> }>(
+        `/runs/${encodeURIComponent(id)}/events`,
+      ),
+      daemonJson<{
+        questions: Array<{ id: string; prompt: string; status: string; sensitive?: boolean }>;
+      }>(`/runs/${encodeURIComponent(id)}/questions`),
+      daemonJson<{
+        approvals: Array<{ id: string; prompt: string; status: string; answer?: string }>;
+      }>(`/runs/${encodeURIComponent(id)}/approvals`),
+      daemonJson<{
+        artifacts: Array<{ id: string; name: string; kind: string; bytes: number }>;
+      }>(`/runs/${encodeURIComponent(id)}/artifacts`),
+      daemonJson<{ telemetry: RunTelemetry | null }>(`/runs/${encodeURIComponent(id)}/telemetry`),
+    ]);
   const target = run.affinity?.group ?? (run.affinity ? run.affinity.deviceIds.join(", ") : "all");
   process.stdout.write(`${run.id} · ${run.status} · ${run.mode} · ${target}\n${run.task}\n`);
   for (const item of events)
@@ -127,6 +138,11 @@ async function showRun(id: string): Promise<void> {
   for (const approval of approvals) {
     process.stdout.write(
       `  approval ${approval.id}  ${approval.status}  ${approval.prompt}${approval.answer ? ` [${approval.answer}]` : ""}\n`,
+    );
+  }
+  for (const artifact of artifacts) {
+    process.stdout.write(
+      `  artifact ${artifact.id}  ${artifact.kind}  ${artifact.bytes} bytes  ${artifact.name}\n`,
     );
   }
   if (telemetry) {
@@ -504,10 +520,16 @@ async function main(): Promise<void> {
   }
   if (selectedCommand === "run") {
     const command = parseRunCommand(process.argv.slice(3));
-    const run = await createRun(command.task, command.mode, command.budget, {
-      ...(command.group ? { group: command.group } : {}),
-      ...(command.deviceIds ? { deviceIds: command.deviceIds } : {}),
-    });
+    const run = await createRun(
+      command.task,
+      command.mode,
+      command.budget,
+      {
+        ...(command.group ? { group: command.group } : {}),
+        ...(command.deviceIds ? { deviceIds: command.deviceIds } : {}),
+      },
+      command.retainScreenshots,
+    );
     process.stdout.write(`${run.id}\t${run.status}\n`);
     return;
   }
@@ -530,6 +552,30 @@ async function main(): Promise<void> {
       selectedCommand === "approve" ? "approved" : "denied",
       process.argv.slice(3),
     );
+    return;
+  }
+  if (selectedCommand === "artifacts") {
+    const runId = process.argv[3];
+    if (!runId) throw new Error("artifacts requires a run ID");
+    const { artifacts } = await daemonJson<{
+      artifacts: Array<{ id: string; kind: string; bytes: number; name: string }>;
+    }>(`/runs/${encodeURIComponent(runId)}/artifacts`);
+    if (artifacts.length === 0) process.stdout.write("No artifacts.\n");
+    for (const artifact of artifacts) {
+      process.stdout.write(
+        `${artifact.id}\t${artifact.kind}\t${artifact.bytes}\t${artifact.name}\n`,
+      );
+    }
+    return;
+  }
+  if (selectedCommand === "export") {
+    const runId = process.argv[3];
+    if (!runId) throw new Error("export requires a run ID");
+    const output = process.argv[4] ?? `taprig-${runId}.json`;
+    const response = await daemonRequest(`/runs/${encodeURIComponent(runId)}/export`);
+    if (!response.ok) throw new Error(`daemon returned HTTP ${response.status}`);
+    writeFileSync(output, Buffer.from(await response.arrayBuffer()), { flag: "wx", mode: 0o600 });
+    process.stdout.write(`Exported ${runId} to ${output}.\n`);
     return;
   }
 

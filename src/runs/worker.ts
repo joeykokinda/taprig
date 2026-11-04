@@ -19,6 +19,7 @@ export interface RunWorkerOptions {
   adapter: DeviceAdapter;
   decide(task: string, recordUsage?: RecordModelUsage): Decider;
   planCoordinated?(task: string, recordUsage?: RecordModelUsage): Promise<CoordinatedPlan>;
+  captureArtifact?(runId: string, deviceId: string): Promise<void>;
 }
 
 type Decider = (context: AgentContext) => Promise<AgentDecision>;
@@ -94,6 +95,7 @@ export class RunWorker {
   readonly #planCoordinated:
     | ((task: string, recordUsage?: RecordModelUsage) => Promise<CoordinatedPlan>)
     | undefined;
+  readonly #captureArtifact: ((runId: string, deviceId: string) => Promise<void>) | undefined;
 
   constructor(options: RunWorkerOptions) {
     this.#runs = options.runs;
@@ -101,6 +103,7 @@ export class RunWorker {
     this.#adapter = options.adapter;
     this.#decide = options.decide;
     this.#planCoordinated = options.planCoordinated;
+    this.#captureArtifact = options.captureArtifact;
   }
 
   start(runId: string, deviceId?: string): void {
@@ -412,6 +415,23 @@ export class RunWorker {
         },
       });
     } finally {
+      const terminal = this.#runs.get(runId)?.status;
+      if (
+        run.retainScreenshots &&
+        this.#captureArtifact &&
+        (terminal === "completed" || terminal === "failed")
+      ) {
+        const coordinated = (recovery.nodes ?? []).flatMap((node) =>
+          "deviceId" in node && node.deviceId ? [node.deviceId] : [],
+        );
+        for (const deviceId of new Set([
+          ...leasedDeviceIds,
+          ...(recovery.deviceIds ?? []),
+          ...coordinated,
+        ])) {
+          await this.#captureArtifact(runId, deviceId).catch(() => undefined);
+        }
+      }
       for (const deviceId of leasedDeviceIds) this.#releaseDevice(deviceId);
       telemetry.executions += 1;
       telemetry.elapsedMs =

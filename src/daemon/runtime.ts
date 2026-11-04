@@ -6,6 +6,7 @@ import { discoverAdbDevices } from "../android/adb-discovery.ts";
 import { DeviceRegistry } from "../android/device-actor.ts";
 import { executeNormalizedTap, executeRawAction } from "../android/raw-actions.ts";
 import { AndroidSemanticAdapter } from "../android/semantic-adapter.ts";
+import { ArtifactService } from "../artifacts/service.ts";
 import { DeviceGroupService } from "../devices/groups.ts";
 import { loadOrCreateModelConfig } from "../models/config.ts";
 import { routeModel } from "../models/router.ts";
@@ -114,6 +115,7 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
   const registry = options.registry ?? new DeviceRegistry();
   const databasePath = options.databasePath ?? defaultDatabasePath();
   const store = new TapRigStore(databasePath);
+  const artifacts = new ArtifactService(join(dirname(databasePath), "artifacts"), store);
   const runs = new RunService(store);
   const groups = new DeviceGroupService(store);
   const semanticAdapter = new AndroidSemanticAdapter();
@@ -149,6 +151,8 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
                   )(task),
               }
             : {}),
+          captureArtifact: (runId, deviceId) =>
+            artifacts.screenshot(runId, deviceId).then(() => undefined),
         })
       : undefined;
   let schedulingEnabled = false;
@@ -177,6 +181,7 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
       devices: registry,
       execute: executeRawAction,
       groups,
+      artifacts,
       runs,
       ...(worker
         ? {

@@ -131,6 +131,7 @@ export interface RunState {
   mode: RunMode;
   budget?: RunBudget;
   affinity?: RunAffinity;
+  retainScreenshots?: true;
   task: string;
   status: RunStatus;
   createdAt: string;
@@ -189,5 +190,12 @@ export type RunEvent =
       at: string;
       approvalId: string;
       decision: "approved" | "denied";
+    }
+  | {
+      type: "artifact.created";
+      at: string;
+      artifactId: string;
+      kind: "screenshot" | "video" | "data";
+      deviceId?: string;
     }
   | { type: "run.trace"; at: string; trace: RunTrace };

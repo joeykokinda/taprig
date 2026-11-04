@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Readable } from "node:stream";
 import test from "node:test";
-
+import { ArtifactService } from "../src/artifacts/service.ts";
 import { startDaemon } from "../src/daemon/server.ts";
 import { DeviceGroupService } from "../src/devices/groups.ts";
 import { TapRigStore } from "../src/persistence/store.ts";
@@ -461,6 +461,47 @@ test("the daemon lists and resolves typed approvals", async (context) => {
   );
   assert.equal(rejected.status, 200);
   assert.equal(runs.get(deniedRun.id)?.status, "stopped");
+});
+
+test("the daemon serves run artifacts and a portable trace export", async (context) => {
+  const directory = await mkdtemp(join(tmpdir(), "taprig-artifact-api-"));
+  const store = new TapRigStore(":memory:");
+  const runs = new RunService(store);
+  const run = runs.create("Capture evidence");
+  runs.record(run.id, { type: "run.started", at: "2026-11-04T12:00:01.000Z" });
+  const artifacts = new ArtifactService(join(directory, "artifacts"), store, () => "image-1");
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1]);
+  await artifacts.screenshot(run.id, "phone-1", async () => png);
+  runs.record(run.id, { type: "run.completed", at: "2026-11-04T12:00:02.000Z" });
+  const daemon = await startDaemon({ token, devices: { list: async () => [] }, runs, artifacts });
+  context.after(async () => {
+    await daemon.stop();
+    store.close();
+    await rm(directory, { recursive: true });
+  });
+
+  const listed = await fetch(`${daemon.url}/runs/${run.id}/artifacts`, {
+    headers: authorization,
+  });
+  const inventory = (await listed.json()) as { artifacts: Array<Record<string, unknown>> };
+  assert.equal(inventory.artifacts.length, 1);
+  assert.equal("relativePath" in (inventory.artifacts[0] ?? {}), false);
+  const content = await fetch(`${daemon.url}/runs/${run.id}/artifacts/image-1/content`, {
+    headers: authorization,
+  });
+  assert.equal(content.headers.get("content-type"), "image/png");
+  assert.deepEqual(Buffer.from(await content.arrayBuffer()), png);
+  const exported = await fetch(`${daemon.url}/runs/${run.id}/export`, {
+    headers: authorization,
+  });
+  const bundle = (await exported.json()) as {
+    format: string;
+    run: { id: string };
+    artifacts: Array<{ data: string }>;
+  };
+  assert.equal(bundle.format, "taprig-run-export/v1");
+  assert.equal(bundle.run.id, run.id);
+  assert.equal(bundle.artifacts[0]?.data, png.toString("base64"));
 });
 
 test("the daemon creates, inspects, and runs verified scripts", async (context) => {

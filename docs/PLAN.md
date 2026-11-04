@@ -680,7 +680,7 @@ execute and verify reversible actions, and take over manually.
 - [x] Hard model-call and attempted-action budgets across run/resume.
 - [x] Durable secret-safe observation, decision, and action trace replay.
 - [x] Durable typed approvals across single-phone and fleet runs.
-- [ ] Run artifact inventory, inspection, retention, and export.
+- [x] Private run artifact inventory, inspection, durable retention, and portable export.
 - [x] User script creation, inspection, testing, and deterministic execution.
 - [x] Guided CLI/control-room readiness onboarding.
 - [ ] Full settings, artifact, and approval workspace.

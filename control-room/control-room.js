@@ -165,6 +165,7 @@ async function refreshActivity(runs) {
     activityRunId = "";
     activitySequence = 0;
     activityEvents = [];
+    $("#artifacts").innerHTML = '<p class="empty">NO ARTIFACTS YET</p>';
   } else {
     if (selected.id !== activityRunId) {
       activityRunId = selected.id;
@@ -176,6 +177,17 @@ async function refreshActivity(runs) {
     );
     if (events.length) activitySequence = events.at(-1).sequence;
     activityEvents = [...activityEvents, ...events].slice(-100);
+    const { artifacts } = await json(`/runs/${encodeURIComponent(activityRunId)}/artifacts`);
+    $("#artifacts").innerHTML = artifacts.length
+      ? artifacts
+          .map(
+            (artifact) => `
+      <a class="artifact-row" href="/runs/${encodeURIComponent(activityRunId)}/artifacts/${encodeURIComponent(artifact.id)}/content" target="_blank" rel="noopener">
+        <b>${escapeHtml(artifact.kind).toUpperCase()}</b><span>${escapeHtml(artifact.name)}</span><small>${artifact.bytes} B</small>
+      </a>`,
+          )
+          .join("")
+      : '<p class="empty">NO ARTIFACTS YET</p>';
   }
   $("#activity-run").textContent = activityRunId || "NO RUN";
   $("#activity").innerHTML = activityEvents.length
@@ -353,6 +365,7 @@ $("#task-form").addEventListener("submit", async (event) => {
         task,
         mode: $("#mode").value,
         ...($("#run-group").value ? { group: $("#run-group").value } : {}),
+        ...($("#retain-screenshots").checked ? { retainScreenshots: true } : {}),
         ...(Object.keys(budget).length > 0 ? { budget } : {}),
       }),
     });

@@ -22,7 +22,8 @@ export function applyRunEvent(current: RunState | undefined, event: RunEvent): R
   if (
     event.type === "run.trace" ||
     event.type === "approval.requested" ||
-    event.type === "approval.resolved"
+    event.type === "approval.resolved" ||
+    event.type === "artifact.created"
   ) {
     if (event.type === "run.trace" && current.status !== "running") {
       throw new Error(`cannot trace run ${current.id} from ${current.status}`);
@@ -60,7 +61,14 @@ export function applyRunEvent(current: RunState | undefined, event: RunEvent): R
 function statusFor(
   event: Exclude<
     RunEvent,
-    { type: "run.created" | "run.trace" | "approval.requested" | "approval.resolved" }
+    {
+      type:
+        | "run.created"
+        | "run.trace"
+        | "approval.requested"
+        | "approval.resolved"
+        | "artifact.created";
+    }
   >,
 ): RunStatus {
   switch (event.type) {

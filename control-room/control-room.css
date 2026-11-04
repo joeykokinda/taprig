@@ -145,6 +145,15 @@ input[type="number"] {
   min-width: 0;
   width: 145px;
 }
+.retain-artifacts {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  border: 1px solid #4a4a4a;
+  white-space: nowrap;
+}
 button {
   background: #f4f4ef;
   color: #080808;
@@ -266,6 +275,7 @@ h2 {
 .scripts-panel,
 .questions-panel,
 .approvals-panel,
+.artifacts-panel,
 .activity-panel,
 .groups-panel {
   border-right: 0;
@@ -388,6 +398,24 @@ h2 {
   font-weight: 500;
 }
 .activity-row time {
+  color: #747474;
+}
+.artifact-row {
+  display: grid;
+  grid-template-columns: 90px 1fr auto;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid #262626;
+  color: #fff;
+  text-decoration: none;
+  font:
+    10px ui-monospace,
+    monospace;
+}
+.artifact-row b {
+  color: #c8ff00;
+}
+.artifact-row small {
   color: #747474;
 }
 .group-form {

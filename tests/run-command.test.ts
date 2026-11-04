@@ -42,6 +42,11 @@ test("parses independent and explicit fleet run modes", () => {
     deviceIds: ["phone-1", "phone-2"],
     task: "Do work",
   });
+  assert.deepEqual(parseRunCommand(["--retain-screenshots", "Open", "Settings"]), {
+    mode: "independent",
+    retainScreenshots: true,
+    task: "Open Settings",
+  });
 });
 
 test("rejects missing tasks and unknown modes", () => {
@@ -50,6 +55,10 @@ test("rejects missing tasks and unknown modes", () => {
   assert.throws(() => parseRunMode(undefined), /mode must be/);
   assert.throws(() => parseRunCommand(["--max-actions", "0", "Do it"]), /integer from 1/);
   assert.throws(() => parseRunCommand(["--unknown", "value", "Do it"]), /unknown run option/);
+  assert.throws(
+    () => parseRunCommand(["--retain-screenshots=yes", "Do it"]),
+    /does not take a value/,
+  );
   assert.throws(
     () => parseRunCommand(["--group", "social", "--device", "phone-1", "Do it"]),
     /not both/,

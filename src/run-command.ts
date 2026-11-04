@@ -5,6 +5,7 @@ export interface RunCommand {
   budget?: RunBudget;
   group?: string;
   deviceIds?: string[];
+  retainScreenshots?: true;
   task: string;
 }
 
@@ -14,9 +15,16 @@ export function parseRunCommand(args: readonly string[]): RunCommand {
   let group: string | undefined;
   const deviceIds: string[] = [];
   let index = 0;
+  let retainScreenshots = false;
   while (args[index]?.startsWith("--")) {
     const argument = args[index] as string;
     const [flag, inline] = argument.split("=", 2);
+    if (flag === "--retain-screenshots") {
+      if (inline !== undefined) throw new Error("--retain-screenshots does not take a value");
+      retainScreenshots = true;
+      index += 1;
+      continue;
+    }
     const value = inline ?? args[index + 1];
     if (flag === "--mode") mode = parseRunMode(value);
     else if (flag === "--max-model-calls") budget.maxModelCalls = parseLimit(flag, value);
@@ -34,6 +42,7 @@ export function parseRunCommand(args: readonly string[]): RunCommand {
     ...(Object.keys(budget).length > 0 ? { budget } : {}),
     ...(group ? { group } : {}),
     ...(deviceIds.length > 0 ? { deviceIds } : {}),
+    ...(retainScreenshots ? { retainScreenshots: true as const } : {}),
     task,
   };
 }

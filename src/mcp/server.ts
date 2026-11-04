@@ -59,9 +59,10 @@ export function createTapRigMcpServer(request: RequestDaemon = daemonRequest): M
         maxActions: z.number().int().min(1).max(10_000).optional(),
         group: z.string().min(1).max(64).optional(),
         deviceIds: z.array(z.string().min(1).max(300)).min(1).max(100).optional(),
+        retainScreenshots: z.boolean().default(false),
       }),
     },
-    async ({ task, mode, maxModelCalls, maxActions, group, deviceIds }) => {
+    async ({ task, mode, maxModelCalls, maxActions, group, deviceIds, retainScreenshots }) => {
       if (group && deviceIds) throw new Error("choose a group or explicit device IDs");
       return text(
         await json(request, "/runs", {
@@ -75,6 +76,7 @@ export function createTapRigMcpServer(request: RequestDaemon = daemonRequest): M
               : {}),
             ...(group ? { group } : {}),
             ...(deviceIds ? { deviceIds } : {}),
+            ...(retainScreenshots ? { retainScreenshots: true } : {}),
           }),
         }),
       );
@@ -92,6 +94,7 @@ export function createTapRigMcpServer(request: RequestDaemon = daemonRequest): M
         ...((await json(request, `/runs/${encodeURIComponent(runId)}`)) as object),
         ...((await json(request, `/runs/${encodeURIComponent(runId)}/events`)) as object),
         ...((await json(request, `/runs/${encodeURIComponent(runId)}/approvals`)) as object),
+        ...((await json(request, `/runs/${encodeURIComponent(runId)}/artifacts`)) as object),
       }),
   );
   server.registerTool(

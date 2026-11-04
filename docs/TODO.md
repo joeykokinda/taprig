@@ -7,11 +7,11 @@ This is the ordered product queue. The canonical architecture remains in
 
 - Foundation/runtime: **98%**
 - Physical Android control: **60%**
-- Agent loop: **83%**
+- Agent loop: **85%**
 - Fleet orchestration: **72%**
-- Desktop application: **52%**
+- Desktop application: **55%**
 - Public website/distribution: **45%**
-- Complete launch-ready product: **75%**
+- Complete launch-ready product: **76%**
 
 Percentages describe demonstrated functionality, not lines of code.
 
@@ -45,6 +45,7 @@ Percentages describe demonstrated functionality, not lines of code.
 - [x] Connect independent natural-language runs to the bounded ready-device worker.
 - [x] Answer and resume durable agent questions without persisting sensitive values.
 - [x] Request, persist, approve, or deny typed action approvals across fleet modes.
+- [x] Retain, inspect, and portably export run artifacts with the durable trace.
 - [x] Build scripts: create, inspect, run, verify, and emit a typed recovery handoff.
 - [x] Connect script mismatch recovery and successful-run promotion to the agent worker.
 - [x] Serve the control-room web UI from the local daemon.

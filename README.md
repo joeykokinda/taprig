@@ -69,11 +69,14 @@ npm run taprig --                       # interactive when attached to a TTY
 npm run taprig -- run "Open Settings"  # create a durable run
 npm run taprig -- run --mode coordinated "Split this workflow across the fleet"
 npm run taprig -- run --max-model-calls 8 --max-actions 30 "Open Settings"
+npm run taprig -- run --retain-screenshots "Open Settings"
 npm run taprig -- group set social phone-1 phone-2
 npm run taprig -- run --group social --mode broadcast "Post on both phones"
 npm run taprig -- runs                  # list runs
 npm run taprig -- attach <run-id>       # inspect state and ordered events
 npm run taprig -- replay <run-id>       # replay secret-safe agent activity
+npm run taprig -- artifacts <run-id>    # list retained run evidence
+npm run taprig -- export <run-id>       # private portable JSON bundle
 npm run taprig -- answer <run-id> <question-id> "Personal account"
 npm run taprig -- answer <run-id> <question-id> --sensitive "123456"
 npm run taprig -- approve <run-id> <approval-id>
@@ -107,6 +110,10 @@ and editable targets.
 Typed approvals can suspend a run before an explicitly confirmation-gated
 action and resume or stop it from CLI, UI, API, or MCP. See
 [approval behavior and current policy boundary](docs/APPROVALS.md).
+
+Opted-in terminal phone screenshots are retained privately and can be inspected
+or exported with the full durable trace. Screen pixels are off by default. See
+[run artifacts](docs/ARTIFACTS.md).
 
 Repeated workflows can run as parameterized, checkpointed scripts without a
 model call while the UI remains on the verified path. See

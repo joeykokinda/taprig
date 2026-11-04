@@ -4,6 +4,7 @@ import { createServer, type Server } from "node:http";
 import { isAbsolute, join } from "node:path";
 
 import { parseRawAction } from "../android/raw-actions.ts";
+import type { ArtifactService } from "../artifacts/service.ts";
 import { TakeoverLeases } from "../control/takeover.ts";
 import type { Action, DeviceCapability, RunBudget, RunMode } from "../core/contracts.ts";
 import type { DeviceGroupService } from "../devices/groups.ts";
@@ -44,6 +45,7 @@ export interface TapRigDaemonOptions {
   ) => void;
   credentials?: CredentialBroker;
   groups?: DeviceGroupService;
+  artifacts?: ArtifactService;
   scripts?: ScriptService;
   stream?: (serial: string) => Promise<LiveMjpegStream>;
   manualTap?: (serial: string, xRatio: number, yRatio: number) => Promise<void>;
@@ -362,8 +364,12 @@ export async function startDaemon(options: TapRigDaemonOptions): Promise<Running
             budget?: unknown;
             group?: unknown;
             deviceIds?: unknown;
+            retainScreenshots?: unknown;
           };
           if (typeof body.task !== "string") throw new Error("task must be a string");
+          if (body.retainScreenshots !== undefined && typeof body.retainScreenshots !== "boolean") {
+            throw new Error("retainScreenshots must be boolean");
+          }
           if (body.group !== undefined && body.deviceIds !== undefined) {
             throw new Error("choose a group or explicit devices");
           }
@@ -383,6 +389,7 @@ export async function startDaemon(options: TapRigDaemonOptions): Promise<Running
             body.mode === undefined ? undefined : (body.mode as RunMode),
             body.budget as RunBudget | undefined,
             affinity,
+            body.retainScreenshots === true,
           );
           const ready = new Set(
             (await options.devices.list().catch(() => []))
@@ -453,6 +460,64 @@ export async function startDaemon(options: TapRigDaemonOptions): Promise<Running
         response.end(
           JSON.stringify({ telemetry: options.runs.telemetry(runId)?.evidence ?? null }),
         );
+        return;
+      }
+      const artifactsRoute = /^\/runs\/([^/]+)\/artifacts$/u.exec(url.pathname);
+      if (request.method === "GET" && artifactsRoute?.[1]) {
+        try {
+          const artifacts = options.artifacts
+            ?.list(decodeURIComponent(artifactsRoute[1]))
+            .map(({ relativePath: _relativePath, ...artifact }) => artifact);
+          response.end(JSON.stringify({ artifacts: artifacts ?? [] }));
+        } catch {
+          response.statusCode = 404;
+          response.end(JSON.stringify({ error: "run-not-found" }));
+        }
+        return;
+      }
+      const artifactRoute = /^\/runs\/([^/]+)\/artifacts\/([^/]+)\/content$/u.exec(url.pathname);
+      if (request.method === "GET" && artifactRoute?.[1] && artifactRoute[2]) {
+        try {
+          if (!options.artifacts) throw new Error("artifacts are unavailable");
+          const runId = decodeURIComponent(artifactRoute[1]);
+          const artifactId = decodeURIComponent(artifactRoute[2]);
+          const artifact = options.artifacts.list(runId).find((item) => item.id === artifactId);
+          if (!artifact) throw new Error("artifact not found");
+          response.setHeader("content-type", artifact.mimeType);
+          response.setHeader("content-disposition", `inline; filename="${artifact.id}"`);
+          response.setHeader("x-content-type-options", "nosniff");
+          response.end(await options.artifacts.read(runId, artifactId));
+        } catch {
+          response.statusCode = 404;
+          response.end(JSON.stringify({ error: "artifact-not-found" }));
+        }
+        return;
+      }
+      const exportRoute = /^\/runs\/([^/]+)\/export$/u.exec(url.pathname);
+      if (request.method === "GET" && exportRoute?.[1]) {
+        try {
+          if (!options.runs || !options.artifacts) throw new Error("run export is unavailable");
+          const runId = decodeURIComponent(exportRoute[1]);
+          const run = options.runs.get(runId);
+          if (!run) throw new Error("run not found");
+          response.setHeader("content-disposition", `attachment; filename="taprig-${run.id}.json"`);
+          response.end(
+            JSON.stringify({
+              format: "taprig-run-export/v1",
+              exportedAt: new Date().toISOString(),
+              run,
+              events: options.runs.events(runId),
+              questions: options.runs.questions(runId),
+              approvals: options.runs.approvals(runId),
+              telemetry: options.runs.telemetry(runId)?.evidence ?? null,
+              completion: options.runs.completion(runId)?.evidence ?? null,
+              artifacts: await options.artifacts.payloads(runId),
+            }),
+          );
+        } catch {
+          response.statusCode = 400;
+          response.end(JSON.stringify({ error: "run-export-failed" }));
+        }
         return;
       }
       const answerRoute = /^\/runs\/([^/]+)\/questions\/([^/]+)\/answer$/u.exec(url.pathname);

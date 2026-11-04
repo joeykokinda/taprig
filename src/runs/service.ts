@@ -23,6 +23,7 @@ export class RunService {
     mode: RunMode = "independent",
     budget?: RunBudget,
     affinity?: RunAffinity,
+    retainScreenshots = false,
   ): RunState {
     const normalized = task.trim();
     if (!normalized || normalized.length > 10_000) {
@@ -33,12 +34,15 @@ export class RunService {
     }
     const normalizedBudget = normalizeBudget(budget);
     const normalizedAffinity = normalizeAffinity(affinity, mode);
+    if (typeof retainScreenshots !== "boolean")
+      throw new Error("retainScreenshots must be boolean");
     const at = this.now();
     const run: RunState = {
       id: this.id(),
       mode,
       ...(normalizedBudget ? { budget: normalizedBudget } : {}),
       ...(normalizedAffinity ? { affinity: normalizedAffinity } : {}),
+      ...(retainScreenshots ? { retainScreenshots: true as const } : {}),
       task: normalized,
       status: "created",
       createdAt: at,
