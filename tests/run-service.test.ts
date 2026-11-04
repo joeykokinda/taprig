@@ -67,3 +67,49 @@ test("persists an immutable validated run affinity", () => {
   );
   store.close();
 });
+
+test("retries failed work as a new run with the same immutable request", () => {
+  const store = new TapRigStore(":memory:");
+  let sequence = 0;
+  const runs = new RunService(
+    store,
+    () => "2026-11-04T12:00:00.000Z",
+    () => `run-${++sequence}`,
+  );
+  const original = runs.create(
+    "Post the update",
+    "broadcast",
+    { maxModelCalls: 3, maxActions: 8 },
+    { group: "social", deviceIds: ["phone-1", "phone-2"] },
+    true,
+  );
+  runs.record(original.id, { type: "run.started", at: "2026-11-04T12:00:01.000Z" });
+  runs.record(original.id, {
+    type: "run.failed",
+    at: "2026-11-04T12:00:02.000Z",
+    error: { code: "transport-failed", message: "offline", retryable: true },
+  });
+  const retry = runs.retry(original.id);
+  assert.deepEqual(
+    {
+      id: retry.id,
+      task: retry.task,
+      mode: retry.mode,
+      budget: retry.budget,
+      affinity: retry.affinity,
+      retainScreenshots: retry.retainScreenshots,
+      status: retry.status,
+    },
+    {
+      id: "run-2",
+      task: "Post the update",
+      mode: "broadcast",
+      budget: { maxModelCalls: 3, maxActions: 8 },
+      affinity: { group: "social", deviceIds: ["phone-1", "phone-2"] },
+      retainScreenshots: true,
+      status: "created",
+    },
+  );
+  assert.throws(() => runs.retry(retry.id), /only failed or stopped/);
+  store.close();
+});

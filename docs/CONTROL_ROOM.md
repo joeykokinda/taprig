@@ -31,6 +31,7 @@ The current control room provides:
 - authenticated run-artifact inventory with direct private evidence viewing;
 - durable owner settings for explicit/autonomous approvals and the default
   terminal-screenshot retention choice;
+- cooperative pause/resume/stop controls and immutable failed/stopped-run retry;
 - versioned deterministic-script inventory;
 - per-phone scrcpy live video with an automatic screenshot fallback for static
   streams;

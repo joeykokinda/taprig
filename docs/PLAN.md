@@ -682,6 +682,7 @@ execute and verify reversible actions, and take over manually.
 - [x] Durable typed approvals across single-phone and fleet runs.
 - [x] Private run artifact inventory, inspection, durable retention, and portable export.
 - [x] Durable owner approval and artifact-default settings in CLI and control room.
+- [x] Cooperative pause, resume, stop, and immutable retry controls.
 - [x] User script creation, inspection, testing, and deterministic execution.
 - [x] Guided CLI/control-room readiness onboarding.
 - [ ] Full settings, artifact, and approval workspace.

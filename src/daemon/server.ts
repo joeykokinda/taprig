@@ -33,6 +33,7 @@ export interface TapRigDaemonOptions {
   execute?: (serial: string, action: Action) => Promise<void>;
   runs?: RunService;
   startRun?: (runId: string, deviceId?: string) => void;
+  continueRun?: (runId: string) => void;
   resumeRun?: (
     runId: string,
     answer: {
@@ -610,6 +611,53 @@ export async function startDaemon(options: TapRigDaemonOptions): Promise<Running
         } catch {
           response.statusCode = 400;
           response.end(JSON.stringify({ error: "invalid-approval" }));
+        }
+        return;
+      }
+      const controlRoute = /^\/runs\/([^/]+)\/(pause|resume|stop|retry)$/u.exec(url.pathname);
+      if (request.method === "POST" && controlRoute?.[1] && controlRoute[2]) {
+        if (!options.runs) throw new Error("run control is unavailable");
+        try {
+          const runId = decodeURIComponent(controlRoute[1]);
+          const operation = controlRoute[2];
+          if (operation === "retry") {
+            const run = options.runs.retry(runId);
+            const ready = new Set(
+              (await options.devices.list().catch(() => []))
+                .filter((device) => device.state === "ready")
+                .map(({ id }) => id),
+            );
+            if (
+              !run.affinity ||
+              (run.mode === "broadcast"
+                ? run.affinity.deviceIds.every((id) => ready.has(id))
+                : run.affinity.deviceIds.some((id) => ready.has(id)))
+            ) {
+              options.startRun?.(run.id);
+            }
+            response.statusCode = 201;
+            response.end(JSON.stringify({ run }));
+          } else if (operation === "pause") {
+            const run = options.runs.record(runId, {
+              type: "run.paused",
+              at: new Date().toISOString(),
+            });
+            response.end(JSON.stringify({ run }));
+          } else if (operation === "resume") {
+            if (!options.continueRun) throw new Error("run resume is unavailable");
+            if (options.runs.get(runId)?.status !== "paused") throw new Error("run is not paused");
+            options.continueRun(runId);
+            response.end(JSON.stringify({ run: options.runs.get(runId) }));
+          } else {
+            const run = options.runs.record(runId, {
+              type: "run.stopped",
+              at: new Date().toISOString(),
+            });
+            response.end(JSON.stringify({ run }));
+          }
+        } catch {
+          response.statusCode = 409;
+          response.end(JSON.stringify({ error: "run-control-rejected" }));
         }
         return;
       }

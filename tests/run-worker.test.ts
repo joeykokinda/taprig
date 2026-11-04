@@ -120,6 +120,109 @@ test("a worker records an explicit failure when no phone is ready", async () => 
   store.close();
 });
 
+test("a user pause interrupts a model boundary and resumes on the original phone", async () => {
+  const store = new TapRigStore(":memory:");
+  const runs = new RunService(store);
+  const run = runs.create("Wait safely");
+  let releaseDecision: (() => void) | undefined;
+  let enteredDecision: (() => void) | undefined;
+  const entered = new Promise<void>((resolve) => {
+    enteredDecision = resolve;
+  });
+  const blocked = new Promise<void>((resolve) => {
+    releaseDecision = resolve;
+  });
+  let calls = 0;
+  const observed: string[] = [];
+  const worker = new RunWorker({
+    runs,
+    devices: { list: async () => [readyDevice("phone-1"), readyDevice("phone-2")] },
+    adapter: {
+      observe: async (deviceId) => {
+        observed.push(deviceId);
+        return { ...observation("current"), deviceId };
+      },
+      execute: async () => {
+        throw new Error("unused");
+      },
+    },
+    decide: () => async () => {
+      calls += 1;
+      if (calls === 1) {
+        enteredDecision?.();
+        await blocked;
+      }
+      return { type: "complete", evidence: "Done" };
+    },
+  });
+  worker.start(run.id);
+  await entered;
+  runs.record(run.id, { type: "run.paused", at: "2026-11-04T12:00:01.000Z" });
+  releaseDecision?.();
+  await worker.idle();
+  assert.equal(runs.get(run.id)?.status, "paused");
+  worker.resumePaused(run.id);
+  await worker.idle();
+  assert.equal(runs.get(run.id)?.status, "completed");
+  assert.deepEqual(new Set(observed), new Set(["phone-1"]));
+  assert.equal(
+    runs.events(run.id).some(({ event }) => event.type === "run.failed"),
+    false,
+  );
+  store.close();
+});
+
+test("a user stop preserves an action that finished in flight without rewriting the outcome", async () => {
+  const store = new TapRigStore(":memory:");
+  const runs = new RunService(store);
+  const run = runs.create("Stop safely");
+  let releaseAction: (() => void) | undefined;
+  let enteredAction: (() => void) | undefined;
+  const entered = new Promise<void>((resolve) => {
+    enteredAction = resolve;
+  });
+  const blocked = new Promise<void>((resolve) => {
+    releaseAction = resolve;
+  });
+  const worker = new RunWorker({
+    runs,
+    devices: { list: async () => [readyDevice("phone-1")] },
+    adapter: {
+      observe: async (deviceId) => ({ ...observation("current"), deviceId }),
+      execute: async (batch) => {
+        enteredAction?.();
+        await blocked;
+        return {
+          requestId: batch.requestId,
+          deviceId: batch.deviceId,
+          replayed: false,
+          steps: [{ stepId: "tap", status: "verified", durationMs: 1 }],
+        };
+      },
+    },
+    decide: () => async () => ({
+      type: "execute",
+      requestId: "tap",
+      steps: [{ id: "tap", action: { type: "element.tap", target: { text: "Continue" } } }],
+    }),
+  });
+  worker.start(run.id);
+  await entered;
+  runs.record(run.id, { type: "run.stopped", at: "2026-11-04T12:00:01.000Z" });
+  releaseAction?.();
+  await worker.idle();
+  assert.equal(runs.get(run.id)?.status, "stopped");
+  assert.equal(
+    runs.events(run.id).some(({ event }) => event.type === "run.failed"),
+    false,
+  );
+  assert.equal(
+    JSON.stringify(runs.recovery(run.id)?.evidence).includes('"status":"verified"'),
+    true,
+  );
+  store.close();
+});
+
 test("a worker recovers an interrupted run on its original phone with durable progress", async () => {
   const store = new TapRigStore(":memory:");
   const runs = new RunService(store);

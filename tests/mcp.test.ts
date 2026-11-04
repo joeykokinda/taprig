@@ -30,6 +30,7 @@ test("MCP lists and calls the daemon-backed TapRig tools", async (context) => {
     "taprig_approval",
     "taprig_devices",
     "taprig_run",
+    "taprig_run_control",
     "taprig_task",
   ]);
   const inventory = await client.callTool({ name: "taprig_devices", arguments: {} });
@@ -50,6 +51,10 @@ test("MCP lists and calls the daemon-backed TapRig tools", async (context) => {
     },
   });
   await client.callTool({
+    name: "taprig_run_control",
+    arguments: { runId: "run-1", operation: "pause" },
+  });
+  await client.callTool({
     name: "taprig_approval",
     arguments: { runId: "run-1", approvalId: "approval-1", decision: "approved" },
   });
@@ -57,6 +62,7 @@ test("MCP lists and calls the daemon-backed TapRig tools", async (context) => {
     "GET /devices",
     "POST /devices/phone-1/actions",
     "POST /runs",
+    "POST /runs/run-1/pause",
     "POST /runs/run-1/approvals/approval-1/resolve",
   ]);
   assert.deepEqual(bodies.at(-1), { decision: "approved" });

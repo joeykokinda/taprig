@@ -183,11 +183,24 @@ async function resolveApproval(decision: "approved" | "denied", args: readonly s
   process.stdout.write(`${decision === "approved" ? "Approved" : "Denied"} ${approvalId}.\n`);
 }
 
+async function controlRun(operation: "pause" | "resume" | "stop" | "retry", runId?: string) {
+  if (!runId) throw new Error(`${operation} requires a run ID`);
+  const result = await daemonJson<{ run: RunState }>(
+    `/runs/${encodeURIComponent(runId)}/${operation}`,
+    { method: "POST" },
+  );
+  process.stdout.write(
+    operation === "retry"
+      ? `Retry created ${result.run.id}.\n`
+      : `${operation[0]?.toUpperCase()}${operation.slice(1)} requested for ${runId}.\n`,
+  );
+}
+
 async function interactiveSession(): Promise<void> {
   const devices = await loadDevices();
   process.stdout.write(
     `TapRig · ${devices.length} device${devices.length === 1 ? "" : "s"} connected\n` +
-      "Type a task, or /mode, /group, /devices, /runs, /attach, /replay, /answer, /quit.\n\n",
+      "Type a task, or /mode, /group, /devices, /runs, /attach, /replay, /answer, /pause, /resume, /stop, /retry, /quit.\n\n",
   );
   let mode: RunMode = "independent";
   let group: string | undefined;
@@ -249,6 +262,11 @@ async function interactiveSession(): Promise<void> {
             .trim()
             .split(/\s+/u),
         );
+        continue;
+      }
+      if (/^\/(?:pause|resume|stop|retry)\s+/u.test(line)) {
+        const [operation, runId] = line.slice(1).split(/\s+/u);
+        await controlRun(operation as "pause" | "resume" | "stop" | "retry", runId);
         continue;
       }
       if (line.startsWith("/")) {
@@ -584,6 +602,15 @@ async function main(): Promise<void> {
       selectedCommand === "approve" ? "approved" : "denied",
       process.argv.slice(3),
     );
+    return;
+  }
+  if (
+    selectedCommand === "pause" ||
+    selectedCommand === "resume" ||
+    selectedCommand === "stop" ||
+    selectedCommand === "retry"
+  ) {
+    await controlRun(selectedCommand, process.argv[3]);
     return;
   }
   if (selectedCommand === "artifacts") {

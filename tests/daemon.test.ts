@@ -332,6 +332,50 @@ test("the daemon creates, lists, and attaches to durable runs", async (context) 
   });
 });
 
+test("the daemon pauses, resumes, stops, and retries durable runs", async (context) => {
+  const store = new TapRigStore(":memory:");
+  let sequence = 0;
+  const runs = new RunService(
+    store,
+    () => `2026-11-04T12:00:0${sequence}.000Z`,
+    () => `run-${++sequence}`,
+  );
+  const source = runs.create("Control this run");
+  runs.record(source.id, { type: "run.started", at: "2026-11-04T12:00:01.000Z" });
+  const started: string[] = [];
+  const daemon = await startDaemon({
+    token,
+    devices: { list: async () => [{ id: "phone-1", serial: "phone-1", state: "ready" }] },
+    runs,
+    startRun: (runId) => started.push(runId),
+    continueRun: (runId) => {
+      runs.record(runId, { type: "run.resumed", at: "2026-11-04T12:00:03.000Z" });
+    },
+  });
+  context.after(async () => {
+    await daemon.stop();
+    store.close();
+  });
+  const request = (operation: string) =>
+    fetch(`${daemon.url}/runs/${source.id}/${operation}`, {
+      method: "POST",
+      headers: authorization,
+    });
+
+  assert.equal((await request("pause")).status, 200);
+  assert.equal(runs.get(source.id)?.status, "paused");
+  assert.equal((await request("resume")).status, 200);
+  assert.equal(runs.get(source.id)?.status, "running");
+  assert.equal((await request("stop")).status, 200);
+  assert.equal(runs.get(source.id)?.status, "stopped");
+  const retried = await request("retry");
+  assert.equal(retried.status, 201);
+  const retry = ((await retried.json()) as { run: { id: string; status: string } }).run;
+  assert.deepEqual({ id: retry.id, status: retry.status }, { id: "run-2", status: "created" });
+  assert.deepEqual(started, ["run-2"]);
+  assert.equal((await request("resume")).status, 409);
+});
+
 test("the daemon manages groups and resolves immutable run affinity", async (context) => {
   const store = new TapRigStore(":memory:");
   const runs = new RunService(store);

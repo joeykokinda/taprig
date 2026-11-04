@@ -7,11 +7,11 @@ This is the ordered product queue. The canonical architecture remains in
 
 - Foundation/runtime: **98%**
 - Physical Android control: **60%**
-- Agent loop: **85%**
+- Agent loop: **88%**
 - Fleet orchestration: **72%**
-- Desktop application: **58%**
+- Desktop application: **61%**
 - Public website/distribution: **45%**
-- Complete launch-ready product: **77%**
+- Complete launch-ready product: **78%**
 
 Percentages describe demonstrated functionality, not lines of code.
 
@@ -51,6 +51,7 @@ Percentages describe demonstrated functionality, not lines of code.
 - [x] Serve the control-room web UI from the local daemon.
 - [x] Add one canonical guided-readiness flow to CLI and control room.
 - [x] Persist owner approval and artifact defaults with CLI/control-room editing.
+- [x] Add cooperative pause/resume/stop and immutable failed-run retry controls.
 - [x] Package the daemon and UI as an Electron desktop application.
 
 ## P2 — fleet and launch

@@ -197,6 +197,7 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
       ...(worker
         ? {
             startRun: (runId: string, deviceId?: string) => worker.start(runId, deviceId),
+            continueRun: (runId: string) => worker.resumePaused(runId),
             resumeRun: (runId: string, answer: Parameters<typeof worker.resume>[1]) =>
               worker.resume(runId, answer),
           }

@@ -81,6 +81,10 @@ npm run taprig -- answer <run-id> <question-id> "Personal account"
 npm run taprig -- answer <run-id> <question-id> --sensitive "123456"
 npm run taprig -- approve <run-id> <approval-id>
 npm run taprig -- deny <run-id> <approval-id>
+npm run taprig -- pause <run-id>
+npm run taprig -- resume <run-id>
+npm run taprig -- stop <run-id>
+npm run taprig -- retry <run-id>
 ```
 
 See [first-phone onboarding](docs/ONBOARDING.md) for USB trust, model setup,

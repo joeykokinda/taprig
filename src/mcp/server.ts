@@ -121,6 +121,22 @@ export function createTapRigMcpServer(request: RequestDaemon = daemonRequest): M
       ),
   );
   server.registerTool(
+    "taprig_run_control",
+    {
+      description: "Pause, resume, stop, or retry a durable TapRig run.",
+      inputSchema: z.object({
+        runId: z.string().min(1).max(200),
+        operation: z.enum(["pause", "resume", "stop", "retry"]),
+      }),
+    },
+    async ({ runId, operation }) =>
+      text(
+        await json(request, `/runs/${encodeURIComponent(runId)}/${operation}`, {
+          method: "POST",
+        }),
+      ),
+  );
+  server.registerTool(
     "taprig_action",
     {
       description: "Send one validated raw Android action to a specific phone.",

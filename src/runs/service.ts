@@ -63,6 +63,20 @@ export class RunService {
     return this.store.getRun(id);
   }
 
+  retry(id: string): RunState {
+    const source = this.get(id);
+    if (!source || (source.status !== "failed" && source.status !== "stopped")) {
+      throw new Error("only failed or stopped runs can be retried");
+    }
+    return this.create(
+      source.task,
+      source.mode,
+      source.budget,
+      source.affinity,
+      source.retainScreenshots === true,
+    );
+  }
+
   events(id: string, afterSequence = 0): StoredRunEvent[] {
     return this.store.listRunEvents(id, afterSequence);
   }

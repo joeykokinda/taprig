@@ -18,6 +18,7 @@ The compact tool surface is:
   to a named group or explicit device IDs;
 - `taprig_run`: inspect run state, ordered events, approvals, and artifact metadata;
 - `taprig_approval`: approve or deny one open typed approval;
+- `taprig_run_control`: pause, resume, stop, or retry a durable run;
 - `taprig_action`: send one schema-validated raw action to one phone.
 
 Every tool calls the loopback daemon. MCP does not open a second ADB connection,

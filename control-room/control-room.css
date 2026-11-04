@@ -380,6 +380,16 @@ h2 {
   font-size: 9px;
   letter-spacing: 0.08em;
 }
+.run-controls {
+  grid-column: 2 / -1;
+  display: flex;
+  gap: 6px;
+}
+.run-controls button {
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 9px;
+}
 .activity {
   max-height: 300px;
   overflow: auto;

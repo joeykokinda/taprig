@@ -130,8 +130,18 @@ function renderRuns(runs, telemetry) {
         .slice(0, 20)
         .map((run) => {
           const metrics = telemetry.get(run.id);
+          const controls =
+            run.status === "running"
+              ? ["pause", "stop"]
+              : run.status === "paused"
+                ? ["resume", "stop"]
+                : run.status === "failed" || run.status === "stopped"
+                  ? ["retry"]
+                  : run.status === "created" || run.status === "waiting-for-user"
+                    ? ["stop"]
+                    : [];
           return `
-      <article class="trace-row">
+      <article class="trace-row" data-run-id="${escapeHtml(run.id)}">
         <time>${escapeHtml(new Date(run.updatedAt).toLocaleTimeString())}</time>
         <span>${escapeHtml(`${run.mode}${run.affinity?.group ? ` / ${run.affinity.group}` : run.affinity ? ` / ${run.affinity.deviceIds.length} DEVICES` : ""}`).toUpperCase()}</span>
         <strong>${escapeHtml(run.status).toUpperCase()}</strong>
@@ -141,11 +151,31 @@ function renderRuns(runs, telemetry) {
             ? `<small>${metrics.modelCalls} MODEL / ${metrics.inputTokens + metrics.outputTokens} TOKENS / ${metrics.attemptedActions} ACTIONS / ${Math.round(metrics.elapsedMs)}MS</small>`
             : ""
         }
+        ${controls.length ? `<div class="run-controls">${controls.map((control) => `<button data-run-control="${control}">${control.toUpperCase()}</button>`).join("")}</div>` : ""}
       </article>`;
         })
         .join("")
     : '<p class="empty">NO RUNS YET</p>';
 }
+
+$("#runs").addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-run-control]");
+  const row = event.target.closest("[data-run-id]");
+  if (!button || !row) return;
+  try {
+    const { run } = await json(
+      `/runs/${encodeURIComponent(row.dataset.runId)}/${button.dataset.runControl}`,
+      { method: "POST" },
+    );
+    $("#task-result").textContent =
+      button.dataset.runControl === "retry"
+        ? `RETRY CREATED ${run.id}`
+        : `${button.dataset.runControl.toUpperCase()} REQUESTED`;
+    await refresh();
+  } catch (error) {
+    $("#task-result").textContent = `RUN CONTROL FAILED: ${error.message}`;
+  }
+});
 
 function activityLabel(event) {
   if (event.type !== "run.trace") return event.type.replace("run.", "").toUpperCase();

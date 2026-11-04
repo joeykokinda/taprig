@@ -84,6 +84,8 @@ function readTelemetry(value: unknown): RunTelemetry {
   };
 }
 
+class RunInterruptedError extends Error {}
+
 export class RunWorker {
   readonly #active = new Map<string, Promise<void>>();
   readonly #leasedDevices = new Set<string>();
@@ -124,6 +126,14 @@ export class RunWorker {
     );
   }
 
+  resumePaused(runId: string): void {
+    const prior = this.#active.get(runId) ?? Promise.resolve();
+    this.#track(
+      runId,
+      prior.then(() => this.#execute(runId, undefined, undefined, false, true)),
+    );
+  }
+
   async idle(): Promise<void> {
     while (this.#active.size > 0) await Promise.all(this.#active.values());
   }
@@ -140,6 +150,7 @@ export class RunWorker {
     requestedDeviceId?: string,
     answer?: RunAnswer,
     recovering = false,
+    continuing = false,
   ): Promise<void> {
     let run = this.#runs.get(runId);
     if (run?.status === "created" && !answer) {
@@ -148,6 +159,8 @@ export class RunWorker {
       run = this.#runs.record(runId, { type: "run.resumed", at: new Date().toISOString() });
     } else if (run?.status === "running" && recovering) {
       run = this.#runs.record(runId, { type: "run.recovered", at: new Date().toISOString() });
+    } else if (run?.status === "paused" && continuing) {
+      run = this.#runs.record(runId, { type: "run.resumed", at: new Date().toISOString() });
     } else {
       return;
     }
@@ -159,18 +172,24 @@ export class RunWorker {
             : ""
         }`
       : run.task;
-    if (recovering) {
+    if (recovering || continuing) {
       task +=
-        "\n\nTapRig restarted during this run. Inspect current phone state before acting. " +
+        `\n\nTapRig ${recovering ? "restarted" : "resumed after a user pause"} during this run. Inspect current phone state before acting. ` +
         "Do not repeat work unless current state proves it is still required.";
       if (recovery.batches) {
         task += `\nPreviously verified progress: ${JSON.stringify(recovery.batches)}`;
       }
     }
     const secret = answer?.sensitive ? answer.value : undefined;
+    const requireRunning = () => {
+      const status = this.#runs.get(runId)?.status;
+      if (status !== "running") throw new RunInterruptedError(`run is ${status ?? "missing"}`);
+    };
     const saveRecovery = () => this.#runs.saveRecovery(runId, redact(recovery, secret));
-    const trace = (entry: RunTrace) =>
+    const trace = (entry: RunTrace) => {
+      requireRunning();
       this.#runs.record(runId, { type: "run.trace", at: new Date().toISOString(), trace: entry });
+    };
     const telemetry = readTelemetry(this.#runs.telemetry(runId)?.evidence);
     let reservedModelCalls = telemetry.modelCalls;
     const startedAt = performance.now();
@@ -190,7 +209,9 @@ export class RunWorker {
     };
     const device: DeviceAdapter = {
       observe: async (deviceId) => {
+        requireRunning();
         const observation = await this.#adapter.observe(deviceId);
+        requireRunning();
         trace({
           phase: "observation",
           deviceId,
@@ -202,6 +223,7 @@ export class RunWorker {
         return observation;
       },
       execute: async (batch) => {
+        requireRunning();
         if (
           run.budget?.maxActions !== undefined &&
           telemetry.attemptedActions + batch.steps.length > run.budget.maxActions
@@ -210,16 +232,6 @@ export class RunWorker {
         }
         telemetry.attemptedActions += batch.steps.length;
         const result = await this.#adapter.execute(batch);
-        trace({
-          phase: "action",
-          deviceId: batch.deviceId,
-          requestId: batch.requestId,
-          steps: batch.steps.map((step, index) => ({
-            stepId: step.id,
-            actionType: step.action.type,
-            status: result.steps[index]?.status ?? "failed",
-          })),
-        });
         recovery.batches ??= {};
         recovery.batches[batch.deviceId] = {
           requestId: batch.requestId,
@@ -230,15 +242,28 @@ export class RunWorker {
           })),
         };
         saveRecovery();
+        requireRunning();
+        trace({
+          phase: "action",
+          deviceId: batch.deviceId,
+          requestId: batch.requestId,
+          steps: batch.steps.map((step, index) => ({
+            stepId: step.id,
+            actionType: step.action.type,
+            status: result.steps[index]?.status ?? "failed",
+          })),
+        });
         return result;
       },
     };
     const decide = (work: string): Decider => {
       const selected = this.#decide(work, recordUsage);
       return async (context) => {
+        requireRunning();
         reserveModelCall();
         telemetry.decisionCalls += 1;
         const decision = await selected(context);
+        requireRunning();
         trace({
           phase: "decision",
           deviceId: context.observation.deviceId,
@@ -251,17 +276,19 @@ export class RunWorker {
     };
     let leasedDeviceIds: string[] = [];
     try {
+      requireRunning();
       if (run.mode === "coordinated") {
         if (!this.#planCoordinated) throw new Error("coordinated planner is not configured");
         const previous = answer
           ? (this.#runs.completion(runId)?.evidence as
               | { plan?: CoordinatedPlan; nodes?: CoordinatedNodeResult[] }
               | undefined)
-          : recovering
+          : recovering || continuing
             ? recovery
             : undefined;
         if (!previous?.plan) reserveModelCall();
         const plan = previous?.plan ?? (await this.#planCoordinated(task, recordUsage));
+        requireRunning();
         const initialResults = (previous?.nodes ?? []).filter(
           (node): node is Extract<CoordinatedNodeResult, { status: "completed" }> =>
             node.status === "completed",
@@ -304,6 +331,7 @@ export class RunWorker {
           }),
           secret,
         );
+        requireRunning();
         const at = new Date().toISOString();
         const devices = result.nodes.flatMap((node) =>
           "deviceId" in node && node.deviceId ? [node.deviceId] : [],
@@ -344,14 +372,15 @@ export class RunWorker {
         run.mode === "broadcast"
           ? answer?.deviceIds
             ? await this.#acquireSpecificDevices(answer.deviceIds)
-            : recovering && recovery.deviceIds
+            : (recovering || continuing) && recovery.deviceIds
               ? await this.#acquireSpecificDevices(recovery.deviceIds)
               : run.affinity
                 ? await this.#acquireSpecificDevices(run.affinity.deviceIds)
                 : await this.#acquireBroadcastDevices()
           : [
               await this.#acquireDevice(
-                requestedDeviceId ?? (recovering ? recovery.deviceIds?.[0] : undefined),
+                requestedDeviceId ??
+                  (recovering || continuing ? recovery.deviceIds?.[0] : undefined),
                 agentCapabilities,
                 run.affinity?.deviceIds,
               ),
@@ -380,6 +409,7 @@ export class RunWorker {
             }),
         secret,
       );
+      requireRunning();
       const at = new Date().toISOString();
       if (result.status === "completed") {
         this.#runs.checkpoint(runId, leasedDeviceIds[0] as string, {
@@ -404,6 +434,9 @@ export class RunWorker {
         });
       }
     } catch (error) {
+      const status = this.#runs.get(runId)?.status;
+      if (error instanceof RunInterruptedError || status === "paused" || status === "stopped")
+        return;
       const budgetExceeded = error instanceof BudgetExceededError;
       this.#runs.record(runId, {
         type: "run.failed",
