@@ -24,6 +24,7 @@ import {
 } from "./models/config.ts";
 import { parseRunCommand, parseRunMode } from "./run-command.ts";
 import type { ScriptRunResult, TapRigScript } from "./scripts/contracts.ts";
+import type { TapRigSettings } from "./settings.ts";
 
 interface SetupStatus {
   status: "ready" | "needs-attention";
@@ -65,7 +66,7 @@ async function createRun(
   mode: RunMode = "independent",
   budget?: RunBudget,
   target?: { group?: string; deviceIds?: readonly string[] },
-  retainScreenshots = false,
+  retainScreenshots?: boolean,
 ): Promise<RunState> {
   const result = await daemonJson<{ run: RunState }>("/runs", {
     method: "POST",
@@ -75,7 +76,7 @@ async function createRun(
       mode,
       ...(budget ? { budget } : {}),
       ...target,
-      ...(retainScreenshots ? { retainScreenshots: true } : {}),
+      ...(retainScreenshots === undefined ? {} : { retainScreenshots }),
     }),
   });
   return result.run;
@@ -386,6 +387,37 @@ async function main(): Promise<void> {
       return;
     }
     throw new Error(`unknown model command: ${operation}`);
+  }
+  if (selectedCommand === "settings") {
+    const operation = process.argv[3] ?? "show";
+    if (operation === "show") {
+      const { settings } = await daemonJson<{ settings: TapRigSettings }>("/settings");
+      process.stdout.write(
+        `Approval policy: ${settings.approvalPolicy}\nRetain terminal screenshots by default: ${settings.retainScreenshotsByDefault ? "yes" : "no"}\n`,
+      );
+      return;
+    }
+    const value = process.argv[4];
+    const patch =
+      operation === "approval" && (value === "autonomous" || value === "explicit")
+        ? { approvalPolicy: value }
+        : operation === "screenshots" && (value === "on" || value === "off")
+          ? { retainScreenshotsByDefault: value === "on" }
+          : undefined;
+    if (!patch) {
+      throw new Error(
+        "settings requires show, approval autonomous|explicit, or screenshots on|off",
+      );
+    }
+    const { settings } = await daemonJson<{ settings: TapRigSettings }>("/settings", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    process.stdout.write(
+      `Settings saved: ${settings.approvalPolicy}, screenshots ${settings.retainScreenshotsByDefault ? "on" : "off"}.\n`,
+    );
+    return;
   }
   if (selectedCommand === "script") {
     const operation = process.argv[3] ?? "list";

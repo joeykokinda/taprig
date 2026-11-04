@@ -47,6 +47,11 @@ test("parses independent and explicit fleet run modes", () => {
     retainScreenshots: true,
     task: "Open Settings",
   });
+  assert.deepEqual(parseRunCommand(["--no-retain-screenshots", "Open", "Settings"]), {
+    mode: "independent",
+    retainScreenshots: false,
+    task: "Open Settings",
+  });
 });
 
 test("rejects missing tasks and unknown modes", () => {

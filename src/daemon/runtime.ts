@@ -16,6 +16,7 @@ import { RunService } from "../runs/service.ts";
 import { RunWorker } from "../runs/worker.ts";
 import { ScriptService } from "../scripts/service.ts";
 import { ScriptStore } from "../scripts/store.ts";
+import { SettingsService } from "../settings.ts";
 import { startLiveMjpegStream } from "../video/live-stream.ts";
 import { startDaemon } from "./server.ts";
 
@@ -116,6 +117,7 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
   const databasePath = options.databasePath ?? defaultDatabasePath();
   const store = new TapRigStore(databasePath);
   const artifacts = new ArtifactService(join(dirname(databasePath), "artifacts"), store);
+  const settings = new SettingsService(join(dirname(databasePath), "settings.json"));
   const runs = new RunService(store);
   const groups = new DeviceGroupService(store);
   const semanticAdapter = new AndroidSemanticAdapter();
@@ -138,7 +140,15 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
           devices: registry,
           adapter: semanticAdapter,
           decide: (task, recordUsage) =>
-            createModelDecider(task, route.target, provider, process.env, fetch, recordUsage),
+            createModelDecider(
+              task,
+              route.target,
+              provider,
+              process.env,
+              fetch,
+              recordUsage,
+              settings.get().approvalPolicy,
+            ),
           ...(coordinatorRoute && coordinatorProvider && process.env[coordinatorProvider.apiKeyEnv]
             ? {
                 planCoordinated: (task, recordUsage) =>
@@ -182,6 +192,7 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
       execute: executeRawAction,
       groups,
       artifacts,
+      settings,
       runs,
       ...(worker
         ? {

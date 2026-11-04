@@ -3,6 +3,7 @@ const leases = new Map();
 let renderedDeviceIds = "";
 let renderedQuestions = "";
 let renderedApprovals = "";
+let initializedRunDefaults = false;
 let activityRunId = "";
 let activitySequence = 0;
 let activityEvents = [];
@@ -307,14 +308,26 @@ function renderSetup(setup) {
 
 async function refresh() {
   try {
-    const [{ devices }, { runs, telemetry }, { scripts }, { groups }, setup] = await Promise.all([
-      json("/devices"),
-      json("/runs"),
-      json("/scripts"),
-      json("/device-groups"),
-      json("/setup"),
-    ]);
+    const [{ devices }, { runs, telemetry }, { scripts }, { groups }, setup, { settings }] =
+      await Promise.all([
+        json("/devices"),
+        json("/runs"),
+        json("/scripts"),
+        json("/device-groups"),
+        json("/setup"),
+        json("/settings"),
+      ]);
     renderSetup(setup);
+    if (!$("#settings-form").matches(":focus-within")) {
+      $("#settings-form").elements.approvalPolicy.value = settings.approvalPolicy;
+      $("#settings-form").elements.retainScreenshotsByDefault.value = String(
+        settings.retainScreenshotsByDefault,
+      );
+    }
+    if (!initializedRunDefaults) {
+      $("#retain-screenshots").checked = settings.retainScreenshotsByDefault;
+      initializedRunDefaults = true;
+    }
     renderDevices(devices);
     renderScripts(scripts);
     renderGroups(groups);
@@ -365,7 +378,7 @@ $("#task-form").addEventListener("submit", async (event) => {
         task,
         mode: $("#mode").value,
         ...($("#run-group").value ? { group: $("#run-group").value } : {}),
-        ...($("#retain-screenshots").checked ? { retainScreenshots: true } : {}),
+        retainScreenshots: $("#retain-screenshots").checked,
         ...(Object.keys(budget).length > 0 ? { budget } : {}),
       }),
     });
@@ -454,6 +467,26 @@ $("#approvals").addEventListener("click", async (event) => {
     await refresh();
   } catch (error) {
     $("#task-result").textContent = `APPROVAL FAILED: ${error.message}`;
+  }
+});
+
+$("#settings-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  try {
+    const { settings } = await json("/settings", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        approvalPolicy: form.elements.approvalPolicy.value,
+        retainScreenshotsByDefault: form.elements.retainScreenshotsByDefault.value === "true",
+      }),
+    });
+    $("#retain-screenshots").checked = settings.retainScreenshotsByDefault;
+    $("#task-result").textContent = "OWNER SETTINGS SAVED";
+    await refresh();
+  } catch (error) {
+    $("#task-result").textContent = `SETTINGS FAILED: ${error.message}`;
   }
 });
 

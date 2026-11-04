@@ -29,6 +29,8 @@ The current control room provides:
 - typed approval requests with explicit approve/deny controls; denial stops the
   run before the gated action, while approval resumes its pinned phone cohort;
 - authenticated run-artifact inventory with direct private evidence viewing;
+- durable owner settings for explicit/autonomous approvals and the default
+  terminal-screenshot retention choice;
 - versioned deterministic-script inventory;
 - per-phone scrcpy live video with an automatic screenshot fallback for static
   streams;

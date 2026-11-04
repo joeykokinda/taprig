@@ -22,8 +22,9 @@ cohort. Denial emits the same resolution event and stops the run without
 executing the gated action. The control room and `taprig_approval` MCP tool call
 the same authenticated daemon endpoint.
 
-TapRig currently defaults to autonomous execution so unattended phone farms do
-not acquire surprise blockers. Approval requests are model-selected only when
-the task explicitly requires confirmation. A configurable deterministic policy
-engine—for example, always confirm purchases, sends, deletes, or account
-changes—remains part of the open settings workspace and is not claimed here.
+TapRig defaults to `explicit`: approval requests are model-selected only when
+the task explicitly requires confirmation. Owners can select `autonomous` for
+no approval pauses; TapRig rejects any model approval request that violates that
+setting. A deterministic policy engine—for example, always confirm purchases,
+sends, deletes, or account changes—must bind approval to an exact action batch
+and remains open rather than being approximated with unsafe label heuristics.

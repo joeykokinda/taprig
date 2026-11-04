@@ -102,10 +102,13 @@ Model profiles are configured without persisting provider secrets:
 ```console
 npm run taprig -- model show
 npm run taprig -- model profile economy   # economy | balanced | best
+npm run taprig -- settings                # owner approval/artifact defaults
+npm run taprig -- settings approval autonomous
 ```
 
 See [model routing](docs/MODELS.md) for role budgets, hard per-run spend guards,
 and editable targets.
+See [owner settings](docs/SETTINGS.md) for durable approval and artifact defaults.
 
 Typed approvals can suspend a run before an explicitly confirmation-gated
 action and resume or stop it from CLI, UI, API, or MCP. See

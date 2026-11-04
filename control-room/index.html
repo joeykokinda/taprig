@@ -96,6 +96,25 @@
           <div id="groups" class="group-list"><p class="empty">NO DEVICE GROUPS</p></div>
         </div>
 
+        <div class="panel settings-panel">
+          <div class="panel-head"><h2>OWNER SETTINGS</h2><span>LOCAL / DURABLE</span></div>
+          <form id="settings-form" class="settings-form">
+            <label>APPROVAL POLICY
+              <select name="approvalPolicy">
+                <option value="explicit">EXPLICIT TASK CONFIRMATION</option>
+                <option value="autonomous">AUTONOMOUS / NO APPROVAL PAUSES</option>
+              </select>
+            </label>
+            <label>TERMINAL SCREENSHOTS
+              <select name="retainScreenshotsByDefault">
+                <option value="false">OFF BY DEFAULT</option>
+                <option value="true">RETAIN BY DEFAULT</option>
+              </select>
+            </label>
+            <button type="submit">SAVE SETTINGS →</button>
+          </form>
+        </div>
+
         <div class="panel questions-panel">
           <div class="panel-head"><h2>AGENT QUESTIONS</h2><span>ANSWER / RESUME</span></div>
           <div id="questions" class="question-list"><p class="empty">NO OPEN QUESTIONS</p></div>

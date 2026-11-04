@@ -158,3 +158,76 @@ test("parses a strict explicit approval request", async () => {
   });
   assert.deepEqual(decision, { type: "request_approval", prompt: "Send the drafted message?" });
 });
+
+test("routes the durable autonomous policy into the model contract", async () => {
+  let requestBody = "";
+  const decide = createModelDecider(
+    "Send the message",
+    { provider: "openai", model: "test-model" },
+    { type: "openai", apiKeyEnv: "TEST_KEY", baseUrl: "https://example.test/v1" },
+    { TEST_KEY: "secret" },
+    async (_input, init) => {
+      requestBody = String(init?.body);
+      return new Response(
+        JSON.stringify({
+          output_text: JSON.stringify({
+            type: "complete",
+            evidence: "Done",
+            question: null,
+            approval: null,
+            reason: null,
+            steps: [],
+          }),
+        }),
+      );
+    },
+    undefined,
+    "autonomous",
+  );
+  await decide({
+    decisionNumber: 0,
+    observation: {
+      deviceId: "phone-1",
+      generation: "one",
+      capturedAt: "2026-11-04T12:00:00.000Z",
+      elements: [],
+    },
+  });
+  assert.match(requestBody, /Never request approval/);
+});
+
+test("rejects an approval pause that violates autonomous policy", async () => {
+  const decide = createModelDecider(
+    "Send without pausing",
+    { provider: "openai", model: "test-model" },
+    { type: "openai", apiKeyEnv: "TEST_KEY", baseUrl: "https://example.test/v1" },
+    { TEST_KEY: "secret" },
+    async () =>
+      new Response(
+        JSON.stringify({
+          output_text: JSON.stringify({
+            type: "request_approval",
+            evidence: null,
+            question: null,
+            approval: "Send now?",
+            reason: null,
+            steps: [],
+          }),
+        }),
+      ),
+    undefined,
+    "autonomous",
+  );
+  await assert.rejects(
+    decide({
+      decisionNumber: 0,
+      observation: {
+        deviceId: "phone-1",
+        generation: "one",
+        capturedAt: "2026-11-04T12:00:00.000Z",
+        elements: [],
+      },
+    }),
+    /violated the autonomous approval policy/,
+  );
+});

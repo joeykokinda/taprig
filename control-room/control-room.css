@@ -276,6 +276,7 @@ h2 {
 .questions-panel,
 .approvals-panel,
 .artifacts-panel,
+.settings-panel,
 .activity-panel,
 .groups-panel {
   border-right: 0;
@@ -424,6 +425,18 @@ h2 {
   gap: 8px;
   border: 0;
   border-bottom: 1px solid #262626;
+}
+.settings-form {
+  display: grid;
+  gap: 14px;
+  border: 0;
+}
+.settings-form label {
+  display: grid;
+  gap: 8px;
+}
+.settings-form select {
+  width: 100%;
 }
 .group-form input {
   min-width: 0;

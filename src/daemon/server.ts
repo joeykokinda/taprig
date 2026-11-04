@@ -11,6 +11,7 @@ import type { DeviceGroupService } from "../devices/groups.ts";
 import type { RunService } from "../runs/service.ts";
 import type { ScriptService } from "../scripts/service.ts";
 import { CredentialBroker } from "../security/credential-broker.ts";
+import type { SettingsService } from "../settings.ts";
 import type { LiveMjpegStream } from "../video/live-stream.ts";
 
 export interface DaemonDevice {
@@ -51,6 +52,7 @@ export interface TapRigDaemonOptions {
   manualTap?: (serial: string, xRatio: number, yRatio: number) => Promise<void>;
   modelProfile?: string;
   modelKeyEnv?: string;
+  settings?: SettingsService;
 }
 
 async function jsonBody(request: import("node:http").IncomingMessage): Promise<unknown> {
@@ -267,6 +269,23 @@ export async function startDaemon(options: TapRigDaemonOptions): Promise<Running
         );
         return;
       }
+      if (
+        url.pathname === "/settings" &&
+        (request.method === "GET" || request.method === "PATCH")
+      ) {
+        if (!options.settings) throw new Error("settings are unavailable");
+        try {
+          const settings =
+            request.method === "PATCH"
+              ? options.settings.update(await jsonBody(request))
+              : options.settings.get();
+          response.end(JSON.stringify({ settings }));
+        } catch {
+          response.statusCode = 400;
+          response.end(JSON.stringify({ error: "invalid-settings" }));
+        }
+        return;
+      }
       if (request.method === "GET" && url.pathname === "/device-groups") {
         response.end(JSON.stringify({ groups: options.groups?.list() ?? [] }));
         return;
@@ -389,7 +408,9 @@ export async function startDaemon(options: TapRigDaemonOptions): Promise<Running
             body.mode === undefined ? undefined : (body.mode as RunMode),
             body.budget as RunBudget | undefined,
             affinity,
-            body.retainScreenshots === true,
+            body.retainScreenshots === true ||
+              (body.retainScreenshots === undefined &&
+                options.settings?.get().retainScreenshotsByDefault === true),
           );
           const ready = new Set(
             (await options.devices.list().catch(() => []))

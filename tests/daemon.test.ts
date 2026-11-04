@@ -11,6 +11,7 @@ import { TapRigStore } from "../src/persistence/store.ts";
 import { RunService } from "../src/runs/service.ts";
 import { ScriptService } from "../src/scripts/service.ts";
 import { ScriptStore } from "../src/scripts/store.ts";
+import { SettingsService } from "../src/settings.ts";
 
 const token = "test-daemon-token";
 const authorization = { authorization: `Bearer ${token}` };
@@ -100,6 +101,51 @@ test("setup is ready when a phone and agent worker are ready", async (context) =
   assert.deepEqual(
     { status: body.status, agentConfigured: body.agentConfigured, ready: body.devices.ready },
     { status: "ready", agentConfigured: true, ready: 1 },
+  );
+});
+
+test("the daemon updates owner settings and applies screenshot defaults to new runs", async (context) => {
+  const directory = await mkdtemp(join(tmpdir(), "taprig-settings-api-"));
+  const store = new TapRigStore(":memory:");
+  const runs = new RunService(store);
+  const settings = new SettingsService(join(directory, "settings.json"));
+  const daemon = await startDaemon({
+    token,
+    devices: { list: async () => [] },
+    runs,
+    settings,
+  });
+  context.after(async () => {
+    await daemon.stop();
+    store.close();
+    await rm(directory, { recursive: true });
+  });
+
+  const updated = await fetch(`${daemon.url}/settings`, {
+    method: "PATCH",
+    headers: { ...authorization, "content-type": "application/json" },
+    body: JSON.stringify({ approvalPolicy: "autonomous", retainScreenshotsByDefault: true }),
+  });
+  assert.deepEqual(await updated.json(), {
+    settings: { approvalPolicy: "autonomous", retainScreenshotsByDefault: true },
+  });
+  const created = await fetch(`${daemon.url}/runs`, {
+    method: "POST",
+    headers: { ...authorization, "content-type": "application/json" },
+    body: JSON.stringify({ task: "Retain evidence" }),
+  });
+  assert.equal(
+    ((await created.json()) as { run: { retainScreenshots?: boolean } }).run.retainScreenshots,
+    true,
+  );
+  const overridden = await fetch(`${daemon.url}/runs`, {
+    method: "POST",
+    headers: { ...authorization, "content-type": "application/json" },
+    body: JSON.stringify({ task: "Do not retain evidence", retainScreenshots: false }),
+  });
+  assert.equal(
+    ((await overridden.json()) as { run: { retainScreenshots?: boolean } }).run.retainScreenshots,
+    undefined,
   );
 });
 

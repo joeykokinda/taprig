@@ -6,6 +6,7 @@ sensitive information. Opt in per run:
 
 ```console
 taprig run --retain-screenshots "Open Settings"
+taprig settings screenshots on
 ```
 
 After an opted-in run completes or fails, the worker attempts one screenshot
@@ -34,4 +35,5 @@ private on-screen information, so exports must be handled as sensitive files.
 
 Retained artifacts currently persist until the local TapRig data is removed. Configurable
 age/size retention and per-run sensitive-surface capture policy remain open in
-the Settings workspace; this milestone does not claim those controls.
+the Settings workspace; this milestone does not claim those controls. The
+durable owner default and per-run override are available now.
