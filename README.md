@@ -135,7 +135,8 @@ External agents can launch `taprig mcp` for the official stdio MCP surface. See
 
 Run `npm run benchmark` for the clearly labeled synthetic orchestration
 regression suite. Its scope and the still-open physical/model benchmark are
-documented in [BENCHMARKS.md](docs/BENCHMARKS.md).
+documented in [BENCHMARKS.md](docs/BENCHMARKS.md), with raw results in the
+[published synthetic baseline](docs/BENCHMARK_RESULTS.md).
 
 Run `npm run soak -- --iterations=1000 --fleet=4 --restart-every=250 --json`
 to stress durable runs, fleet leases, trace persistence, and SQLite restart

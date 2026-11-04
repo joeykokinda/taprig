@@ -32,8 +32,15 @@ were removed on app exit. Local release artifacts are:
   `cf8aaf12e7ab73599e6a3132ae28b781f381124e9697a0365ce5af81d67e3b53`.
 
 These files are local evidence, not published downloads. macOS and Windows
-targets are configured, but public artifacts remain disabled until CI
-credentials, platform signing identities, bundled Android tools, and
-cross-platform smoke tests are available. Production dependencies have no
-known audit findings; electron-builder's development-only graph currently has
-moderate advisories and must be refreshed before release automation is enabled.
+targets are configured, but public artifacts remain disabled until platform
+signing identities, bundled Android tools, and cross-platform smoke tests are
+available. Production dependencies have no known audit findings;
+electron-builder's development-only graph currently has moderate advisories and
+must be refreshed before public release.
+
+`.github/workflows/release.yml` verifies the repository and builds explicitly
+unsigned x64 previews on Linux, Windows, and Intel macOS. Manual runs retain the
+packages as workflow artifacts. A matching `v<package-version>` tag creates a
+draft prerelease with a sorted `SHA256SUMS`; it refuses to overwrite a published
+release. This is build automation, not evidence of signing or platform launch
+quality, so the normal-user website download remains disabled.

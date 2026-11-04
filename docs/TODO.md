@@ -69,5 +69,6 @@ Percentages describe demonstrated functionality, not lines of code.
 - [ ] Connect website download buttons to signed releases.
 - [x] Add a repeatable synthetic orchestration regression harness.
 - [x] Add a repeatable fleet/SQLite/restart soak harness.
-- [ ] Publish repeatable cost, latency, and success benchmarks.
+- [x] Publish a repeatable synthetic runtime/soak baseline with raw results.
+- [ ] Publish physical/provider cost, latency, and task-success benchmarks.
 - [ ] Record the hero demo and launch the public repository.

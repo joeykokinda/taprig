@@ -36,6 +36,7 @@
   "build": {
     "appId": "dev.taprig.desktop",
     "productName": "TapRig",
+    "artifactName": "${productName}-${version}-${os}-${arch}-unsigned.${ext}",
     "asar": true,
     "directories": {
       "output": "release"

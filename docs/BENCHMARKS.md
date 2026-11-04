@@ -9,6 +9,9 @@ npm run benchmark -- --iterations=200 --json
 npm run soak -- --iterations=10000 --fleet=8 --restart-every=500 --json
 ```
 
+The first checked-in result set, including raw JSON and its exact environment,
+is published in [benchmark results](BENCHMARK_RESULTS.md).
+
 The harness exercises independent agent loops at 1/4/16 phones, broadcast
 barriers at 2/8 phones, and coordinated DAG scheduling at 2/8 phones. Every row
 reports iterations, verified success rate, mean and p95 wall time, model-decision

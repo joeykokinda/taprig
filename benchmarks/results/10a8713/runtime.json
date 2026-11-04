@@ -1,0 +1,96 @@
+{
+  "kind": "synthetic-runtime",
+  "results": [
+    {
+      "scenario": "independent-1",
+      "mode": "independent",
+      "fleetSize": 1,
+      "iterations": 200,
+      "successes": 200,
+      "successRate": 1,
+      "meanMs": 0.012,
+      "p95Ms": 0.022,
+      "meanDecisionCalls": 2,
+      "meanDeviceActions": 1,
+      "meanWorkUnits": 1
+    },
+    {
+      "scenario": "independent-4",
+      "mode": "independent",
+      "fleetSize": 4,
+      "iterations": 200,
+      "successes": 200,
+      "successRate": 1,
+      "meanMs": 0.012,
+      "p95Ms": 0.016,
+      "meanDecisionCalls": 8,
+      "meanDeviceActions": 4,
+      "meanWorkUnits": 4
+    },
+    {
+      "scenario": "independent-16",
+      "mode": "independent",
+      "fleetSize": 16,
+      "iterations": 200,
+      "successes": 200,
+      "successRate": 1,
+      "meanMs": 0.026,
+      "p95Ms": 0.061,
+      "meanDecisionCalls": 32,
+      "meanDeviceActions": 16,
+      "meanWorkUnits": 16
+    },
+    {
+      "scenario": "broadcast-2",
+      "mode": "broadcast",
+      "fleetSize": 2,
+      "iterations": 200,
+      "successes": 200,
+      "successRate": 1,
+      "meanMs": 0.007,
+      "p95Ms": 0.012,
+      "meanDecisionCalls": 2,
+      "meanDeviceActions": 2,
+      "meanWorkUnits": 2
+    },
+    {
+      "scenario": "broadcast-8",
+      "mode": "broadcast",
+      "fleetSize": 8,
+      "iterations": 200,
+      "successes": 200,
+      "successRate": 1,
+      "meanMs": 0.01,
+      "p95Ms": 0.017,
+      "meanDecisionCalls": 2,
+      "meanDeviceActions": 8,
+      "meanWorkUnits": 8
+    },
+    {
+      "scenario": "coordinated-2",
+      "mode": "coordinated",
+      "fleetSize": 2,
+      "iterations": 200,
+      "successes": 200,
+      "successRate": 1,
+      "meanMs": 0.012,
+      "p95Ms": 0.019,
+      "meanDecisionCalls": 0,
+      "meanDeviceActions": 0,
+      "meanWorkUnits": 3
+    },
+    {
+      "scenario": "coordinated-8",
+      "mode": "coordinated",
+      "fleetSize": 8,
+      "iterations": 200,
+      "successes": 200,
+      "successRate": 1,
+      "meanMs": 0.013,
+      "p95Ms": 0.017,
+      "meanDecisionCalls": 0,
+      "meanDeviceActions": 0,
+      "meanWorkUnits": 9
+    }
+  ]
+}

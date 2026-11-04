@@ -1,0 +1,10 @@
+{
+  "kind": "synthetic-runtime-soak",
+  "iterations": 1000,
+  "fleetSize": 4,
+  "completed": 1000,
+  "recoveredAfterRestart": 3,
+  "actions": 1003,
+  "elapsedMs": 1203.476,
+  "heapDeltaBytes": 3768624
+}
