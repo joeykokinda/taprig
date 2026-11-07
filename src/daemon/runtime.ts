@@ -4,6 +4,12 @@ import { createModelDecider } from "../agents/model-decider.ts";
 import type { AdbDevice } from "../android/adb-discovery.ts";
 import { discoverAdbDevices } from "../android/adb-discovery.ts";
 import { DeviceRegistry } from "../android/device-actor.ts";
+import {
+  AndroidDriverManager,
+  createAdbDriverHost,
+  loadDriverBundle,
+} from "../android/driver/session.ts";
+import { AndroidDriverAdapter } from "../android/driver-adapter.ts";
 import { executeNormalizedTap, executeRawAction } from "../android/raw-actions.ts";
 import { AndroidSemanticAdapter } from "../android/semantic-adapter.ts";
 import { ArtifactService } from "../artifacts/service.ts";
@@ -26,6 +32,7 @@ export interface RuntimeOptions {
   registry?: DeviceRegistry;
   pollIntervalMs?: number;
   databasePath?: string;
+  driverBundleDirectory?: string;
 }
 
 export function defaultDatabasePath(
@@ -120,7 +127,29 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
   const settings = new SettingsService(join(dirname(databasePath), "settings.json"));
   const runs = new RunService(store);
   const groups = new DeviceGroupService(store);
-  const semanticAdapter = new AndroidSemanticAdapter();
+  const driverBundleDirectory = options.driverBundleDirectory ?? process.env.TAPRIG_DRIVER_DIR;
+  // Without a verified bundle every phone stays on the UIAutomator fallback.
+  const drivers = driverBundleDirectory
+    ? new AndroidDriverManager({
+        ...(await loadDriverBundle(driverBundleDirectory)),
+        host: createAdbDriverHost(process.env.TAPRIG_ADB ?? "adb"),
+        onEnrollmentError: (serial, error) =>
+          console.error(
+            `taprig: ${serial} driver enrollment failed, using UIAutomator fallback: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          ),
+      })
+    : undefined;
+  const semanticAdapter = drivers
+    ? new AndroidDriverAdapter(drivers, new AndroidSemanticAdapter())
+    : new AndroidSemanticAdapter();
+  let driverSync = Promise.resolve();
+  const syncDrivers = (devices: readonly { serial: string; state: string }[]) => {
+    if (!drivers) return;
+    const ready = devices.filter((device) => device.state === "ready").map(({ serial }) => serial);
+    driverSync = driverSync.then(() => drivers.sync(ready));
+  };
   const scripts = new ScriptService(
     new ScriptStore(join(dirname(databasePath), "scripts")),
     semanticAdapter,
@@ -172,6 +201,7 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
       try {
         const devices = await registry.refresh(await discover());
         for (const device of devices) store.saveDevice(device);
+        syncDrivers(devices);
         if (worker && schedulingEnabled) scheduleDurableRuns(runs, worker, devices);
       } catch (error) {
         const devices = await registry.refresh([]);
@@ -234,6 +264,8 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
       try {
         await worker?.idle();
         await daemon.stop();
+        await driverSync;
+        await drivers?.close();
       } finally {
         store.close();
       }

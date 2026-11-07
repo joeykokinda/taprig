@@ -6,6 +6,8 @@
       "!!node_modules",
       "!!dist",
       "!!release",
+      "!!android-driver/**/build",
+      "!!android-driver/.gradle",
       "!!package-lock.json",
       "!!CLAUDE.md"
     ]

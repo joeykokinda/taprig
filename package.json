@@ -20,6 +20,7 @@
     "node": ">=24.12.0"
   },
   "scripts": {
+    "build:driver": "cd android-driver && ./gradlew --no-daemon test assembleRelease && node bundle.mjs",
     "build:desktop": "esbuild desktop/main.ts src/cli.ts --bundle --platform=node --format=esm --outdir=dist/desktop --entry-names=[name] --external:electron",
     "benchmark": "node src/benchmarks/runtime.ts",
     "soak": "node src/benchmarks/soak.ts",
@@ -45,6 +46,12 @@
       "dist/desktop/**",
       "control-room/**",
       "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "android-driver/build/bundle",
+        "to": "android-driver"
+      }
     ],
     "linux": {
       "icon": "build/icon.png",

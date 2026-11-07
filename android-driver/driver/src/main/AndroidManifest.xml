@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application
+        android:allowBackup="false"
+        android:hasCode="true"
+        android:label="TapRig Android Driver"
+        android:supportsRtl="true" />
+
+    <instrumentation
+        android:name=".TapRigInstrumentation"
+        android:functionalTest="true"
+        android:handleProfiling="false"
+        android:label="TapRig Android Driver"
+        android:targetPackage="dev.taprig.driver.stub" />
+</manifest>

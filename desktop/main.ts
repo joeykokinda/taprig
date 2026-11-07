@@ -14,6 +14,9 @@ let quitting = false;
 async function openControlRoom(): Promise<void> {
   process.env.TAPRIG_DATA_DIR = app.getPath("userData");
   process.env.TAPRIG_CONTROL_ROOM = join(app.getAppPath(), "control-room");
+  if (app.isPackaged) {
+    process.env.TAPRIG_DRIVER_DIR ??= join(process.resourcesPath, "android-driver");
+  }
   if (!(await daemonStatus())) {
     process.env.ELECTRON_RUN_AS_NODE = "1";
     await startDaemonProcess(join(app.getAppPath(), "dist/desktop/cli.js"));

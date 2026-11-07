@@ -88,146 +88,41 @@ Recent commits:
 ea0bb85 add private run artifacts and export
 ```
 
-## Current uncommitted work
+## Android instrumentation driver
 
-The event-driven Android instrumentation driver is partially implemented and
-must not be described as working yet:
+The event driver is implemented and physically validated on the Brach Moto G Play
+2024 (`docs/HARDWARE_VALIDATION.md`, 2026-11-06). Java and TypeScript share one
+protocol v1 contract in `src/android/driver/protocol.ts`; `session.ts` owns
+enrollment, the loopback transport, per-step `perform` batches, and the fleet-safe
+`AndroidDriverManager`. The daemon enables it when `TAPRIG_DRIVER_DIR` points at a
+verified bundle (`npm run build:driver`), and packaged desktop builds ship it.
 
-```text
-?? android-driver/
-?? src/android/driver-adapter.ts
-?? src/android/driver/
-?? tests/driver-adapter.test.ts
-?? tests/driver-protocol.test.ts
-?? tests/driver-session.test.ts
-```
+Gotchas found on hardware:
 
-Current test result is **143 pass / 1 fail**. The committed tree remains green;
-the failure comes from this unfinished driver work:
+- Instrumentation targets must contain code, so the inert stub has one empty class.
+- Reinstalling unchanged sideloaded APKs trips Play Protect dialogs that block
+  later installs; enrollment installs only when the device `sha256sum` differs.
+- Each build machine's debug key differs; enrollment uninstalls and reinstalls on
+  `INSTALL_FAILED_UPDATE_INCOMPATIBLE`.
+- `getWindows()` includes System UI, so foreground comes from the top application
+  window, and actions return a settled generation so batch steps are not stale.
+- Only one `UiAutomation` can exist per phone, so driver phones must never also
+  receive `uiautomator dump`; all observation routes through `AndroidDriverAdapter`.
 
-```text
-manager enrolls new phones and closes removed phones
-expected nonce: aaaaaaaaaa...
-actual nonce: randomly generated value
-```
+Brach: `ssh brach`, adb at `~/.local/bin/adb`, Node at
+`~/.nvm/versions/node/v24.12.0/bin`. `~/taprig` there is an older clean checkout;
+`~/taprig-dev` is a synced scratch copy used for hardware runs.
 
-Reproduce with:
+## Next implementation plan
 
-```console
-npm test
-node --test tests/driver-session.test.ts
-```
+### 1. Driver follow-ups
 
-No Android device was visible in `adb devices -l` at handoff time.
+- Prove a successful long tap and password redaction on hardware.
+- Bound settle behavior on continuously animating screens.
+- Validate a second simultaneous phone and host/device reboot mid-session.
+- Optionally drop the stub by self-targeting the driver package.
 
-### Pieces already present
-
-- `android-driver/`: inert target APK and custom `Instrumentation` scaffold using
-  `UiAutomation` and a device-local `LocalServerSocket`.
-- `src/android/driver/protocol.ts`: bounded newline-JSON codec/parser.
-- `src/android/driver/session.ts`: APK checksum/install/forward/process/session
-  lifecycle scaffold.
-- `src/android/driver-adapter.ts`: tested per-phone driver routing with the
-  existing `AndroidSemanticAdapter` as fallback.
-
-These came from interrupted parallel work. Review every line; do not assume the
-halves share a valid protocol.
-
-## Critical incompatibilities to fix first
-
-The Java driver and TypeScript host currently disagree:
-
-1. **Enrollment constants**
-   - Android target: `dev.taprig.driver.stub`
-   - Android instrumentation package: `dev.taprig.driver`
-   - Runner: `dev.taprig.driver.TapRigInstrumentation`
-   - Nonce argument: `nonce`
-   - `session.ts` currently uses different AndroidX test-package constants and
-     `taprig_nonce`.
-
-2. **Hello response**
-   - TypeScript expects `{version, nonce}`.
-   - Java currently returns health fields `{version, sessionId, generation}`.
-   - Choose one exact schema. Prefer returning the nonce only for the authenticated
-     hello proof, then use `health` for session/generation data.
-
-3. **Wait response**
-   - TypeScript expects `{changed, snapshot}`.
-   - Java currently appends `changed` directly to the snapshot object.
-
-4. **Perform response**
-   - TypeScript expects one action and `{generation, evidence}`.
-   - Java accepts one action but returns `{generation, changed}`.
-   - `session.ts` incorrectly sends an entire `steps` batch and expects a complete
-     `BatchResult`. The host session should iterate steps, call one generation-bound
-     `perform` per step, stop after failure, and construct `BatchResult`.
-
-5. **Stop response**
-   - TypeScript expects `{stopped: true}`.
-   - Java returns `{stopping: true}`.
-
-6. **Observation identity**
-   - Driver snapshots intentionally omit `deviceId`.
-   - The session must attach its known serial when constructing `Observation`.
-
-7. **Missing real transport**
-   - `DriverHost.connect` is only an injected interface. Implement a real loopback
-     TCP client with request IDs, frame decoding, response correlation, bounded
-     timeouts, disconnect rejection, hello authentication, and clean close.
-
-8. **Fleet-safe degradation**
-   - `AndroidDriverManager.sync()` currently throws on the first enrollment
-     failure. One incompatible/offline phone must remain on UIAutomator fallback
-     without preventing other devices or daemon refresh.
-
-Fix the contract once in shared schema/tests. Do not add translation hacks for
-both incompatible versions.
-
-## Ordered next implementation plan
-
-### 1. Make the driver unit coherent
-
-- Align Java and TypeScript protocol v1 exactly.
-- Fix the random-nonce test by injecting a nonce for deterministic tests or by
-  making the fake host validate shape rather than one hard-coded value.
-- Add tests for malformed/oversized frames, wrong nonce/version, fragmented and
-  multiple frames, timeout/disconnect, stale generation, step failure/skip,
-  cleanup, and per-device enrollment failure.
-- Run:
-
-```console
-npm run format
-npm run check
-```
-
-Do not proceed while the Node suite is red.
-
-### 2. Make the Android project reproducible
-
-- Add and pin a Gradle wrapper. The current scaffold pins AGP `8.13.2`; either
-  keep it with a documented compatible Gradle/JDK pair or deliberately update
-  it. Do not use dynamic dependency versions.
-- Build the inert stub and instrumentation APK and run JVM tests on a GitHub
-  Android runner if the local SDK is unavailable.
-- Add Android tests for bounded tree serialization, password redaction, selector
-  ambiguity, generation monotonicity, and action/error mapping.
-- Produce a private bundle manifest containing filenames, protocol version, and
-  SHA-256 values. The host must verify both APKs before any ADB mutation.
-
-### 3. Integrate with the daemon
-
-- Construct an `AndroidDriverManager` only when a verified driver bundle exists.
-- During device refresh, enroll ready/authorized phones and close sessions for
-  removed phones. Enrollment errors degrade only that phone to fallback.
-- Route scripts and agent workers through `AndroidDriverAdapter`; do not create a
-  second execution path.
-- Close sessions/forwards/instrumentation during daemon shutdown.
-- Bundle the two APKs and manifest in Electron packages and set their absolute
-  resource path from `desktop/main.ts`.
-- Keep `AndroidSemanticAdapter` as the honest fallback for devices that prohibit
-  instrumentation.
-
-### 4. Validate correctly
+### 2. Hardware gates
 
 Host gates:
 

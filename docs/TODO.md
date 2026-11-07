@@ -27,7 +27,9 @@ Percentages describe demonstrated functionality, not lines of code.
 - [x] Stream scrcpy video to the control room and implement manual takeover leases.
 - [x] Bootstrap semantic observation and selector taps through UIAutomator.
 - [x] Execute and verify a semantic action batch on physical hardware.
-- [ ] Replace polling with the event-driven TapRig Android accessibility driver.
+- [x] Replace polling with the event-driven TapRig Android accessibility driver.
+  Physically validated on 2026-11-06 (`docs/HARDWARE_VALIDATION.md`); UIAutomator
+  stays as the per-phone fallback.
 - [x] Implement the bounded observe → decide → execute → verify → recover core loop.
 - [ ] Calibrate the complete loop on physical hardware after the device reconnects.
 
