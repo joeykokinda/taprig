@@ -32,6 +32,8 @@ Percentages describe demonstrated functionality, not lines of code.
   stays as the per-phone fallback.
 - [x] Implement the bounded observe → decide → execute → verify → recover core loop.
 - [ ] Calibrate the complete loop on physical hardware after the device reconnects.
+  Emulator calibration done 2026-11-07 (Settings search, Dark theme, Clock), which
+  drove the live-screen stale-check and stable-selector fixes.
 
 ## P1 — usable local product
 
@@ -40,6 +42,9 @@ Percentages describe demonstrated functionality, not lines of code.
 - [x] Make CLI commands clients of the daemon instead of direct ADB callers.
 - [x] Build interactive `taprig` task session and `attach` flow.
 - [x] Add model-provider configuration and Economy/Balanced/Best routing.
+- [x] Support the Claude API, signed-in Claude Code and Codex CLIs, and OpenAI, with
+  automatic detection. Validated end to end on an Android 34 emulator.
+- [x] Vision fallback: screenshots on thin screens with normalized coordinate taps.
 - [x] Persist provider calls, tokens, decisions, actions, and runtime per run.
 - [x] Enforce durable per-run model-call and attempted-action budgets.
 - [x] Recover interrupted runs and fleet plans after daemon restart.
@@ -65,6 +70,8 @@ Percentages describe demonstrated functionality, not lines of code.
 - [x] Capability-aware phone assignment for agent and coordinated work.
 - [x] Persist named device groups and enforce immutable per-run affinity.
 - [x] MCP adapter over the same daemon API.
+- [x] Agent-facing MCP observe/act/screenshot and `taprig connect claude|codex`.
+  Validated by Claude Code setting a Clock alarm on the emulator.
 - [ ] Signed macOS, Windows, and Linux installers.
 - [x] Build unsigned Linux, Windows, and Intel macOS previews in GitHub Actions.
 - [ ] GitHub Release download automation and checksums.

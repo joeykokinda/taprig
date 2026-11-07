@@ -88,6 +88,22 @@ Recent commits:
 ea0bb85 add private run artifacts and export
 ```
 
+## Plug-and-play agent paths (2026-11-07)
+
+- `taprig setup` detects a model: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, then a
+  signed-in `claude` or `codex` CLI (`src/models/providers.ts`). No key is needed
+  for subscription users.
+- `taprig run` follows the run; `--detach` returns immediately.
+- Claude Code/Codex can be the agent themselves through MCP `taprig_observe`,
+  `taprig_act`, and `taprig_screenshot`; `taprig connect claude|codex` registers it.
+- Emulator end-to-end: `~/Android/Sdk` has an `taprig34` AVD (Android 34 x86_64);
+  start it with `emulator -avd taprig34 -no-window -gpu swiftshader_indirect`.
+  Unset `CLAUDECODE*` env vars when launching the daemon from inside Claude Code.
+- Live-screen lessons: whole-screen generation checks rejected most model actions
+  because screens change during the model's think time. Only coordinate taps and
+  positional element IDs need the exact screen now; the decider swaps element IDs
+  for unique semantic selectors and sees its recent actions.
+
 ## Android instrumentation driver
 
 The event driver is implemented and physically validated on the Brach Moto G Play
