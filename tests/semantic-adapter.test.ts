@@ -38,7 +38,29 @@ test("executes, observes, verifies, and deduplicates a semantic tap batch", asyn
 
 test("rejects stale input and fails closed when postcondition evidence is unchanged", async () => {
   const stale = new AndroidSemanticAdapter(async () => observation("current"));
-  await assert.rejects(stale.execute(batch), /stale observation before/);
+  await assert.rejects(
+    stale.execute({
+      ...batch,
+      steps: [{ id: "open", action: { type: "element.tap", target: { elementId: "node-3" } } }],
+    }),
+    /stale observation before/,
+  );
+  await assert.rejects(
+    stale.execute({
+      ...batch,
+      requestId: "tap",
+      steps: [{ id: "tap", action: { type: "gesture.tap", x: 1, y: 1 } }],
+    }),
+    /stale observation before/,
+  );
+
+  // A semantic selector resolves against the live screen, so a moved generation is fine.
+  const observations = [observation("current"), observation("after")];
+  const live = new AndroidSemanticAdapter(
+    async () => observations.shift() ?? observation("after"),
+    async () => {},
+  );
+  assert.equal((await live.execute(batch)).steps[0]?.status, "verified");
 
   const unchanged = new AndroidSemanticAdapter(
     async () => observation("before"),

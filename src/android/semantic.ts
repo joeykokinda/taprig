@@ -50,7 +50,15 @@ export function parseUiHierarchy(
   capturedAt = new Date().toISOString(),
 ): Observation {
   const xmlStart = output.indexOf("<?xml");
-  if (xmlStart < 0) throw new Error("UIAutomator returned no XML hierarchy");
+  if (xmlStart < 0) {
+    // Stock UIAutomator refuses to dump while anything animates (a ticking timer notification,
+    // a video); the TapRig driver has no idle requirement.
+    throw new Error(
+      /idle state/u.test(output)
+        ? "UIAutomator could not dump a screen that never goes idle (animation or ticking notification); build the TapRig driver with npm run build:driver"
+        : "UIAutomator returned no XML hierarchy",
+    );
+  }
   const xml = output.slice(xmlStart);
   const tokens = [...xml.matchAll(/<node\b([^>]*)\/?\s*>|<\/node>/gu)];
   const nodeCount = tokens.filter((token) => !token[0].startsWith("</")).length;

@@ -106,6 +106,9 @@ function printRuns(runs: readonly RunState[]): void {
 }
 
 function formatRunEvent(event: RunEvent): string {
+  if (event.type === "run.failed") {
+    return `run.failed ${event.error.code}: ${event.error.message}`;
+  }
   if (event.type !== "run.trace") return event.type;
   const trace = event.trace;
   if (trace.phase === "observation") {

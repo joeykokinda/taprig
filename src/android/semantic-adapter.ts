@@ -16,6 +16,11 @@ type Tap = typeof tapSemanticElement;
 type Text = typeof typeSemanticElement;
 type Raw = (deviceId: DeviceId, action: Action) => Promise<void>;
 
+export function needsExactScreen(action: Action): boolean {
+  if (action.type === "gesture.tap") return true;
+  return "target" in action && "elementId" in action.target;
+}
+
 function failure(code: TapRigError["code"], message: string): TapRigError {
   return { code, message, retryable: code === "verification-failed" };
 }
@@ -48,8 +53,13 @@ export class AndroidSemanticAdapter implements DeviceAdapter {
     const previous = this.#results.get(key);
     if (previous) return { ...previous, replayed: true };
 
+    // Same rule as the driver: semantic selectors resolve against this fresh observation, so only
+    // coordinates and positional element IDs require the exact screen the planner saw.
     let observation = await this.observe(batch.deviceId);
-    if (observation.generation !== batch.observationGeneration) {
+    if (
+      observation.generation !== batch.observationGeneration &&
+      batch.steps.some(({ action }) => needsExactScreen(action))
+    ) {
       throw new Error(`stale observation ${batch.observationGeneration}`);
     }
 

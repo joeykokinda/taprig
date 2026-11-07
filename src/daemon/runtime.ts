@@ -137,8 +137,10 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
   const settings = new SettingsService(join(dirname(databasePath), "settings.json"));
   const runs = new RunService(store);
   const groups = new DeviceGroupService(store);
+  // An empty TAPRIG_DRIVER_DIR turns the driver off and keeps every phone on UIAutomator.
+  const configuredBundle = options.driverBundleDirectory ?? process.env.TAPRIG_DRIVER_DIR;
   const driverBundleDirectory =
-    options.driverBundleDirectory ?? process.env.TAPRIG_DRIVER_DIR ?? installedDriverBundle();
+    configuredBundle === "" ? undefined : (configuredBundle ?? installedDriverBundle());
   // Without a verified bundle every phone stays on the UIAutomator fallback.
   const drivers = driverBundleDirectory
     ? new AndroidDriverManager({

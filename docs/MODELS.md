@@ -2,12 +2,12 @@
 
 ## Providers
 
-| Provider    | Name in `models.json` | Needs                         |
-| ----------- | --------------------- | ----------------------------- |
-| Claude API  | `anthropic`           | `ANTHROPIC_API_KEY`           |
-| OpenAI API  | `openai`              | `OPENAI_API_KEY`              |
-| Claude Code | `claude`              | a signed-in `claude` CLI      |
-| Codex       | `codex`               | a signed-in `codex` CLI       |
+| Provider    | Name in `models.json` | Needs                    |
+| ----------- | --------------------- | ------------------------ |
+| Claude API  | `anthropic`           | `ANTHROPIC_API_KEY`      |
+| OpenAI API  | `openai`              | `OPENAI_API_KEY`         |
+| Claude Code | `claude`              | a signed-in `claude` CLI |
+| Codex       | `codex`               | a signed-in `codex` CLI  |
 
 A fresh install picks the first available in that order, and a daemon whose
 configured provider is unusable falls back to an available one and logs it.
