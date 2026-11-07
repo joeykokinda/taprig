@@ -195,6 +195,18 @@ export class AndroidDriverSession implements DeviceAdapter {
       options.testApk,
       options.testSha256,
     );
+    // A crashed or killed daemon can leave its forward behind; clear this phone's old ones.
+    const forwards = await options.host.adb(["forward", "--list"]).catch(() => "");
+    for (const line of forwards.split("\n")) {
+      const [serial, local, remote] = line.trim().split(/\s+/u);
+      if (
+        serial === options.serial &&
+        remote === `localabstract:${androidDriver.socket}` &&
+        local
+      ) {
+        await options.host.adb([...device, "forward", "--remove", local]).catch(() => undefined);
+      }
+    }
     const port = parseForwardPort(
       await options.host.adb([
         ...device,

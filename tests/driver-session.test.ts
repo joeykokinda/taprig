@@ -226,6 +226,30 @@ test("replaces a driver signed by another machine's key", async (context) => {
   await session.close();
 });
 
+test("clears this phone's stale driver forwards before enrolling", async (context) => {
+  const files = await artifacts(context);
+  const fake = fakeHost(() => snapshot);
+  const adb = fake.host.adb;
+  fake.host.adb = async (args) =>
+    args[0] === "forward" && args[1] === "--list"
+      ? "phone-1 tcp:1111 localabstract:taprig-driver\nphone-2 tcp:2222 localabstract:taprig-driver\nphone-1 tcp:3333 localabstract:scrcpy\n"
+      : adb(args);
+  const session = await AndroidDriverSession.enroll({
+    ...files,
+    serial: "phone-1",
+    host: fake.host,
+  });
+  assert.deepEqual(
+    fake.commands.filter((command) => command[2] === "forward" && command[3] === "--remove")[0],
+    ["-s", "phone-1", "forward", "--remove", "tcp:1111"],
+  );
+  assert.equal(
+    fake.commands.some((command) => command.includes("tcp:2222") || command.includes("tcp:3333")),
+    false,
+  );
+  await session.close();
+});
+
 test("rejects changed APKs before mutating a device", async (context) => {
   const files = await artifacts(context);
   const fake = fakeHost(() => ({}));

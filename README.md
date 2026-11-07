@@ -26,7 +26,7 @@ You need Node 24.12+, Android
 ```console
 git clone https://github.com/joeykokinda/taprig && cd taprig
 npm ci && npm link             # puts `taprig` on your PATH
-npm run build:driver           # optional, needs JDK 17-21 + Android SDK: fast event driver
+npm run build:driver           # optional: fast event driver (JDK 17-21, ANDROID_HOME set to an SDK)
 ```
 
 On the phone, enable Developer options and USB debugging, plug it in, unlock
