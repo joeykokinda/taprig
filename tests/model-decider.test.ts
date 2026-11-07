@@ -231,3 +231,74 @@ test("rejects an approval pause that violates autonomous policy", async () => {
     /violated the autonomous approval policy/,
   );
 });
+
+test("swaps positional element IDs for unique semantic selectors and scrolls by direction", async () => {
+  let sentInput = "";
+  const decide = createModelDecider(
+    "Open Display",
+    { provider: "openai", model: "test-model" },
+    { type: "openai", apiKeyEnv: "TEST_KEY", baseUrl: "https://example.test/v1" },
+    { TEST_KEY: "secret" },
+    async (_input, init) => {
+      sentInput = String(init?.body);
+      const step = (id: string, actionType: string, selectorType: string, value: string) => ({
+        id,
+        actionType,
+        selectorType,
+        value,
+        input: null,
+        role: null,
+      });
+      return new Response(
+        JSON.stringify({
+          output_text: JSON.stringify({
+            type: "execute",
+            evidence: null,
+            question: null,
+            approval: null,
+            reason: null,
+            steps: [
+              step("unique", "tap", "elementId", "node-2"),
+              step("repeated", "longTap", "elementId", "node-4"),
+              step("more", "scroll", "text", "down"),
+            ],
+          }),
+        }),
+        { status: 200 },
+      );
+    },
+  );
+  const decision = await decide({
+    decisionNumber: 1,
+    history: [
+      {
+        decisionNumber: 0,
+        steps: [{ action: { type: "key.press", key: "home" }, status: "verified" }],
+      },
+    ],
+    observation: {
+      deviceId: "phone-1",
+      generation: "two",
+      capturedAt: "2026-11-07T00:00:00.000Z",
+      elements: [
+        {
+          id: "node-0",
+          role: "FrameLayout",
+          actionable: false,
+          bounds: { left: 0, top: 0, right: 1000, bottom: 2000 },
+        },
+        { id: "node-1", role: "TextView", text: "Display", actionable: false },
+        { id: "node-2", role: "LinearLayout", text: "Display", actionable: true },
+        { id: "node-3", role: "Switch", text: "On", actionable: true },
+        { id: "node-4", role: "Switch", text: "On", actionable: true },
+      ],
+    },
+  });
+  assert.deepEqual(decision.type === "execute" ? decision.steps.map((step) => step.action) : [], [
+    { type: "element.tap", target: { text: "Display", role: "LinearLayout" } },
+    { type: "element.longTap", target: { elementId: "node-4" } },
+    { type: "gesture.swipe", from: { x: 500, y: 1500 }, to: { x: 500, y: 600 }, durationMs: 350 },
+  ]);
+  assert.match(sentInput, /recentActions/u);
+  assert.doesNotMatch(sentInput, /FrameLayout/u);
+});

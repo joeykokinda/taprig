@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { Selector } from "../core/contracts.ts";
 import type { ModelTarget, ProviderConfig } from "../models/config.ts";
 import { createStructuredProvider } from "../models/providers.ts";
 import type { RecordModelUsage } from "../models/usage.ts";
@@ -96,7 +97,50 @@ function screenBounds(context: AgentContext): Bounds {
   return screen;
 }
 
-function parseDecision(value: unknown, screen: Bounds): AgentDecision {
+type ObservedElement = AgentContext["observation"]["elements"][number];
+
+// Mirrors driver resolution: actionable matches win, and a selector is usable only if it is unique.
+function resolvesUniquely(
+  elements: readonly ObservedElement[],
+  selector: Selector,
+  id: string,
+): boolean {
+  const matches = elements.filter((element) =>
+    "resourceId" in selector
+      ? element.resourceId === selector.resourceId
+      : "description" in selector
+        ? element.description === selector.description
+        : "text" in selector
+          ? element.text === selector.text && (!selector.role || element.role === selector.role)
+          : false,
+  );
+  const actionable = matches.filter((element) => element.actionable);
+  const candidates = actionable.length > 0 ? actionable : matches;
+  return candidates.length === 1 && candidates[0]?.id === id;
+}
+
+/**
+ * Element IDs are positions in one snapshot and go stale as soon as the screen moves. Swap them
+ * for an equivalent semantic selector, which the driver can re-resolve on the live screen.
+ */
+export function stableSelector(elements: readonly ObservedElement[], elementId: string): Selector {
+  const element = elements.find((candidate) => candidate.id === elementId);
+  if (!element) return { elementId };
+  const options: Selector[] = [
+    ...(element.resourceId ? [{ resourceId: element.resourceId }] : []),
+    ...(element.text ? [{ text: element.text, role: element.role }] : []),
+    ...(element.description ? [{ description: element.description }] : []),
+  ];
+  return (
+    options.find((selector) => resolvesUniquely(elements, selector, element.id)) ?? { elementId }
+  );
+}
+
+function parseDecision(
+  value: unknown,
+  screen: Bounds,
+  elements: readonly ObservedElement[] = [],
+): AgentDecision {
   const decision = value as Partial<ModelDecision>;
   if (decision.type === "complete" && decision.evidence?.trim()) {
     return { type: "complete", evidence: decision.evidence.trim() };
@@ -142,7 +186,7 @@ function parseDecision(value: unknown, screen: Bounds): AgentDecision {
           : step.selectorType === "resourceId"
             ? { resourceId: value }
             : step.selectorType === "elementId"
-              ? { elementId: value }
+              ? stableSelector(elements, value)
               : undefined;
     if (!target) throw new Error("model returned an invalid selector");
     if (step.actionType === "text") {
@@ -193,6 +237,7 @@ export function createModelDecider(
           actionable: element.actionable,
         })),
       previousBatch: context.previousBatch,
+      recentActions: context.history,
     };
     let attempted = false;
     const provider = createStructuredProvider(providerConfig, environment, request);
@@ -204,14 +249,18 @@ export function createModelDecider(
         ...(target.reasoningEffort ? { reasoningEffort: target.reasoningEffort } : {}),
         schemaName: "taprig_phone_decision",
         schema: decisionSchema,
-        system: `You control one Android phone with typed launch, key, scroll, semantic tap, long-tap, and text-entry actions. For tap/longTap/text choose only a visible selector in value, preferring elementId; for text put the exact text in input. For launch put the Android package name in value; for key put back, home, recents, enter, or delete; for scroll put down, up, left, or right to reveal content off screen. Set input null when unused. Take at most three short actions, then observe again. Mark complete only when the current UI visibly proves the user's task. Ask one precise question when required information is missing. ${approvalPolicy === "explicit" ? "Request approval only when the user's task explicitly requires confirmation before a consequential action." : "Never request approval; the owner selected uninterrupted autonomous execution."} Never repeat sensitive input in evidence and never guess success.`,
+        system: `You control one Android phone with typed launch, key, scroll, semantic tap, long-tap, and text-entry actions. For tap/longTap/text choose only a visible selector in value, preferring elementId; for text put the exact text in input. For launch put the Android package name in value; for key put back, home, recents, enter, or delete; for scroll put down, up, left, or right to reveal content off screen. Set input null when unused. Take at most three short actions, then observe again. recentActions lists your last batches with their outcomes; never repeat a sequence that already failed or looped. Mark complete only when the current UI visibly proves the user's task. Ask one precise question when required information is missing. ${approvalPolicy === "explicit" ? "Request approval only when the user's task explicitly requires confirmation before a consequential action." : "Never request approval; the owner selected uninterrupted autonomous execution."} Never repeat sensitive input in evidence and never guess success.`,
         input: JSON.stringify({ task, decisionNumber: context.decisionNumber, observation }),
       });
       usage = {
         inputTokens: response.inputTokens ?? 0,
         outputTokens: response.outputTokens ?? 0,
       };
-      const decision = parseDecision(response.value, screenBounds(context));
+      const decision = parseDecision(
+        response.value,
+        screenBounds(context),
+        context.observation.elements,
+      );
       if (approvalPolicy === "autonomous" && decision.type === "request_approval") {
         throw new Error("model violated the autonomous approval policy");
       }

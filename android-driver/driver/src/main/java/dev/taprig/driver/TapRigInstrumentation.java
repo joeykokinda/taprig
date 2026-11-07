@@ -193,11 +193,16 @@ public final class TapRigInstrumentation extends Instrumentation {
         if (expectedGeneration.trim().isEmpty()) {
             throw new DriverError("invalid-request", "expectedGeneration is required");
         }
+        String before;
         try (TreeState state = capture()) {
-            if (!state.generation.equals(expectedGeneration)) {
+            before = state.generation;
+            String type = action.optString("type", "");
+            // Agents decide for seconds while screens animate. Only actions whose meaning depends on the
+            // exact earlier layout (coordinates, positional element IDs) require that layout; semantic
+            // selectors are resolved against the live tree and global actions mean the same anywhere.
+            if (!before.equals(expectedGeneration) && needsExactScreen(type, action)) {
                 throw new DriverError("stale-observation", "phone state changed before action");
             }
-            String type = action.optString("type", "");
             boolean dispatched = switch (type) {
                 case "element.tap" -> tap(resolve(state, requiredObject(action, "target")), false);
                 case "element.longTap" -> tap(resolve(state, requiredObject(action, "target")), true);
@@ -214,7 +219,7 @@ public final class TapRigInstrumentation extends Instrumentation {
             if (!dispatched) throw new DriverError("verification-failed", "Android rejected the action");
         }
 
-        JSONObject next = waitForChange(expectedGeneration, ACTION_WAIT_MS);
+        JSONObject next = waitForChange(before, ACTION_WAIT_MS);
         if (!next.getBoolean("changed")) {
             throw new DriverError("verification-failed", "phone state did not change after action");
         }
@@ -229,6 +234,12 @@ public final class TapRigInstrumentation extends Instrumentation {
         return new JSONObject()
                 .put("generation", snapshot.getString("generation"))
                 .put("evidence", "ui changed; foreground " + snapshot.optString("foregroundPackage", "unknown"));
+    }
+
+    private static boolean needsExactScreen(String type, JSONObject action) {
+        if ("gesture.tap".equals(type)) return true;
+        JSONObject target = action.optJSONObject("target");
+        return target != null && target.has("elementId");
     }
 
     private TreeState capture() throws Exception {

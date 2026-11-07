@@ -171,6 +171,7 @@ export type RunTrace =
         stepId: string;
         actionType: Action["type"];
         status: StepStatus;
+        errorCode?: ErrorCode;
       }[];
     };
 

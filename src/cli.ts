@@ -113,7 +113,7 @@ function formatRunEvent(event: RunEvent): string {
   if (trace.phase === "decision") {
     return `DECIDE ${trace.deviceId} #${trace.decisionNumber} ${trace.decisionType} ${trace.actionCount} actions`;
   }
-  return `ACT ${trace.deviceId} ${trace.requestId} ${trace.steps.map((step) => `${step.actionType}:${step.status}`).join(", ")}`;
+  return `ACT ${trace.deviceId} ${trace.requestId} ${trace.steps.map((step) => `${step.actionType}:${step.status}${step.errorCode ? `(${step.errorCode})` : ""}`).join(", ")}`;
 }
 
 async function showRun(id: string): Promise<void> {

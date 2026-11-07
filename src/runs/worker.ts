@@ -256,6 +256,8 @@ export class RunWorker {
             stepId: step.id,
             actionType: step.action.type,
             status: result.steps[index]?.status ?? "failed",
+            // Codes only: messages can quote screen text the run must not retain.
+            ...(result.steps[index]?.error ? { errorCode: result.steps[index].error.code } : {}),
           })),
         });
         return result;

@@ -13,10 +13,17 @@ export type AgentDecision =
   | { type: "request_approval"; prompt: string }
   | { type: "fail"; reason: string };
 
+export interface AgentHistoryEntry {
+  decisionNumber: number;
+  steps: readonly { action: ActionStep["action"]; status: string; errorCode?: string }[];
+}
+
 export interface AgentContext {
   observation: Observation;
   decisionNumber: number;
   previousBatch?: BatchResult;
+  /** Recent batches, oldest first, so the planner can see and break its own loops. */
+  history?: readonly AgentHistoryEntry[];
 }
 
 export type AgentLoopResult =
@@ -49,6 +56,7 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
   }
 
   let previousBatch: BatchResult | undefined;
+  const history: AgentHistoryEntry[] = [];
   const executedActions: ActionStep[] = [];
   let failedBatches = 0;
   let previousFailure: { generation: string; actions: string } | undefined;
@@ -63,6 +71,7 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
       observation,
       decisionNumber,
       ...(previousBatch ? { previousBatch } : {}),
+      ...(history.length > 0 ? { history: history.slice(-8) } : {}),
     };
     const decision = await options.decide(context);
     if (decision.type === "complete") {
@@ -117,6 +126,17 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
       deviceId: options.deviceId,
       observationGeneration: observation.generation,
       steps: decision.steps,
+    });
+    history.push({
+      decisionNumber,
+      steps: decision.steps.map((step, index) => {
+        const result = previousBatch?.steps[index];
+        return {
+          action: step.action,
+          status: result?.status ?? "failed",
+          ...(result?.error ? { errorCode: result.error.code } : {}),
+        };
+      }),
     });
     for (const [index, result] of previousBatch.steps.entries()) {
       const step = decision.steps[index];
