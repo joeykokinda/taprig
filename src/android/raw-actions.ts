@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
-import type { Action } from "../core/contracts.ts";
+import type { Action, Selector } from "../core/contracts.ts";
 
 const execFileAsync = promisify(execFile);
 
@@ -24,6 +24,46 @@ const keyCodes = {
   enter: "KEYCODE_ENTER",
   delete: "KEYCODE_DEL",
 } as const;
+
+function parseSelector(value: unknown): Selector {
+  const selector = value as Record<string, unknown> | undefined;
+  const text = (key: string) => {
+    const candidate = selector?.[key];
+    return typeof candidate === "string" && candidate.length > 0 && candidate.length <= 2_000
+      ? candidate
+      : undefined;
+  };
+  const elementId = text("elementId");
+  if (elementId) return { elementId };
+  const resourceId = text("resourceId");
+  if (resourceId) return { resourceId };
+  const description = text("description");
+  if (description) return { description };
+  const label = text("text");
+  const role = text("role");
+  if (label) return { text: label, ...(role ? { role } : {}) };
+  throw new Error("selector needs elementId, resourceId, description, or text");
+}
+
+/** Raw actions plus semantic element actions, validated at the daemon boundary. */
+export function parseAction(value: unknown): Action {
+  const action = value as Record<string, unknown> | undefined;
+  if (action?.type === "element.tap" || action?.type === "element.longTap") {
+    return { type: action.type, target: parseSelector(action.target) };
+  }
+  if (action?.type === "element.text") {
+    if (typeof action.value !== "string" || action.value.length > 10_000) {
+      throw new Error("text value must be a string up to 10000 characters");
+    }
+    return {
+      type: "element.text",
+      target: parseSelector(action.target),
+      value: action.value,
+      ...(typeof action.clear === "boolean" ? { clear: action.clear } : {}),
+    };
+  }
+  return parseRawAction(value);
+}
 
 export function parseRawAction(value: unknown): Action {
   if (!value || typeof value !== "object") throw new Error("action must be an object");

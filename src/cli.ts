@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 
+import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 
 import { type AdbDevice, formatAdbDevices } from "./android/adb-discovery.ts";
@@ -17,11 +19,15 @@ import { diagnoseAdbDevices, formatDoctorFindings } from "./doctor.ts";
 import { parseExecuteCommand } from "./execute-command.ts";
 import { serveTapRigMcp } from "./mcp/server.ts";
 import {
+  defaultProviders,
   loadOrCreateModelConfig,
   type ModelProfileName,
   type ModelRole,
+  type ProviderName,
+  presetProfiles,
   saveModelConfig,
 } from "./models/config.ts";
+import { providerReady, providerRequirement } from "./models/providers.ts";
 import { parseRunCommand, parseRunMode } from "./run-command.ts";
 import type { ScriptRunResult, TapRigScript } from "./scripts/contracts.ts";
 import type { TapRigSettings } from "./settings.ts";
@@ -30,7 +36,8 @@ interface SetupStatus {
   status: "ready" | "needs-attention";
   platform: string;
   modelProfile: string | null;
-  modelKeyEnv: string | null;
+  modelProvider: string | null;
+  modelRequirement: string | null;
   agentConfigured: boolean;
   hasRuns: boolean;
   devices: {
@@ -150,6 +157,38 @@ async function showRun(id: string): Promise<void> {
     process.stdout.write(
       `  telemetry  ${telemetry.modelCalls} model / ${telemetry.decisionCalls} decisions / ${telemetry.inputTokens + telemetry.outputTokens} tokens / ${telemetry.attemptedActions} actions / ${telemetry.elapsedMs}ms\n`,
     );
+  }
+}
+
+// Streams a run's events until it finishes or needs the user, so `taprig run` reads like a session.
+async function followRun(id: string): Promise<void> {
+  let printed = 0;
+  for (;;) {
+    const [{ run }, { events }] = await Promise.all([
+      daemonJson<{ run: RunState }>(`/runs/${encodeURIComponent(id)}`),
+      daemonJson<{ events: Array<{ sequence: number; event: RunEvent }> }>(
+        `/runs/${encodeURIComponent(id)}/events`,
+      ),
+    ]);
+    for (const item of events.filter(({ sequence }) => sequence > printed)) {
+      process.stdout.write(`  ${formatRunEvent(item.event)}\n`);
+      printed = item.sequence;
+    }
+    if (["completed", "failed", "stopped"].includes(run.status)) {
+      process.stdout.write(`${run.status}\n`);
+      if (run.status !== "completed") process.exitCode = 1;
+      return;
+    }
+    if (run.status === "waiting-for-user" || run.status === "paused") {
+      await showRun(id);
+      process.stdout.write(
+        run.status === "paused"
+          ? `Paused. Continue with: taprig resume ${id}\n`
+          : `Waiting for you. Answer with: taprig answer ${id} <question-id> "<answer>"  (or taprig approve/deny)\n`,
+      );
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1000));
   }
 }
 
@@ -317,8 +356,8 @@ async function main(): Promise<void> {
     );
     process.stdout.write(
       setup.agentConfigured
-        ? `[ok] Agent is configured (${setup.modelProfile ?? "default"} profile)\n`
-        : `[  ] Agent configured — set ${setup.modelKeyEnv ?? "the provider API key"} in the daemon environment, then restart it\n`,
+        ? `[ok] Agent is configured (${setup.modelProvider ?? "model"}, ${setup.modelProfile ?? "default"} profile)\n`
+        : `[  ] Agent configured — ${setup.modelRequirement ?? "set ANTHROPIC_API_KEY or OPENAI_API_KEY, or sign in to the claude or codex CLI"}, then restart the daemon\n`,
     );
     process.stdout.write(
       setup.hasRuns ? "[ok] First run created\n" : '[  ] First run — taprig run "Open Settings"\n',
@@ -328,6 +367,28 @@ async function main(): Promise<void> {
         ? "\nReady. Run taprig ui or type taprig for the interactive shell.\n"
         : "\nComplete the unchecked steps, then run taprig onboard again.\n",
     );
+    process.stdout.write(
+      "Drive phones from Claude Code or Codex too: taprig connect claude | taprig connect codex\n",
+    );
+    return;
+  }
+  if (selectedCommand === "help" || selectedCommand === "--help" || selectedCommand === "-h") {
+    process.stdout.write(`TapRig: AI agents for real Android phones
+
+  taprig setup                      start the daemon and check phones and model access
+  taprig run "<task>"               run a natural-language task and follow it (--detach to return)
+  taprig runs | attach <run>        list runs or show one in full
+  taprig answer <run> <q> "<text>"  answer a question; approve|deny <run> <approval>
+  taprig pause|resume|stop|retry <run>
+  taprig devices | doctor           list phones or diagnose connection problems
+  taprig model show | use <openai|anthropic|claude|codex> | profile <economy|balanced|best>
+  taprig connect claude|codex       let Claude Code or Codex drive phones through MCP
+  taprig ui                         open the control room
+  taprig mcp                        serve the MCP adapter on stdio
+  taprig daemon start|stop|status
+
+Models: set ANTHROPIC_API_KEY or OPENAI_API_KEY, or sign in to the claude or codex CLI.
+`);
     return;
   }
   if (selectedCommand === "daemon") {
@@ -360,6 +421,28 @@ async function main(): Promise<void> {
     }
     throw new Error(`unknown daemon command: ${operation}`);
   }
+  if (selectedCommand === "connect") {
+    const agent = process.argv[3];
+    if (agent !== "claude" && agent !== "codex") {
+      throw new Error("connect requires claude or codex");
+    }
+    // Register this exact TapRig install, so the agent reaches the same daemon and data directory.
+    const launch = [process.execPath, resolve(process.argv[1] ?? "taprig"), "mcp"];
+    const environment = process.env.TAPRIG_DATA_DIR
+      ? [agent === "claude" ? "-e" : "--env", `TAPRIG_DATA_DIR=${process.env.TAPRIG_DATA_DIR}`]
+      : [];
+    const args =
+      agent === "claude"
+        ? ["mcp", "add", "--scope", "user", ...environment, "taprig", "--", ...launch]
+        : ["mcp", "add", ...environment, "taprig", "--", ...launch];
+    const result = spawnSync(agent, args, { stdio: "inherit" });
+    if (result.error) throw new Error(`${agent} CLI not found; install it first`);
+    if (result.status !== 0) throw new Error(`${agent} mcp add failed`);
+    process.stdout.write(
+      `${agent} can now use TapRig. Ask it, for example: "Use TapRig to open Settings on my phone".\n`,
+    );
+    return;
+  }
   if (selectedCommand === "model") {
     const operation = process.argv[3] ?? "show";
     const config = loadOrCreateModelConfig();
@@ -372,9 +455,22 @@ async function main(): Promise<void> {
       }
       for (const [name, provider] of Object.entries(config.providers)) {
         process.stdout.write(
-          `${name}: ${process.env[provider.apiKeyEnv] ? "configured" : `missing ${provider.apiKeyEnv}`}\n`,
+          `${name}: ${providerReady(provider) ? "ready" : providerRequirement(provider)}\n`,
         );
       }
+      return;
+    }
+    if (operation === "use") {
+      const provider = process.argv[4] as ProviderName | undefined;
+      if (!provider || !(provider in defaultProviders)) {
+        throw new Error("model use requires openai, anthropic, claude, or codex");
+      }
+      config.providers[provider] ??= defaultProviders[provider];
+      config.profiles = presetProfiles(provider);
+      saveModelConfig(config);
+      process.stdout.write(
+        `TapRig now uses ${provider}${providerReady(config.providers[provider]) ? "" : ` (${providerRequirement(config.providers[provider])} first)`}. Restart the daemon to apply.\n`,
+      );
       return;
     }
     if (operation === "profile") {
@@ -581,6 +677,7 @@ async function main(): Promise<void> {
       command.retainScreenshots,
     );
     process.stdout.write(`${run.id}\t${run.status}\n`);
+    if (!command.detach) await followRun(run.id);
     return;
   }
   if (selectedCommand === "runs") {

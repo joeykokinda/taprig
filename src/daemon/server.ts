@@ -3,10 +3,18 @@ import { readFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { isAbsolute, join } from "node:path";
 
-import { parseRawAction } from "../android/raw-actions.ts";
+import { parseAction, parseRawAction } from "../android/raw-actions.ts";
 import type { ArtifactService } from "../artifacts/service.ts";
 import { TakeoverLeases } from "../control/takeover.ts";
-import type { Action, DeviceCapability, RunBudget, RunMode } from "../core/contracts.ts";
+import type {
+  Action,
+  ActionBatch,
+  BatchResult,
+  DeviceCapability,
+  Observation,
+  RunBudget,
+  RunMode,
+} from "../core/contracts.ts";
 import type { DeviceGroupService } from "../devices/groups.ts";
 import type { RunService } from "../runs/service.ts";
 import type { ScriptService } from "../scripts/service.ts";
@@ -21,6 +29,16 @@ export interface DaemonDevice {
   capabilities?: readonly DeviceCapability[];
 }
 
+/** Keeps the elements an agent can name or act on, dropping layout-only nodes. */
+export function compactObservation(observation: Observation): Observation {
+  return {
+    ...observation,
+    elements: observation.elements.filter(
+      (element) => element.actionable || element.text || element.description || element.resourceId,
+    ),
+  };
+}
+
 export interface DeviceInventory {
   list(): Promise<readonly DaemonDevice[]>;
 }
@@ -28,6 +46,11 @@ export interface DeviceInventory {
 export interface TapRigDaemonOptions {
   token: string;
   devices: DeviceInventory;
+  /** Semantic control for external agents such as Claude Code or Codex over MCP. */
+  observe?: (deviceId: string) => Promise<Observation>;
+  executeBatch?: (batch: ActionBatch) => Promise<BatchResult>;
+  screenshot?: (deviceId: string) => Promise<Buffer>;
+  deviceBusy?: (deviceId: string) => boolean;
   host?: string;
   port?: number;
   execute?: (serial: string, action: Action) => Promise<void>;
@@ -52,7 +75,8 @@ export interface TapRigDaemonOptions {
   stream?: (serial: string) => Promise<LiveMjpegStream>;
   manualTap?: (serial: string, xRatio: number, yRatio: number) => Promise<void>;
   modelProfile?: string;
-  modelKeyEnv?: string;
+  modelProvider?: string;
+  modelRequirement?: string;
   settings?: SettingsService;
 }
 
@@ -258,7 +282,8 @@ export async function startDaemon(options: TapRigDaemonOptions): Promise<Running
             status: ready > 0 && options.startRun ? "ready" : "needs-attention",
             platform: process.platform,
             modelProfile: options.modelProfile ?? null,
-            modelKeyEnv: options.modelKeyEnv ?? null,
+            modelProvider: options.modelProvider ?? null,
+            modelRequirement: options.modelRequirement ?? null,
             agentConfigured: Boolean(options.startRun),
             hasRuns: (options.runs?.list().length ?? 0) > 0,
             devices: {
@@ -710,6 +735,86 @@ export async function startDaemon(options: TapRigDaemonOptions): Promise<Running
         }
         response.end(JSON.stringify({ run }));
         return;
+      }
+      const semanticRoute =
+        /^\/devices\/([^/]+)\/(observation|semantic-actions|screenshot\.png)$/u.exec(url.pathname);
+      if (semanticRoute?.[1] && semanticRoute[2]) {
+        const deviceId = decodeURIComponent(semanticRoute[1]);
+        const device = (await options.devices.list()).find(
+          (candidate) => candidate.id === deviceId,
+        );
+        if (device?.state !== "ready") {
+          response.statusCode = 409;
+          response.end(JSON.stringify({ error: "device-not-ready", state: device?.state ?? null }));
+          return;
+        }
+        if (request.method === "GET" && semanticRoute[2] === "observation" && options.observe) {
+          response.end(
+            JSON.stringify({ observation: compactObservation(await options.observe(deviceId)) }),
+          );
+          return;
+        }
+        if (
+          request.method === "GET" &&
+          semanticRoute[2] === "screenshot.png" &&
+          options.screenshot
+        ) {
+          response.setHeader("content-type", "image/png");
+          response.setHeader("cache-control", "no-store");
+          response.end(await options.screenshot(deviceId));
+          return;
+        }
+        if (
+          request.method === "POST" &&
+          semanticRoute[2] === "semantic-actions" &&
+          options.executeBatch &&
+          options.observe
+        ) {
+          if (options.deviceBusy?.(deviceId)) {
+            response.statusCode = 409;
+            response.end(JSON.stringify({ error: "device-busy-with-run" }));
+            return;
+          }
+          let batch: ActionBatch;
+          try {
+            const body = (await jsonBody(request)) as {
+              observationGeneration?: unknown;
+              steps?: unknown;
+            };
+            if (typeof body.observationGeneration !== "string" || !Array.isArray(body.steps)) {
+              throw new Error("observationGeneration and steps are required");
+            }
+            if (body.steps.length < 1 || body.steps.length > 10) {
+              throw new Error("steps must contain 1 to 10 actions");
+            }
+            batch = {
+              requestId: randomBytes(12).toString("hex"),
+              deviceId,
+              observationGeneration: body.observationGeneration,
+              steps: body.steps.map((step, index) => ({
+                id: `step-${index + 1}`,
+                action: parseAction((step as { action?: unknown })?.action ?? step),
+              })),
+            };
+          } catch (error) {
+            response.statusCode = 400;
+            response.end(
+              JSON.stringify({
+                error: "invalid-action",
+                message: error instanceof Error ? error.message : String(error),
+              }),
+            );
+            return;
+          }
+          const result = await options.executeBatch(batch);
+          response.end(
+            JSON.stringify({
+              result,
+              observation: compactObservation(await options.observe(deviceId)),
+            }),
+          );
+          return;
+        }
       }
       const actionRoute = /^\/devices\/([^/]+)\/actions$/u.exec(url.pathname);
       if (request.method === "POST" && actionRoute?.[1]) {

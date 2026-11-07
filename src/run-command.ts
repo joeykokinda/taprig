@@ -6,6 +6,7 @@ export interface RunCommand {
   group?: string;
   deviceIds?: string[];
   retainScreenshots?: boolean;
+  detach?: boolean;
   task: string;
 }
 
@@ -16,9 +17,16 @@ export function parseRunCommand(args: readonly string[]): RunCommand {
   const deviceIds: string[] = [];
   let index = 0;
   let retainScreenshots: boolean | undefined;
+  let detach = false;
   while (args[index]?.startsWith("--")) {
     const argument = args[index] as string;
     const [flag, inline] = argument.split("=", 2);
+    if (flag === "--detach") {
+      if (inline !== undefined) throw new Error("--detach does not take a value");
+      detach = true;
+      index += 1;
+      continue;
+    }
     if (flag === "--retain-screenshots" || flag === "--no-retain-screenshots") {
       if (inline !== undefined) throw new Error("--retain-screenshots does not take a value");
       retainScreenshots = flag === "--retain-screenshots";
@@ -43,6 +51,7 @@ export function parseRunCommand(args: readonly string[]): RunCommand {
     ...(group ? { group } : {}),
     ...(deviceIds.length > 0 ? { deviceIds } : {}),
     ...(retainScreenshots === undefined ? {} : { retainScreenshots }),
+    ...(detach ? { detach } : {}),
     task,
   };
 }

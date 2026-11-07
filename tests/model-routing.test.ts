@@ -14,7 +14,7 @@ import { routeModel } from "../src/models/router.ts";
 
 function openAiConfig() {
   const config = defaultModelConfig().providers.openai;
-  assert.ok(config);
+  assert.ok(config?.type === "openai");
   return config;
 }
 

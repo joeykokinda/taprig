@@ -11,10 +11,12 @@ import {
 } from "../android/driver/session.ts";
 import { AndroidDriverAdapter } from "../android/driver-adapter.ts";
 import { executeNormalizedTap, executeRawAction } from "../android/raw-actions.ts";
+import { captureAdbScreenshot } from "../android/screenshot.ts";
 import { AndroidSemanticAdapter } from "../android/semantic-adapter.ts";
 import { ArtifactService } from "../artifacts/service.ts";
 import { DeviceGroupService } from "../devices/groups.ts";
-import { loadOrCreateModelConfig } from "../models/config.ts";
+import { loadOrCreateModelConfig, usableModelConfig } from "../models/config.ts";
+import { providerReady, providerRequirement } from "../models/providers.ts";
 import { routeModel } from "../models/router.ts";
 import { dataDirectory } from "../paths.ts";
 import { TapRigStore } from "../persistence/store.ts";
@@ -154,7 +156,14 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
     new ScriptStore(join(dirname(databasePath), "scripts")),
     semanticAdapter,
   );
-  const modelConfig = loadOrCreateModelConfig(join(dirname(databasePath), "models.json"));
+  const usable = usableModelConfig(
+    loadOrCreateModelConfig(join(dirname(databasePath), "models.json")),
+    (candidate) => providerReady(candidate),
+  );
+  const modelConfig = usable.config;
+  if (usable.switchedTo) {
+    console.error(`taprig: configured model provider is unavailable; using ${usable.switchedTo}`);
+  }
   const route = routeModel(modelConfig, "fast", { strongCalls: 0, visionCalls: 0 });
   const coordinatorRoute =
     routeModel(modelConfig, "strong", { strongCalls: 0, visionCalls: 0 }) ?? route;
@@ -163,7 +172,7 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
     ? modelConfig.providers[coordinatorRoute.target.provider]
     : undefined;
   const worker =
-    route && provider && process.env[provider.apiKeyEnv]
+    route && provider && providerReady(provider)
       ? new RunWorker({
           runs,
           devices: registry,
@@ -178,7 +187,7 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
               recordUsage,
               settings.get().approvalPolicy,
             ),
-          ...(coordinatorRoute && coordinatorProvider && process.env[coordinatorProvider.apiKeyEnv]
+          ...(coordinatorRoute && coordinatorProvider && providerReady(coordinatorProvider)
             ? {
                 planCoordinated: (task, recordUsage) =>
                   createModelCoordinator(
@@ -220,6 +229,10 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
       token: options.token,
       devices: registry,
       execute: executeRawAction,
+      observe: (deviceId) => semanticAdapter.observe(deviceId),
+      executeBatch: (batch) => semanticAdapter.execute(batch),
+      screenshot: captureAdbScreenshot,
+      ...(worker ? { deviceBusy: (deviceId: string) => worker.busy(deviceId) } : {}),
       groups,
       artifacts,
       settings,
@@ -241,7 +254,8 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
         }),
       manualTap: executeNormalizedTap,
       modelProfile: modelConfig.selectedProfile,
-      ...(provider ? { modelKeyEnv: provider.apiKeyEnv } : {}),
+      ...(route ? { modelProvider: route.target.provider } : {}),
+      ...(provider ? { modelRequirement: providerRequirement(provider) } : {}),
     });
     schedulingEnabled = true;
     if (worker) scheduleDurableRuns(runs, worker, await registry.list());

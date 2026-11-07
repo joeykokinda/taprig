@@ -14,7 +14,10 @@ const text = (value: unknown) => ({
 async function json(request: RequestDaemon, path: string, init?: RequestInit): Promise<unknown> {
   const response = await request(path, init);
   const value = await response.json();
-  if (!response.ok) throw new Error(`TapRig daemon returned HTTP ${response.status}`);
+  if (!response.ok) {
+    const detail = value && typeof value === "object" ? JSON.stringify(value).slice(0, 500) : "";
+    throw new Error(`TapRig daemon returned HTTP ${response.status} ${detail}`.trim());
+  }
   return value;
 }
 
@@ -34,6 +37,24 @@ const action = z.discriminatedUnion("type", [
     from: z.object({ x: z.number().int().nonnegative(), y: z.number().int().nonnegative() }),
     to: z.object({ x: z.number().int().nonnegative(), y: z.number().int().nonnegative() }),
     durationMs: z.number().int().min(1).max(60_000),
+  }),
+]);
+
+const selector = z.union([
+  z.object({ elementId: z.string().min(1).max(200) }),
+  z.object({ resourceId: z.string().min(1).max(500) }),
+  z.object({ description: z.string().min(1).max(2_000) }),
+  z.object({ text: z.string().min(1).max(2_000), role: z.string().min(1).max(200).optional() }),
+]);
+
+const semanticAction = z.union([
+  action,
+  z.object({ type: z.enum(["element.tap", "element.longTap"]), target: selector }),
+  z.object({
+    type: z.literal("element.text"),
+    target: selector,
+    value: z.string().max(10_000),
+    clear: z.boolean().optional(),
   }),
 ]);
 
@@ -135,6 +156,59 @@ export function createTapRigMcpServer(request: RequestDaemon = daemonRequest): M
           method: "POST",
         }),
       ),
+  );
+  server.registerTool(
+    "taprig_observe",
+    {
+      description:
+        "Read one ready phone's current screen as semantic elements (id, role, text, description, resourceId, actionable, bounds) plus foregroundPackage and generation. Use before taprig_act.",
+      inputSchema: z.object({ deviceId: z.string().min(1).max(300) }),
+      annotations: { readOnlyHint: true },
+    },
+    async ({ deviceId }) =>
+      text(await json(request, `/devices/${encodeURIComponent(deviceId)}/observation`)),
+  );
+  server.registerTool(
+    "taprig_act",
+    {
+      description:
+        "Run 1-10 actions on one phone against the generation from taprig_observe. Prefer element actions with an elementId target; each step is verified by a UI change, a failed step skips the rest, and the result includes the fresh observation. Fails with stale-observation if the screen changed first.",
+      inputSchema: z.object({
+        deviceId: z.string().min(1).max(300),
+        observationGeneration: z.string().min(1).max(256),
+        steps: z.array(semanticAction).min(1).max(10),
+      }),
+    },
+    async ({ deviceId, observationGeneration, steps }) =>
+      text(
+        await json(request, `/devices/${encodeURIComponent(deviceId)}/semantic-actions`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ observationGeneration, steps }),
+        }),
+      ),
+  );
+  server.registerTool(
+    "taprig_screenshot",
+    {
+      description:
+        "Capture one phone's screen as a PNG for visual surfaces the semantic tree cannot describe (games, canvases, images).",
+      inputSchema: z.object({ deviceId: z.string().min(1).max(300) }),
+      annotations: { readOnlyHint: true },
+    },
+    async ({ deviceId }) => {
+      const response = await request(`/devices/${encodeURIComponent(deviceId)}/screenshot.png`);
+      if (!response.ok) throw new Error(`TapRig daemon returned HTTP ${response.status}`);
+      return {
+        content: [
+          {
+            type: "image" as const,
+            data: Buffer.from(await response.arrayBuffer()).toString("base64"),
+            mimeType: "image/png",
+          },
+        ],
+      };
+    },
   );
   server.registerTool(
     "taprig_action",

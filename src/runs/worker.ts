@@ -89,6 +89,11 @@ class RunInterruptedError extends Error {}
 export class RunWorker {
   readonly #active = new Map<string, Promise<void>>();
   readonly #leasedDevices = new Set<string>();
+
+  /** Whether a run currently holds this phone. */
+  busy(deviceId: string): boolean {
+    return this.#leasedDevices.has(deviceId);
+  }
   readonly #leaseWaiters = new Set<() => void>();
   readonly #runs: RunService;
   readonly #devices: DeviceInventory;

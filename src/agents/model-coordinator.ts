@@ -1,5 +1,5 @@
-import type { ModelTarget, OpenAiProviderConfig } from "../models/config.ts";
-import { OpenAiResponsesProvider } from "../models/openai.ts";
+import type { ModelTarget, ProviderConfig } from "../models/config.ts";
+import { createStructuredProvider } from "../models/providers.ts";
 import type { RecordModelUsage } from "../models/usage.ts";
 import type { CoordinatedPlan } from "../orchestration/coordinated.ts";
 import { validateCoordinatedPlan } from "../orchestration/coordinated.ts";
@@ -60,19 +60,17 @@ type ModelPlan = {
 
 export function createModelCoordinator(
   target: ModelTarget,
-  providerConfig: OpenAiProviderConfig,
+  providerConfig: ProviderConfig,
   environment: NodeJS.ProcessEnv = process.env,
   request: typeof fetch = fetch,
   recordUsage?: RecordModelUsage,
 ): (task: string) => Promise<CoordinatedPlan> {
   return async (task) => {
     let attempted = false;
-    const provider = new OpenAiResponsesProvider(providerConfig, environment, (input, init) => {
-      attempted = true;
-      return request(input, init);
-    });
+    const provider = createStructuredProvider(providerConfig, environment, request);
     let usage = { inputTokens: 0, outputTokens: 0 };
     try {
+      attempted = true;
       const response = await provider.structured({
         model: target.model,
         ...(target.reasoningEffort ? { reasoningEffort: target.reasoningEffort } : {}),

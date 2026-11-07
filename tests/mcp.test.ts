@@ -26,11 +26,14 @@ test("MCP lists and calls the daemon-backed TapRig tools", async (context) => {
 
   const tools = await client.listTools();
   assert.deepEqual(tools.tools.map(({ name }) => name).sort(), [
+    "taprig_act",
     "taprig_action",
     "taprig_approval",
     "taprig_devices",
+    "taprig_observe",
     "taprig_run",
     "taprig_run_control",
+    "taprig_screenshot",
     "taprig_task",
   ]);
   const inventory = await client.callTool({ name: "taprig_devices", arguments: {} });
@@ -66,10 +69,39 @@ test("MCP lists and calls the daemon-backed TapRig tools", async (context) => {
     "POST /runs/run-1/approvals/approval-1/resolve",
   ]);
   assert.deepEqual(bodies.at(-1), { decision: "approved" });
+
   assert.deepEqual(bodies.at(-2), {
     task: "Open Settings",
     mode: "coordinated",
     budget: { maxModelCalls: 4, maxActions: 10 },
     group: "social",
+  });
+  await client.callTool({ name: "taprig_observe", arguments: { deviceId: "phone-1" } });
+  await client.callTool({
+    name: "taprig_act",
+    arguments: {
+      deviceId: "phone-1",
+      observationGeneration: "g1",
+      steps: [
+        { type: "element.tap", target: { elementId: "node-4" } },
+        { type: "element.text", target: { text: "Search" }, value: "café", clear: true },
+      ],
+    },
+  });
+  const rejected = await client.callTool({
+    name: "taprig_act",
+    arguments: { deviceId: "phone-1", observationGeneration: "g1", steps: [{ type: "shell" }] },
+  });
+  assert.equal(rejected.isError, true);
+  assert.deepEqual(calls.slice(-2), [
+    "GET /devices/phone-1/observation",
+    "POST /devices/phone-1/semantic-actions",
+  ]);
+  assert.deepEqual(bodies.at(-1), {
+    observationGeneration: "g1",
+    steps: [
+      { type: "element.tap", target: { elementId: "node-4" } },
+      { type: "element.text", target: { text: "Search" }, value: "café", clear: true },
+    ],
   });
 });

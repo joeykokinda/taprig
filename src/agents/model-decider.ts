@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import type { ModelTarget, OpenAiProviderConfig } from "../models/config.ts";
-import { OpenAiResponsesProvider } from "../models/openai.ts";
+import type { ModelTarget, ProviderConfig } from "../models/config.ts";
+import { createStructuredProvider } from "../models/providers.ts";
 import type { RecordModelUsage } from "../models/usage.ts";
 import type { ApprovalPolicy } from "../settings.ts";
 import type { AgentContext, AgentDecision } from "./loop.ts";
@@ -27,7 +27,10 @@ const decisionSchema = {
         required: ["id", "actionType", "selectorType", "value", "input", "role"],
         properties: {
           id: { type: "string", minLength: 1, maxLength: 80 },
-          actionType: { type: "string", enum: ["tap", "text", "launch", "key"] },
+          actionType: {
+            type: "string",
+            enum: ["tap", "longTap", "text", "launch", "key", "scroll"],
+          },
           selectorType: {
             type: "string",
             enum: ["text", "description", "resourceId", "elementId"],
@@ -49,7 +52,7 @@ type ModelDecision = {
   reason: string | null;
   steps: Array<{
     id: string;
-    actionType: "tap" | "text" | "launch" | "key";
+    actionType: "tap" | "longTap" | "text" | "launch" | "key" | "scroll";
     selectorType: "text" | "description" | "resourceId" | "elementId";
     value: string;
     input: string | null;
@@ -57,7 +60,43 @@ type ModelDecision = {
   }>;
 };
 
-function parseDecision(value: unknown): AgentDecision {
+type Bounds = NonNullable<AgentContext["observation"]["elements"][number]["bounds"]>;
+
+// Finger moves against the scroll direction: scrolling down drags from low on the screen to high.
+function scrollGesture(direction: string, screen: Bounds) {
+  const width = screen.right - screen.left;
+  const height = screen.bottom - screen.top;
+  const at = (x: number, y: number) => ({
+    x: Math.round(screen.left + width * x),
+    y: Math.round(screen.top + height * y),
+  });
+  const gestures: Record<string, [ReturnType<typeof at>, ReturnType<typeof at>]> = {
+    down: [at(0.5, 0.75), at(0.5, 0.3)],
+    up: [at(0.5, 0.3), at(0.5, 0.75)],
+    right: [at(0.8, 0.5), at(0.2, 0.5)],
+    left: [at(0.2, 0.5), at(0.8, 0.5)],
+  };
+  const gesture = gestures[direction];
+  if (!gesture) throw new Error("model returned an invalid scroll direction");
+  return { type: "gesture.swipe" as const, from: gesture[0], to: gesture[1], durationMs: 350 };
+}
+
+function screenBounds(context: AgentContext): Bounds {
+  let screen: Bounds = { left: 0, top: 0, right: 720, bottom: 1600 };
+  for (const element of context.observation.elements) {
+    const bounds = element.bounds;
+    if (!bounds) continue;
+    if (
+      (bounds.right - bounds.left) * (bounds.bottom - bounds.top) >
+      (screen.right - screen.left) * (screen.bottom - screen.top)
+    ) {
+      screen = bounds;
+    }
+  }
+  return screen;
+}
+
+function parseDecision(value: unknown, screen: Bounds): AgentDecision {
   const decision = value as Partial<ModelDecision>;
   if (decision.type === "complete" && decision.evidence?.trim()) {
     return { type: "complete", evidence: decision.evidence.trim() };
@@ -79,6 +118,9 @@ function parseDecision(value: unknown): AgentDecision {
     const value = step.value.trim();
     if (step.actionType === "launch") {
       return { id: step.id.trim(), action: { type: "app.launch" as const, packageName: value } };
+    }
+    if (step.actionType === "scroll") {
+      return { id: step.id.trim(), action: scrollGesture(value, screen) };
     }
     if (step.actionType === "key") {
       if (!(["back", "home", "recents", "enter", "delete"] as const).includes(value as never)) {
@@ -110,7 +152,14 @@ function parseDecision(value: unknown): AgentDecision {
         action: { type: "element.text" as const, target, value: step.input, clear: true },
       };
     }
-    return { id: step.id.trim(), action: { type: "element.tap" as const, target } };
+    return {
+      id: step.id.trim(),
+      action: {
+        type:
+          step.actionType === "longTap" ? ("element.longTap" as const) : ("element.tap" as const),
+        target,
+      },
+    };
   });
   return { type: "execute", requestId: randomUUID(), steps };
 }
@@ -118,7 +167,7 @@ function parseDecision(value: unknown): AgentDecision {
 export function createModelDecider(
   task: string,
   target: ModelTarget,
-  providerConfig: OpenAiProviderConfig,
+  providerConfig: ProviderConfig,
   environment: NodeJS.ProcessEnv = process.env,
   request: typeof fetch = fetch,
   recordUsage?: RecordModelUsage,
@@ -128,36 +177,41 @@ export function createModelDecider(
     const observation = {
       foregroundPackage: context.observation.foregroundPackage,
       generation: context.observation.generation,
-      elements: context.observation.elements.slice(0, 300).map((element) => ({
-        id: element.id,
-        role: element.role,
-        text: element.text,
-        description: element.description,
-        resourceId: element.resourceId,
-        actionable: element.actionable,
-      })),
+      // Layout-only nodes carry no meaning for the model; keep the ones it can name or act on.
+      elements: context.observation.elements
+        .filter(
+          (element) =>
+            element.actionable || element.text || element.description || element.resourceId,
+        )
+        .slice(0, 300)
+        .map((element) => ({
+          id: element.id,
+          role: element.role,
+          text: element.text,
+          description: element.description,
+          resourceId: element.resourceId,
+          actionable: element.actionable,
+        })),
       previousBatch: context.previousBatch,
     };
     let attempted = false;
-    const provider = new OpenAiResponsesProvider(providerConfig, environment, (input, init) => {
-      attempted = true;
-      return request(input, init);
-    });
+    const provider = createStructuredProvider(providerConfig, environment, request);
     let usage = { inputTokens: 0, outputTokens: 0 };
     try {
+      attempted = true;
       const response = await provider.structured({
         model: target.model,
         ...(target.reasoningEffort ? { reasoningEffort: target.reasoningEffort } : {}),
         schemaName: "taprig_phone_decision",
         schema: decisionSchema,
-        system: `You control one Android phone with typed launch, key, semantic tap, and text-entry actions. For tap/text choose only a visible selector in value; for text put the exact text in input. For launch/key put the package or key in value. Set input null when unused. Take at most three short actions, then observe again. Mark complete only when the current UI visibly proves the user's task. Ask one precise question when required information is missing. ${approvalPolicy === "explicit" ? "Request approval only when the user's task explicitly requires confirmation before a consequential action." : "Never request approval; the owner selected uninterrupted autonomous execution."} Never repeat sensitive input in evidence and never guess success.`,
+        system: `You control one Android phone with typed launch, key, scroll, semantic tap, long-tap, and text-entry actions. For tap/longTap/text choose only a visible selector in value, preferring elementId; for text put the exact text in input. For launch put the Android package name in value; for key put back, home, recents, enter, or delete; for scroll put down, up, left, or right to reveal content off screen. Set input null when unused. Take at most three short actions, then observe again. Mark complete only when the current UI visibly proves the user's task. Ask one precise question when required information is missing. ${approvalPolicy === "explicit" ? "Request approval only when the user's task explicitly requires confirmation before a consequential action." : "Never request approval; the owner selected uninterrupted autonomous execution."} Never repeat sensitive input in evidence and never guess success.`,
         input: JSON.stringify({ task, decisionNumber: context.decisionNumber, observation }),
       });
       usage = {
         inputTokens: response.inputTokens ?? 0,
         outputTokens: response.outputTokens ?? 0,
       };
-      const decision = parseDecision(response.value);
+      const decision = parseDecision(response.value, screenBounds(context));
       if (approvalPolicy === "autonomous" && decision.type === "request_approval") {
         throw new Error("model violated the autonomous approval policy");
       }

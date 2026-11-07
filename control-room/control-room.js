@@ -321,8 +321,8 @@ function renderSetup(setup) {
       setup.agentConfigured,
       "AGENT CONFIGURED",
       setup.agentConfigured
-        ? `${setup.modelProfile ?? "DEFAULT"} PROFILE`
-        : `SET ${setup.modelKeyEnv ?? "PROVIDER API KEY"} + RESTART`,
+        ? `${setup.modelProvider ?? ""} ${setup.modelProfile ?? "DEFAULT"} PROFILE`.trim()
+        : `${(setup.modelRequirement ?? "SET A PROVIDER API KEY OR SIGN IN TO CLAUDE OR CODEX").toUpperCase()} + RESTART`,
     ],
     [setup.hasRuns, "FIRST RUN", setup.hasRuns ? "CREATED" : "TRY “OPEN SETTINGS” ABOVE"],
   ];

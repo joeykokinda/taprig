@@ -65,7 +65,8 @@ test("setup reports actionable readiness without exposing provider secrets", asy
     token,
     devices: { list: async () => [{ id: "phone-1", serial: "serial-1", state: "offline" }] },
     modelProfile: "balanced",
-    modelKeyEnv: "TAPRIG_TEST_PROVIDER_KEY",
+    modelProvider: "openai",
+    modelRequirement: "set TAPRIG_TEST_PROVIDER_KEY",
   });
   context.after(() => daemon.stop());
 
@@ -77,7 +78,8 @@ test("setup reports actionable readiness without exposing provider secrets", asy
     status: "needs-attention",
     platform: process.platform,
     modelProfile: "balanced",
-    modelKeyEnv: "TAPRIG_TEST_PROVIDER_KEY",
+    modelProvider: "openai",
+    modelRequirement: "set TAPRIG_TEST_PROVIDER_KEY",
     agentConfigured: false,
     hasRuns: false,
     devices: { total: 1, ready: 0, states: { "serial-1": "offline" } },
@@ -696,4 +698,82 @@ test("the daemon creates, inspects, and runs verified scripts", async (context) 
     ((await promoted.json()) as { script: { origin: string } }).script.origin,
     "learned",
   );
+});
+
+test("external agents observe and act semantically only on ready, idle phones", async (context) => {
+  const batches: unknown[] = [];
+  let busy = false;
+  const daemon = await startDaemon({
+    token,
+    devices: {
+      list: async () => [
+        { id: "phone-1", serial: "phone-1", state: "ready" },
+        { id: "phone-2", serial: "phone-2", state: "locked" },
+      ],
+    },
+    observe: async (deviceId) => ({
+      deviceId,
+      generation: "g1",
+      capturedAt: "2026-11-07T00:00:00.000Z",
+      elements: [
+        { id: "node-0", role: "FrameLayout", actionable: false },
+        { id: "node-1", role: "Button", text: "Wi-Fi", actionable: true },
+      ],
+    }),
+    executeBatch: async (batch) => {
+      batches.push(batch);
+      return { requestId: batch.requestId, deviceId: batch.deviceId, steps: [], replayed: false };
+    },
+    deviceBusy: () => busy,
+  });
+  context.after(() => daemon.stop());
+  const post = (path: string, body: unknown) =>
+    fetch(`${daemon.url}${path}`, {
+      method: "POST",
+      headers: { ...authorization, "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+  const observed = await fetch(`${daemon.url}/devices/phone-1/observation`, {
+    headers: authorization,
+  });
+  assert.deepEqual(
+    (
+      (await observed.json()) as { observation: { elements: { id: string }[] } }
+    ).observation.elements.map(({ id }) => id),
+    ["node-1"],
+  );
+  assert.equal(
+    (await fetch(`${daemon.url}/devices/phone-2/observation`, { headers: authorization })).status,
+    409,
+  );
+
+  const acted = await post("/devices/phone-1/semantic-actions", {
+    observationGeneration: "g1",
+    steps: [{ type: "element.tap", target: { elementId: "node-1" } }],
+  });
+  assert.equal(acted.status, 200);
+  assert.deepEqual((batches[0] as { steps: unknown[] }).steps, [
+    { id: "step-1", action: { type: "element.tap", target: { elementId: "node-1" } } },
+  ]);
+  assert.equal(
+    (
+      await post("/devices/phone-1/semantic-actions", {
+        observationGeneration: "g1",
+        steps: [{ type: "element.tap", target: {} }],
+      })
+    ).status,
+    400,
+  );
+  busy = true;
+  assert.equal(
+    (
+      await post("/devices/phone-1/semantic-actions", {
+        observationGeneration: "g1",
+        steps: [{ type: "key.press", key: "home" }],
+      })
+    ).status,
+    409,
+  );
+  assert.equal(batches.length, 1);
 });

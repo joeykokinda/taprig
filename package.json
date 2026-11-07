@@ -87,6 +87,7 @@
     "typescript": "7.0.2"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.6.0",
     "@modelcontextprotocol/server": "^2.4.0",
     "zod": "^4.6.7"
   }
