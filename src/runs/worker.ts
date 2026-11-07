@@ -20,6 +20,8 @@ export interface RunWorkerOptions {
   decide(task: string, recordUsage?: RecordModelUsage): Decider;
   planCoordinated?(task: string, recordUsage?: RecordModelUsage): Promise<CoordinatedPlan>;
   captureArtifact?(runId: string, deviceId: string): Promise<void>;
+  /** Wakes a locked phone and refreshes inventory so a sleeping screen does not fail a run. */
+  wake?(deviceId: string): Promise<void>;
 }
 
 type Decider = (context: AgentContext) => Promise<AgentDecision>;
@@ -103,6 +105,7 @@ export class RunWorker {
     | ((task: string, recordUsage?: RecordModelUsage) => Promise<CoordinatedPlan>)
     | undefined;
   readonly #captureArtifact: ((runId: string, deviceId: string) => Promise<void>) | undefined;
+  readonly #wake: ((deviceId: string) => Promise<void>) | undefined;
 
   constructor(options: RunWorkerOptions) {
     this.#runs = options.runs;
@@ -111,6 +114,7 @@ export class RunWorker {
     this.#decide = options.decide;
     this.#planCoordinated = options.planCoordinated;
     this.#captureArtifact = options.captureArtifact;
+    this.#wake = options.wake;
   }
 
   start(runId: string, deviceId?: string): void {
@@ -536,11 +540,25 @@ export class RunWorker {
     if (requestedDeviceId && allowedDeviceIds && !allowedDeviceIds.includes(requestedDeviceId)) {
       throw new Error(`requested Android device ${requestedDeviceId} is outside the run affinity`);
     }
+    let woke = false;
     while (true) {
-      const allReady = (await this.#devices.list())
+      const listed = await this.#devices.list();
+      const allReady = listed
         .filter((candidate) => candidate.state === "ready")
         .sort((left, right) => left.id.localeCompare(right.id));
-      if (allReady.length === 0) throw new Error("no ready Android device is connected");
+      const locked = listed.filter((candidate) => candidate.state === "locked");
+      if (allReady.length === 0 && locked.length > 0 && this.#wake && !woke) {
+        woke = true;
+        await Promise.allSettled(locked.map((candidate) => this.#wake?.(candidate.id)));
+        continue;
+      }
+      if (allReady.length === 0) {
+        throw new Error(
+          locked.length > 0
+            ? "the connected phone is locked; unlock it, or start the daemon with TAPRIG_UNLOCK_PIN set"
+            : "no ready Android device is connected",
+        );
+      }
       const ready = allowedDeviceIds
         ? allReady.filter((candidate) => allowedDeviceIds.includes(candidate.id))
         : allReady;

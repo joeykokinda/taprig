@@ -120,6 +120,37 @@ test("a worker records an explicit failure when no phone is ready", async () => 
   store.close();
 });
 
+test("a worker wakes a locked phone once before giving up", async () => {
+  const store = new TapRigStore(":memory:");
+  const runs = new RunService(store);
+  const woken = runs.create("Open Settings");
+  const stuck = runs.create("Open Settings");
+  let state = "locked";
+  const wakes: string[] = [];
+  let unlocks = true;
+  const worker = new RunWorker({
+    runs,
+    devices: { list: async () => [{ ...readyDevice("phone-1"), state }] },
+    adapter: { observe: async () => observation("x"), execute: async () => ({}) as BatchResult },
+    wake: async (deviceId) => {
+      wakes.push(deviceId);
+      if (unlocks) state = "ready";
+    },
+    decide: () => async () => ({ type: "complete", evidence: "done" }),
+  });
+  worker.start(woken.id);
+  await worker.idle();
+  assert.equal(runs.get(woken.id)?.status, "completed");
+
+  state = "locked";
+  unlocks = false;
+  worker.start(stuck.id);
+  await worker.idle();
+  assert.deepEqual(wakes, ["phone-1", "phone-1"]);
+  assert.match(runs.get(stuck.id)?.error?.message ?? "", /phone is locked/);
+  store.close();
+});
+
 test("a user pause interrupts a model boundary and resumes on the original phone", async () => {
   const store = new TapRigStore(":memory:");
   const runs = new RunService(store);

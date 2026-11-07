@@ -36,7 +36,9 @@ export const runCommand: RunCommand = (command, args, options) =>
       },
       (error, stdout, stderr) => {
         if (error) {
-          reject(new Error(`${command} failed: ${(stderr || error.message).trim().slice(-500)}`));
+          // CLIs such as claude report failures as JSON on stdout with an empty stderr.
+          const detail = stderr.trim() || stdout.trim() || error.message;
+          reject(new Error(`${command} failed: ${detail.slice(-500)}`));
           return;
         }
         resolve(stdout);

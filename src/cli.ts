@@ -473,8 +473,10 @@ Models: set ANTHROPIC_API_KEY or OPENAI_API_KEY, or sign in to the claude or cod
       config.providers[provider] ??= defaultProviders[provider];
       config.profiles = presetProfiles(provider);
       saveModelConfig(config);
+      // The daemon reads model config at startup; restart it so the change applies now.
+      const restarted = (await stopDaemonProcess()) && (await startDaemonProcess());
       process.stdout.write(
-        `TapRig now uses ${provider}${providerReady(config.providers[provider]) ? "" : ` (${providerRequirement(config.providers[provider])} first)`}. Restart the daemon to apply.\n`,
+        `TapRig now uses ${provider}${providerReady(config.providers[provider]) ? "" : ` (${providerRequirement(config.providers[provider])} first)`}.${restarted ? " Daemon restarted." : ""}\n`,
       );
       return;
     }

@@ -9,7 +9,12 @@ const execFileAsync = promisify(execFile);
 export type UnlockAdb = (serial: string, args: readonly string[]) => Promise<string>;
 
 export async function runUnlockAdb(serial: string, args: readonly string[]): Promise<string> {
-  const { stdout } = await execFileAsync("adb", ["-s", serial, "shell", ...args]);
+  const { stdout } = await execFileAsync(process.env.TAPRIG_ADB ?? "adb", [
+    "-s",
+    serial,
+    "shell",
+    ...args,
+  ]);
   return stdout;
 }
 
@@ -21,6 +26,21 @@ function screenSize(output: string): { width: number; height: number } {
     throw new Error("could not determine device screen size");
   }
   return { width, height };
+}
+
+/** Wakes the screen and swipes past a swipe-only keyguard; a PIN keyguard stays locked. */
+export async function wakeAndSwipe(serial: string, adb: UnlockAdb = runUnlockAdb): Promise<void> {
+  const { width, height } = screenSize(await adb(serial, ["wm", "size"]));
+  await adb(serial, ["input", "keyevent", "KEYCODE_WAKEUP"]);
+  await adb(serial, [
+    "input",
+    "swipe",
+    String(Math.floor(width / 2)),
+    String(Math.floor(height * 0.8)),
+    String(Math.floor(width / 2)),
+    String(Math.floor(height * 0.2)),
+    "300",
+  ]);
 }
 
 export interface UnlockOptions {
@@ -47,17 +67,7 @@ export async function unlockWithPin(
   });
   if (!/^\d{4,16}$/u.test(pin)) throw new Error("configured unlock secret is not a 4-16 digit PIN");
 
-  const { width, height } = screenSize(await adb(options.serial, ["wm", "size"]));
-  await adb(options.serial, ["input", "keyevent", "KEYCODE_WAKEUP"]);
-  await adb(options.serial, [
-    "input",
-    "swipe",
-    String(Math.floor(width / 2)),
-    String(Math.floor(height * 0.8)),
-    String(Math.floor(width / 2)),
-    String(Math.floor(height * 0.2)),
-    "300",
-  ]);
+  await wakeAndSwipe(options.serial, adb);
   await adb(options.serial, ["input", "text", pin]);
   await adb(options.serial, ["input", "keyevent", "KEYCODE_ENTER"]);
 

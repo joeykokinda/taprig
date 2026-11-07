@@ -15,6 +15,7 @@ import { AndroidDriverAdapter } from "../android/driver-adapter.ts";
 import { executeNormalizedTap, executeRawAction } from "../android/raw-actions.ts";
 import { captureAdbScreenshot } from "../android/screenshot.ts";
 import { AndroidSemanticAdapter } from "../android/semantic-adapter.ts";
+import { unlockWithPin, wakeAndSwipe } from "../android/unlock.ts";
 import { ArtifactService } from "../artifacts/service.ts";
 import { DeviceGroupService } from "../devices/groups.ts";
 import { detectProvider, loadOrCreateModelConfig, usableModelConfig } from "../models/config.ts";
@@ -26,6 +27,7 @@ import { RunService } from "../runs/service.ts";
 import { RunWorker } from "../runs/worker.ts";
 import { ScriptService } from "../scripts/service.ts";
 import { ScriptStore } from "../scripts/store.ts";
+import { CredentialBroker } from "../security/credential-broker.ts";
 import { SettingsService } from "../settings.ts";
 import { startLiveMjpegStream } from "../video/live-stream.ts";
 import { startDaemon } from "./server.ts";
@@ -188,6 +190,22 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
           runs,
           devices: registry,
           adapter: semanticAdapter,
+          wake: async (deviceId) => {
+            // A PIN is accepted only from the environment and held in memory, never persisted.
+            const pin =
+              process.env[`TAPRIG_UNLOCK_PIN_${deviceId}`] ?? process.env.TAPRIG_UNLOCK_PIN;
+            if (pin) {
+              const broker = new CredentialBroker();
+              const scope = { deviceId, purpose: "device.unlock" };
+              await unlockWithPin({
+                serial: deviceId,
+                credential: broker.store(pin, scope, { oneTime: true }),
+                broker,
+              });
+            } else await wakeAndSwipe(deviceId);
+            await new Promise((resolve) => setTimeout(resolve, 800));
+            await refresh();
+          },
           decide: (task, recordUsage) =>
             createModelDecider(
               task,
