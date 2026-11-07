@@ -16,7 +16,40 @@ TapRig is being built around four promises:
 - **Inspectable:** stream the live phone, agent activity, cost, failures, and
   recovery in one place.
 
-The project is in architecture and foundation work. See
+## Quickstart
+
+You need Node 24.12+, Android
+[platform-tools](https://developer.android.com/tools/releases/platform-tools)
+(`adb`), and one model: a signed-in **Claude Code** or **Codex** CLI, or
+`ANTHROPIC_API_KEY`, or `OPENAI_API_KEY`. TapRig picks whichever it finds.
+
+```console
+git clone https://github.com/joeykokinda/taprig && cd taprig
+npm ci && npm link             # puts `taprig` on your PATH
+npm run build:driver           # optional, needs JDK 17-21 + Android SDK: fast event driver
+```
+
+On the phone, enable Developer options and USB debugging, plug it in, unlock
+it, and accept the "Allow USB debugging" prompt. Then:
+
+```console
+taprig setup                                          # starts the daemon, checks everything
+taprig run "Open Settings and turn on Dark theme"     # follows the run until it is done
+```
+
+To let Claude Code or Codex drive the phones themselves, register TapRig as an
+MCP server and ask in plain language:
+
+```console
+taprig connect claude     # or: taprig connect codex
+claude "Use TapRig to set an alarm for 7:30 AM on my phone"
+```
+
+`taprig help` lists every command; `taprig model use anthropic|openai|claude|codex`
+switches providers. Without the driver bundle TapRig falls back to UIAutomator,
+which works everywhere but is slower and cannot type non-ASCII text.
+
+The project is in active pre-alpha development. See
 [the canonical build plan](docs/PLAN.md) and
 [the built-in agent architecture](docs/AGENT_ARCHITECTURE.md). Device modeling,
 diagnostics, remediation, and cross-app authentication are specified in the

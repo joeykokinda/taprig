@@ -38,6 +38,7 @@ interface SetupStatus {
   modelProfile: string | null;
   modelProvider: string | null;
   modelRequirement: string | null;
+  discoveryError?: string;
   agentConfigured: boolean;
   hasRuns: boolean;
   devices: {
@@ -338,6 +339,7 @@ async function main(): Promise<void> {
     }
     const setup = await daemonJson<SetupStatus>("/setup");
     process.stdout.write("\nTapRig setup\n\n[ok] Local daemon is online\n");
+    if (setup.discoveryError) process.stdout.write(`[!!] ${setup.discoveryError}\n`);
     process.stdout.write(
       setup.devices.total > 0
         ? `[ok] ${setup.devices.total} Android phone${setup.devices.total === 1 ? "" : "s"} detected\n`

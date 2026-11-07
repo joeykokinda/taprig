@@ -51,6 +51,7 @@ export interface TapRigDaemonOptions {
   executeBatch?: (batch: ActionBatch) => Promise<BatchResult>;
   screenshot?: (deviceId: string) => Promise<Buffer>;
   deviceBusy?: (deviceId: string) => boolean;
+  discoveryError?: () => string | undefined;
   host?: string;
   port?: number;
   execute?: (serial: string, action: Action) => Promise<void>;
@@ -282,6 +283,7 @@ export async function startDaemon(options: TapRigDaemonOptions): Promise<Running
             status: ready > 0 && options.startRun ? "ready" : "needs-attention",
             platform: process.platform,
             modelProfile: options.modelProfile ?? null,
+            ...(options.discoveryError?.() ? { discoveryError: options.discoveryError() } : {}),
             modelProvider: options.modelProvider ?? null,
             modelRequirement: options.modelRequirement ?? null,
             agentConfigured: Boolean(options.startRun),

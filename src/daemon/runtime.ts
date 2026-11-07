@@ -1,4 +1,6 @@
+import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createModelCoordinator } from "../agents/model-coordinator.ts";
 import { createModelDecider } from "../agents/model-decider.ts";
 import type { AdbDevice } from "../android/adb-discovery.ts";
@@ -15,7 +17,7 @@ import { captureAdbScreenshot } from "../android/screenshot.ts";
 import { AndroidSemanticAdapter } from "../android/semantic-adapter.ts";
 import { ArtifactService } from "../artifacts/service.ts";
 import { DeviceGroupService } from "../devices/groups.ts";
-import { loadOrCreateModelConfig, usableModelConfig } from "../models/config.ts";
+import { detectProvider, loadOrCreateModelConfig, usableModelConfig } from "../models/config.ts";
 import { providerReady, providerRequirement } from "../models/providers.ts";
 import { routeModel } from "../models/router.ts";
 import { dataDirectory } from "../paths.ts";
@@ -35,6 +37,12 @@ export interface RuntimeOptions {
   pollIntervalMs?: number;
   databasePath?: string;
   driverBundleDirectory?: string;
+}
+
+// A source checkout or npm install carries the bundle built by `npm run build:driver`.
+function installedDriverBundle(): string | undefined {
+  const directory = fileURLToPath(new URL("../../android-driver/build/bundle", import.meta.url));
+  return existsSync(join(directory, "manifest.json")) ? directory : undefined;
 }
 
 export function defaultDatabasePath(
@@ -129,7 +137,8 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
   const settings = new SettingsService(join(dirname(databasePath), "settings.json"));
   const runs = new RunService(store);
   const groups = new DeviceGroupService(store);
-  const driverBundleDirectory = options.driverBundleDirectory ?? process.env.TAPRIG_DRIVER_DIR;
+  const driverBundleDirectory =
+    options.driverBundleDirectory ?? process.env.TAPRIG_DRIVER_DIR ?? installedDriverBundle();
   // Without a verified bundle every phone stays on the UIAutomator fallback.
   const drivers = driverBundleDirectory
     ? new AndroidDriverManager({
@@ -204,15 +213,18 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
         })
       : undefined;
   let schedulingEnabled = false;
+  let discoveryError: string | undefined;
   let refreshTail = Promise.resolve();
   const refresh = (): Promise<void> => {
     const operation = refreshTail.then(async () => {
       try {
         const devices = await registry.refresh(await discover());
+        discoveryError = undefined;
         for (const device of devices) store.saveDevice(device);
         syncDrivers(devices);
         if (worker && schedulingEnabled) scheduleDurableRuns(runs, worker, devices);
       } catch (error) {
+        discoveryError = error instanceof Error ? error.message : String(error);
         const devices = await registry.refresh([]);
         for (const device of devices) store.saveDevice(device);
         throw error;
@@ -224,8 +236,10 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
 
   let daemon: Awaited<ReturnType<typeof startDaemon>>;
   try {
-    await refresh();
+    // A missing adb must not stop the daemon: setup reports it, and polling recovers once installed.
+    await refresh().catch(() => undefined);
     daemon = await startDaemon({
+      discoveryError: () => discoveryError,
       token: options.token,
       devices: registry,
       execute: executeRawAction,
@@ -255,7 +269,12 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
       manualTap: executeNormalizedTap,
       modelProfile: modelConfig.selectedProfile,
       ...(route ? { modelProvider: route.target.provider } : {}),
-      ...(provider ? { modelRequirement: providerRequirement(provider) } : {}),
+      modelRequirement:
+        provider && !providerReady(provider) && detectProvider() === undefined
+          ? "set ANTHROPIC_API_KEY or OPENAI_API_KEY, or sign in to the claude or codex CLI"
+          : provider
+            ? providerRequirement(provider)
+            : "configure a model provider",
     });
     schedulingEnabled = true;
     if (worker) scheduleDurableRuns(runs, worker, await registry.list());

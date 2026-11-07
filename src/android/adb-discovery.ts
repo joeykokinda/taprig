@@ -63,6 +63,15 @@ export function formatAdbDevices(devices: readonly AdbDevice[]): string {
 }
 
 export async function discoverAdbDevices(adbPath = "adb"): Promise<AdbDevice[]> {
-  const { stdout } = await execFileAsync(adbPath, ["devices", "-l"]);
-  return parseAdbDevices(stdout);
+  try {
+    const { stdout } = await execFileAsync(adbPath, ["devices", "-l"]);
+    return parseAdbDevices(stdout);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      throw new Error(
+        "adb is not installed or not on PATH; install Android platform-tools from https://developer.android.com/tools/releases/platform-tools",
+      );
+    }
+    throw error;
+  }
 }
