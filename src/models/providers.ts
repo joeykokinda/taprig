@@ -113,7 +113,24 @@ class AnthropicMessagesProvider implements StructuredModelProvider {
       model: request.model,
       max_tokens: 16_000,
       system: request.system,
-      messages: [{ role: "user", content: request.input }],
+      messages: [
+        {
+          role: "user",
+          content: request.image
+            ? [
+                {
+                  type: "image",
+                  source: {
+                    type: "base64",
+                    media_type: "image/png",
+                    data: request.image.toString("base64"),
+                  },
+                },
+                { type: "text", text: request.input },
+              ]
+            : request.input,
+        },
+      ],
       output_config: {
         format: { type: "json_schema", schema: portableSchema(request.schema) as never },
         ...(supportsEffort && request.reasoningEffort ? { effort: request.reasoningEffort } : {}),
@@ -152,7 +169,7 @@ class ClaudeCliProvider implements StructuredModelProvider {
         [
           "-p",
           "--output-format",
-          "json",
+          request.image ? "stream-json" : "json",
           "--json-schema",
           JSON.stringify(portableSchema(request.schema)),
           "--tools",
@@ -165,15 +182,41 @@ class ClaudeCliProvider implements StructuredModelProvider {
           "--system-prompt",
           request.system,
           ...(request.model === "default" ? [] : ["--model", request.model]),
+          // Images need stream-json input, which in turn requires stream-json output.
+          ...(request.image ? ["--input-format", "stream-json", "--verbose"] : []),
         ],
         {
-          input: request.input,
+          input: request.image
+            ? `${JSON.stringify({
+                type: "user",
+                message: {
+                  role: "user",
+                  content: [
+                    {
+                      type: "image",
+                      source: {
+                        type: "base64",
+                        media_type: "image/png",
+                        data: request.image.toString("base64"),
+                      },
+                    },
+                    { type: "text", text: request.input },
+                  ],
+                },
+              })}\n`
+            : request.input,
           cwd: directory,
           timeoutMs: 180_000,
           environment: this.#environment,
         },
       );
-      const result = JSON.parse(stdout) as {
+      const resultLine = request.image
+        ? stdout
+            .split("\n")
+            .reverse()
+            .find((line) => line.includes('"type":"result"'))
+        : stdout;
+      const result = JSON.parse(resultLine ?? "{}") as {
         is_error?: boolean;
         result?: string;
         structured_output?: unknown;
@@ -215,7 +258,9 @@ class CodexCliProvider implements StructuredModelProvider {
     try {
       const schemaPath = join(directory, "schema.json");
       const outputPath = join(directory, "output.json");
+      const imagePath = join(directory, "screen.png");
       await writeFile(schemaPath, JSON.stringify(portableSchema(request.schema)));
+      if (request.image) await writeFile(imagePath, request.image);
       await this.#run(
         this.#command,
         [
@@ -234,6 +279,7 @@ class CodexCliProvider implements StructuredModelProvider {
           ...(request.reasoningEffort
             ? ["-c", `model_reasoning_effort="${request.reasoningEffort}"`]
             : []),
+          ...(request.image ? ["--image", imagePath] : []),
           "-",
         ],
         {

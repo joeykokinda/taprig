@@ -1,5 +1,35 @@
 # Model configuration and routing
 
+## Providers
+
+| Provider    | Name in `models.json` | Needs                         |
+| ----------- | --------------------- | ----------------------------- |
+| Claude API  | `anthropic`           | `ANTHROPIC_API_KEY`           |
+| OpenAI API  | `openai`              | `OPENAI_API_KEY`              |
+| Claude Code | `claude`              | a signed-in `claude` CLI      |
+| Codex       | `codex`               | a signed-in `codex` CLI       |
+
+A fresh install picks the first available in that order, and a daemon whose
+configured provider is unusable falls back to an available one and logs it.
+`taprig model use <name>` switches presets explicitly. The Claude API adapter uses
+the official SDK with structured outputs, effort, and server-side refusal
+fallbacks on current Opus and Sonnet. The CLI adapters run each decision as a
+one-shot `claude -p` or `codex exec` in an empty temporary directory with no
+tools (Claude) or a read-only sandbox (Codex), because phone screens are
+untrusted input. CLI decisions take a few seconds each (Claude Haiku about 3 s,
+Codex about 9 s) and use the CLI owner's subscription.
+
+## Vision fallback
+
+When a screen has fewer than five labeled elements, or the previous step missed
+its target, the decider attaches a PNG screenshot and allows a `tapPoint` action
+on a 0-1000 grid, mapped to pixels from the PNG header. All four providers accept
+the image. A coordinate tap that changes nothing in the accessibility tree is
+reported as dispatched rather than failed, since canvases and games are
+invisible to it; the next screenshot is the evidence.
+
+## Profiles
+
 TapRig separates model roles from provider/model IDs. The checked-in defaults
 follow the current OpenAI catalog, but every target is editable in the private
 OS application-data file `models.json`.
@@ -67,7 +97,7 @@ exact value through a one-time scoped in-memory credential, sends it to the
 configured model provider for the resumed decision, and redacts that exact
 value from checkpoints, questions, and errors.
 
-Until the event-driven Android driver lands, text entry uses Android's stock
+Without the event-driven Android driver, text entry falls back to Android's stock
 `input text`/`keycombination` commands. TapRig accepts only a bounded shell-safe
 ASCII subset in that fallback and encodes spaces as `%s`, matching the
 [AOSP input implementation](https://android.googlesource.com/platform/frameworks/base/+/master/services/core/java/com/android/server/input/InputShellCommand.java).

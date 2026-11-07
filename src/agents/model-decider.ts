@@ -30,7 +30,7 @@ const decisionSchema = {
           id: { type: "string", minLength: 1, maxLength: 80 },
           actionType: {
             type: "string",
-            enum: ["tap", "longTap", "text", "launch", "key", "scroll"],
+            enum: ["tap", "longTap", "text", "launch", "key", "scroll", "tapPoint"],
           },
           selectorType: {
             type: "string",
@@ -53,7 +53,7 @@ type ModelDecision = {
   reason: string | null;
   steps: Array<{
     id: string;
-    actionType: "tap" | "longTap" | "text" | "launch" | "key" | "scroll";
+    actionType: "tap" | "longTap" | "text" | "launch" | "key" | "scroll" | "tapPoint";
     selectorType: "text" | "description" | "resourceId" | "elementId";
     value: string;
     input: string | null;
@@ -136,10 +136,17 @@ export function stableSelector(elements: readonly ObservedElement[], elementId: 
   );
 }
 
+/** Width and height from a PNG's IHDR chunk. */
+export function pngSize(image: Buffer): { width: number; height: number } | undefined {
+  if (image.length < 24 || image.toString("ascii", 12, 16) !== "IHDR") return undefined;
+  return { width: image.readUInt32BE(16), height: image.readUInt32BE(20) };
+}
+
 function parseDecision(
   value: unknown,
   screen: Bounds,
   elements: readonly ObservedElement[] = [],
+  screenshot?: { width: number; height: number },
 ): AgentDecision {
   const decision = value as Partial<ModelDecision>;
   if (decision.type === "complete" && decision.evidence?.trim()) {
@@ -162,6 +169,23 @@ function parseDecision(
     const value = step.value.trim();
     if (step.actionType === "launch") {
       return { id: step.id.trim(), action: { type: "app.launch" as const, packageName: value } };
+    }
+    if (step.actionType === "tapPoint") {
+      // Normalized 0-1000 coordinates survive any provider-side image downscaling.
+      const match = /^(\d{1,4})\s*,\s*(\d{1,4})$/u.exec(value);
+      const x = Number(match?.[1]);
+      const y = Number(match?.[2]);
+      if (!screenshot || !match || x > 1000 || y > 1000) {
+        throw new Error("model returned an invalid tapPoint");
+      }
+      return {
+        id: step.id.trim(),
+        action: {
+          type: "gesture.tap" as const,
+          x: Math.min(screenshot.width - 1, Math.round((x / 1000) * screenshot.width)),
+          y: Math.min(screenshot.height - 1, Math.round((y / 1000) * screenshot.height)),
+        },
+      };
     }
     if (step.actionType === "scroll") {
       return { id: step.id.trim(), action: scrollGesture(value, screen) };
@@ -216,8 +240,22 @@ export function createModelDecider(
   request: typeof fetch = fetch,
   recordUsage?: RecordModelUsage,
   approvalPolicy: ApprovalPolicy = "explicit",
+  captureScreenshot?: (deviceId: string) => Promise<Buffer>,
 ): (context: AgentContext) => Promise<AgentDecision> {
   return async (context) => {
+    // Vision is the fallback: only screens with little semantic text, or after a missed target.
+    const labeled = context.observation.elements.filter(
+      (element) => element.text || element.description,
+    ).length;
+    const missed = context.previousBatch?.steps.some(
+      (step) =>
+        step.error?.code === "target-not-found" || step.error?.code === "verification-failed",
+    );
+    const image =
+      captureScreenshot && (labeled < 5 || missed)
+        ? await captureScreenshot(context.observation.deviceId).catch(() => undefined)
+        : undefined;
+    const screenshot = image ? pngSize(image) : undefined;
     const observation = {
       foregroundPackage: context.observation.foregroundPackage,
       generation: context.observation.generation,
@@ -238,6 +276,7 @@ export function createModelDecider(
         })),
       previousBatch: context.previousBatch,
       recentActions: context.history,
+      ...(screenshot ? { screenshotAttached: true } : {}),
     };
     let attempted = false;
     const provider = createStructuredProvider(providerConfig, environment, request);
@@ -249,8 +288,9 @@ export function createModelDecider(
         ...(target.reasoningEffort ? { reasoningEffort: target.reasoningEffort } : {}),
         schemaName: "taprig_phone_decision",
         schema: decisionSchema,
-        system: `You control one Android phone with typed launch, key, scroll, semantic tap, long-tap, and text-entry actions. For tap/longTap/text choose only a visible selector in value, preferring elementId; for text put the exact text in input. For launch put the Android package name in value; for key put back, home, recents, enter, or delete; for scroll put down, up, left, or right to reveal content off screen. Set input null when unused. Take at most three short actions, then observe again. recentActions lists your last batches with their outcomes; never repeat a sequence that already failed or looped. Mark complete only when the current UI visibly proves the user's task. Ask one precise question when required information is missing. ${approvalPolicy === "explicit" ? "Request approval only when the user's task explicitly requires confirmation before a consequential action." : "Never request approval; the owner selected uninterrupted autonomous execution."} Never repeat sensitive input in evidence and never guess success.`,
+        system: `You control one Android phone with typed launch, key, scroll, semantic tap, long-tap, and text-entry actions. For tap/longTap/text choose only a visible selector in value, preferring elementId; for text put the exact text in input. For launch put the Android package name in value; for key put back, home, recents, enter, or delete; for scroll put down, up, left, or right to reveal content off screen. Only when a screenshot is attached, tapPoint may tap what the elements do not describe: put "x,y" in value on a 0-1000 grid across the image width and height. Set input null when unused. Take at most three short actions, then observe again. recentActions lists your last batches with their outcomes; never repeat a sequence that already failed or looped. Mark complete only when the current UI visibly proves the user's task. Ask one precise question when required information is missing. ${approvalPolicy === "explicit" ? "Request approval only when the user's task explicitly requires confirmation before a consequential action." : "Never request approval; the owner selected uninterrupted autonomous execution."} Never repeat sensitive input in evidence and never guess success.`,
         input: JSON.stringify({ task, decisionNumber: context.decisionNumber, observation }),
+        ...(image && screenshot ? { image } : {}),
       });
       usage = {
         inputTokens: response.inputTokens ?? 0,
@@ -260,6 +300,7 @@ export function createModelDecider(
         response.value,
         screenBounds(context),
         context.observation.elements,
+        screenshot,
       );
       if (approvalPolicy === "autonomous" && decision.type === "request_approval") {
         throw new Error("model violated the autonomous approval policy");

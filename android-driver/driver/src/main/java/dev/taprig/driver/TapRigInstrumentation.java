@@ -220,6 +220,13 @@ public final class TapRigInstrumentation extends Instrumentation {
         }
 
         JSONObject next = waitForChange(before, ACTION_WAIT_MS);
+        if (!next.getBoolean("changed") && "gesture.tap".equals(action.optString("type"))) {
+            // Coordinate taps serve vision surfaces (games, canvases) that the accessibility tree
+            // does not describe, so their evidence is the next screenshot, not a tree change.
+            return new JSONObject()
+                    .put("generation", before)
+                    .put("evidence", "tap dispatched; no accessibility change");
+        }
         if (!next.getBoolean("changed")) {
             throw new DriverError("verification-failed", "phone state did not change after action");
         }

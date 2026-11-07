@@ -195,6 +195,7 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
               fetch,
               recordUsage,
               settings.get().approvalPolicy,
+              captureAdbScreenshot,
             ),
           ...(coordinatorRoute && coordinatorProvider && providerReady(coordinatorProvider)
             ? {

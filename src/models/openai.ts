@@ -7,6 +7,8 @@ export interface StructuredModelRequest {
   schemaName: string;
   schema: Record<string, unknown>;
   reasoningEffort?: "low" | "medium" | "high";
+  /** PNG of the phone screen for surfaces the semantic tree cannot describe. */
+  image?: Buffer;
 }
 
 export interface StructuredModelResponse {
@@ -40,7 +42,18 @@ export class OpenAiResponsesProvider {
         model: request.model,
         input: [
           { role: "system", content: request.system },
-          { role: "user", content: request.input },
+          {
+            role: "user",
+            content: request.image
+              ? [
+                  { type: "input_text", text: request.input },
+                  {
+                    type: "input_image",
+                    image_url: `data:image/png;base64,${request.image.toString("base64")}`,
+                  },
+                ]
+              : request.input,
+          },
         ],
         ...(request.reasoningEffort ? { reasoning: { effort: request.reasoningEffort } } : {}),
         text: {

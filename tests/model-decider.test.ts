@@ -302,3 +302,60 @@ test("swaps positional element IDs for unique semantic selectors and scrolls by 
   assert.match(sentInput, /recentActions/u);
   assert.doesNotMatch(sentInput, /FrameLayout/u);
 });
+
+test("attaches a screenshot on thin semantic screens and maps tapPoint to pixels", async () => {
+  let sent: { input: Array<{ content: unknown }> } = { input: [] };
+  const png = Buffer.alloc(24);
+  png.write("IHDR", 12, "ascii");
+  png.writeUInt32BE(720, 16);
+  png.writeUInt32BE(1600, 20);
+  const decide = createModelDecider(
+    "Tap the play button in the game",
+    { provider: "openai", model: "test-model" },
+    { type: "openai", apiKeyEnv: "TEST_KEY", baseUrl: "https://example.test/v1" },
+    { TEST_KEY: "secret" },
+    async (_input, init) => {
+      sent = JSON.parse(String(init?.body));
+      return new Response(
+        JSON.stringify({
+          output_text: JSON.stringify({
+            type: "execute",
+            evidence: null,
+            question: null,
+            approval: null,
+            reason: null,
+            steps: [
+              {
+                id: "play",
+                actionType: "tapPoint",
+                selectorType: "text",
+                value: "500,750",
+                input: null,
+                role: null,
+              },
+            ],
+          }),
+        }),
+        { status: 200 },
+      );
+    },
+    undefined,
+    "explicit",
+    async () => png,
+  );
+  const decision = await decide({
+    decisionNumber: 0,
+    observation: {
+      deviceId: "phone-1",
+      generation: "g",
+      capturedAt: "2026-11-07T00:00:00.000Z",
+      elements: [{ id: "node-0", role: "SurfaceView", actionable: false }],
+    },
+  });
+  assert.deepEqual(decision.type === "execute" ? decision.steps[0]?.action : undefined, {
+    type: "gesture.tap",
+    x: 360,
+    y: 1200,
+  });
+  assert.match(JSON.stringify(sent.input[1]?.content), /data:image\/png;base64,/u);
+});
