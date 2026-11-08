@@ -455,6 +455,8 @@ async function main(): Promise<void> {
   taprig devices | doctor           list phones or diagnose connection problems
   taprig notifications [serial]     read the notification shade without touching the screen
   taprig schedule add "every 30m" "<task>"   repeat a task; also "daily at 08:00"; list | remove <id>
+  taprig trigger add "<regex>" "<task>"      run a task when a matching notification arrives
+  taprig secret set <name>          store a value tasks can use as {{secret:name}}; list | remove
   taprig model show | use <openai|anthropic|claude|codex> | profile <economy|balanced|best>
   taprig model use compatible --base-url <url> --model <name> [--api-key-env <VAR>]
                                     any OpenAI-compatible server: OpenRouter, Ollama, Groq, Gemini
@@ -879,6 +881,82 @@ Models: set ANTHROPIC_API_KEY or OPENAI_API_KEY, or sign in to the claude or cod
       return;
     }
     throw new Error("schedule requires list, add <cadence> <task>, or remove <id>");
+  }
+  if (selectedCommand === "secret") {
+    const operation = process.argv[3] ?? "list";
+    const name = process.argv[4];
+    if (operation === "list") {
+      const { names } = await daemonJson<{ names: string[] }>("/secrets");
+      process.stdout.write(names.length ? `${names.join("\n")}\n` : "No secrets.\n");
+      return;
+    }
+    if (!name) throw new Error("secret requires list, set <name>, or remove <name>");
+    if (operation === "set") {
+      const value = process.stdin.isTTY
+        ? await createPrompter()(`Value for ${name} (hidden) › `, true)
+        : (
+            await new Promise<string>((resolve) => {
+              let data = "";
+              process.stdin.setEncoding("utf8");
+              process.stdin.on("data", (chunk) => {
+                data += chunk;
+              });
+              process.stdin.on("end", () => resolve(data));
+            })
+          ).trim();
+      await daemonJson(`/secrets/${encodeURIComponent(name)}`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ value }),
+      });
+      process.stdout.write(`Saved secret ${name}. Reference it in tasks as {{secret:${name}}}.\n`);
+      return;
+    }
+    if (operation === "remove") {
+      await daemonJson(`/secrets/${encodeURIComponent(name)}`, { method: "DELETE" });
+      process.stdout.write(`Removed secret ${name}.\n`);
+      return;
+    }
+    throw new Error("secret requires list, set <name>, or remove <name>");
+  }
+  if (selectedCommand === "trigger") {
+    const operation = process.argv[3] ?? "list";
+    if (operation === "list") {
+      const { triggers } = await daemonJson<{
+        triggers: Array<{ id: string; match: string; task: string; lastFiredAt?: string }>;
+      }>("/triggers");
+      for (const item of triggers) {
+        process.stdout.write(
+          `${item.id}\t/${item.match}/\t${item.lastFiredAt ? `last ${new Date(item.lastFiredAt).toLocaleString()}` : "never fired"}\t${item.task}\n`,
+        );
+      }
+      if (triggers.length === 0) process.stdout.write("No triggers.\n");
+      return;
+    }
+    if (operation === "add") {
+      const [match, ...taskWords] = process.argv.slice(4);
+      const task = taskWords.join(" ").trim();
+      if (!match || !task) {
+        throw new Error(
+          'trigger add needs a pattern and a task: trigger add "messaging.*Mom" "Read me the text"',
+        );
+      }
+      const { trigger } = await daemonJson<{ trigger: { id: string } }>("/triggers", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ match, task }),
+      });
+      process.stdout.write(`Trigger ${trigger.id} added.\n`);
+      return;
+    }
+    if (operation === "remove") {
+      const id = process.argv[4];
+      if (!id) throw new Error("trigger remove needs a trigger ID");
+      await daemonJson(`/triggers/${encodeURIComponent(id)}`, { method: "DELETE" });
+      process.stdout.write(`Removed ${id}.\n`);
+      return;
+    }
+    throw new Error("trigger requires list, add <pattern> <task>, or remove <id>");
   }
   if (selectedCommand === "notifications") {
     const serial = process.argv[3] ?? devices[0]?.serial;

@@ -34,6 +34,8 @@ export interface RunWorkerOptions {
   record?(runId: string, deviceId: string): Promise<() => Promise<void>>;
   /** Runs after a failed or stopped run so the next one starts from a known screen (home). */
   cleanup?(deviceId: string): Promise<void>;
+  /** Named secrets a task references as {{secret:NAME}}; resolved only on the way to the phone. */
+  secrets?: { resolve(text: string): string; referenced(text: string): string[] };
 }
 
 type Decider = (context: AgentContext) => Promise<AgentDecision>;
@@ -68,20 +70,20 @@ function answerNote(answer: RunAnswer): string {
   return `\n\nThe user ${verb} "${answer.prompt}" with a secret you cannot see. To enter it, use a text action with input exactly ${secretPlaceholder}; never guess it and never mention it in evidence.`;
 }
 
-function revealSecret<T extends { steps: readonly ActionStep[] }>(batch: T, secret: string): T {
+function revealSecrets<T extends { steps: readonly ActionStep[] }>(
+  batch: T,
+  answerSecret: string | undefined,
+  resolve: ((text: string) => string) | undefined,
+): T {
   return {
     ...batch,
-    steps: batch.steps.map((step) =>
-      step.action.type === "element.text" && step.action.value.includes(secretPlaceholder)
-        ? {
-            ...step,
-            action: {
-              ...step.action,
-              value: step.action.value.replaceAll(secretPlaceholder, secret),
-            },
-          }
-        : step,
-    ),
+    steps: batch.steps.map((step) => {
+      if (step.action.type !== "element.text") return step;
+      let value = step.action.value;
+      if (answerSecret !== undefined) value = value.replaceAll(secretPlaceholder, answerSecret);
+      if (resolve) value = resolve(value);
+      return value === step.action.value ? step : { ...step, action: { ...step.action, value } };
+    }),
   };
 }
 
@@ -89,19 +91,18 @@ function readRecovery(value: unknown): RunRecovery {
   return value && typeof value === "object" ? (value as RunRecovery) : {};
 }
 
-function redact<T>(value: T, secret: string | undefined): T {
-  if (!secret) return value;
+function redact<T>(value: T, secrets: readonly string[]): T {
+  const known = secrets.flatMap((secret) => [secret, secret.trim()]).filter(Boolean);
+  if (known.length === 0) return value;
   if (typeof value === "string") {
-    let redacted: string = value;
-    for (const candidate of new Set([secret, secret.trim()])) {
-      if (candidate) redacted = redacted.replaceAll(candidate, "[REDACTED]");
-    }
-    return redacted as T;
+    let text: string = value;
+    for (const candidate of new Set(known)) text = text.replaceAll(candidate, "[REDACTED]");
+    return text as T;
   }
-  if (Array.isArray(value)) return value.map((item) => redact(item, secret)) as T;
+  if (Array.isArray(value)) return value.map((item) => redact(item, secrets)) as T;
   if (value && typeof value === "object") {
     return Object.fromEntries(
-      Object.entries(value).map(([key, item]) => [key, redact(item, secret)]),
+      Object.entries(value).map(([key, item]) => [key, redact(item, secrets)]),
     ) as T;
   }
   return value;
@@ -146,6 +147,7 @@ export class RunWorker {
   readonly #captureArtifact: ((runId: string, deviceId: string) => Promise<void>) | undefined;
   readonly #record: RunWorkerOptions["record"];
   readonly #cleanup: RunWorkerOptions["cleanup"];
+  readonly #secrets: RunWorkerOptions["secrets"];
   readonly #wake: ((deviceId: string) => Promise<void>) | undefined;
   readonly #prepare: ((deviceId: string) => Promise<void>) | undefined;
 
@@ -158,6 +160,7 @@ export class RunWorker {
     this.#captureArtifact = options.captureArtifact;
     this.#record = options.record;
     this.#cleanup = options.cleanup;
+    this.#secrets = options.secrets;
     this.#wake = options.wake;
     this.#prepare = options.prepare;
   }
@@ -228,7 +231,11 @@ export class RunWorker {
         task += `\nPreviously verified progress: ${JSON.stringify(recovery.batches)}`;
       }
     }
-    const secret = answer?.sensitive ? answer.value : undefined;
+    const answerSecret = answer?.sensitive ? answer.value : undefined;
+    const secret = [
+      ...(answerSecret !== undefined ? [answerSecret] : []),
+      ...(this.#secrets?.referenced(run.task) ?? []),
+    ];
     const requireRunning = () => {
       const status = this.#runs.get(runId)?.status;
       if (status !== "running") throw new RunInterruptedError(`run is ${status ?? "missing"}`);
@@ -280,7 +287,9 @@ export class RunWorker {
           throw new BudgetExceededError(`action budget of ${run.budget.maxActions} exhausted`);
         }
         telemetry.attemptedActions += batch.steps.length;
-        const result = await this.#adapter.execute(secret ? revealSecret(batch, secret) : batch);
+        const result = await this.#adapter.execute(
+          revealSecrets(batch, answerSecret, this.#secrets?.resolve.bind(this.#secrets)),
+        );
         recovery.batches ??= {};
         recovery.batches[batch.deviceId] = {
           requestId: batch.requestId,

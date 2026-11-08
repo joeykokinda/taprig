@@ -35,10 +35,12 @@ import { dataDirectory } from "../paths.ts";
 import { TapRigStore } from "../persistence/store.ts";
 import { ScheduleService } from "../runs/schedules.ts";
 import { RunService } from "../runs/service.ts";
+import { TriggerService } from "../runs/triggers.ts";
 import { RunWorker } from "../runs/worker.ts";
 import { ScriptService } from "../scripts/service.ts";
 import { ScriptStore } from "../scripts/store.ts";
 import { CredentialBroker } from "../security/credential-broker.ts";
+import { SecretStore } from "../security/secret-store.ts";
 import { SettingsService } from "../settings.ts";
 import { startLiveMjpegStream } from "../video/live-stream.ts";
 import { startDaemon } from "./server.ts";
@@ -214,6 +216,9 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
     : undefined;
   const appNotes = new FileAppNotes(join(dirname(databasePath), "app-notes"));
   const schedules = new ScheduleService(join(dirname(databasePath), "schedules.json"));
+  const triggers = new TriggerService(join(dirname(databasePath), "triggers.json"));
+  const secrets = new SecretStore(join(dirname(databasePath), "secrets.json"));
+  let lastTriggerPoll = 0;
   const worker =
     route && provider && providerReady(provider)
       ? new RunWorker({
@@ -222,6 +227,7 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
           adapter: semanticAdapter,
           prepare: (deviceId) => lockPortrait(deviceId),
           cleanup: (deviceId) => executeRawAction(deviceId, { type: "key.press", key: "home" }),
+          secrets,
           wake: async (deviceId) => {
             // A PIN is accepted only from the environment and held in memory, never persisted.
             const pin =
@@ -293,6 +299,17 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
           for (const schedule of schedules.due()) {
             worker.start(runs.create(schedule.task, schedule.mode).id);
           }
+          // The shade is polled a few times a minute; dumpsys on every tick would be too much.
+          if (Date.now() - lastTriggerPoll >= 15_000) {
+            lastTriggerPoll = Date.now();
+            for (const device of devices.filter((candidate) => candidate.state === "ready")) {
+              const shade = await listNotifications(device.serial).catch(() => undefined);
+              if (!shade) continue;
+              for (const task of triggers.fire(device.serial, shade)) {
+                worker.start(runs.create(task).id);
+              }
+            }
+          }
         }
       } catch (error) {
         discoveryError = error instanceof Error ? error.message : String(error);
@@ -341,6 +358,8 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
       manualText: executeManualText,
       notifications: listNotifications,
       schedules,
+      triggers,
+      secrets,
       modelProfile: modelConfig.selectedProfile,
       ...(route ? { modelProvider: route.target.provider } : {}),
       modelRequirement:

@@ -18,8 +18,10 @@ import type {
 import type { DeviceGroupService } from "../devices/groups.ts";
 import type { ScheduleService } from "../runs/schedules.ts";
 import type { RunService } from "../runs/service.ts";
+import type { TriggerService } from "../runs/triggers.ts";
 import type { ScriptService } from "../scripts/service.ts";
 import { CredentialBroker } from "../security/credential-broker.ts";
+import type { SecretStore } from "../security/secret-store.ts";
 import type { SettingsService } from "../settings.ts";
 import type { LiveMjpegStream } from "../video/live-stream.ts";
 
@@ -79,6 +81,8 @@ export interface TapRigDaemonOptions {
   manualText?: (serial: string, text: string) => Promise<void>;
   notifications?: (serial: string) => Promise<unknown[]>;
   schedules?: ScheduleService;
+  triggers?: TriggerService;
+  secrets?: SecretStore;
   modelProfile?: string;
   modelProvider?: string;
   modelRequirement?: string;
@@ -786,6 +790,66 @@ export async function startDaemon(options: TapRigDaemonOptions): Promise<Running
           response.end(
             JSON.stringify({
               error: "invalid-schedule",
+              message: error instanceof Error ? error.message : String(error),
+            }),
+          );
+        }
+        return;
+      }
+      if (url.pathname === "/triggers" && (request.method === "GET" || request.method === "POST")) {
+        if (!options.triggers) throw new Error("triggers are unavailable");
+        if (request.method === "GET") {
+          response.end(JSON.stringify({ triggers: options.triggers.list() }));
+          return;
+        }
+        try {
+          const body = (await jsonBody(request)) as { match?: unknown; task?: unknown };
+          const trigger = options.triggers.add(body.match as string, body.task as string);
+          response.statusCode = 201;
+          response.end(JSON.stringify({ trigger }));
+        } catch (error) {
+          response.statusCode = 400;
+          response.end(
+            JSON.stringify({
+              error: "invalid-trigger",
+              message: error instanceof Error ? error.message : String(error),
+            }),
+          );
+        }
+        return;
+      }
+      const triggerRoute = /^\/triggers\/([^/]+)$/u.exec(url.pathname);
+      if (request.method === "DELETE" && triggerRoute?.[1]) {
+        if (!options.triggers) throw new Error("triggers are unavailable");
+        const removed = options.triggers.remove(decodeURIComponent(triggerRoute[1]));
+        response.statusCode = removed ? 200 : 404;
+        response.end(JSON.stringify({ removed }));
+        return;
+      }
+      if (request.method === "GET" && url.pathname === "/secrets") {
+        if (!options.secrets) throw new Error("secrets are unavailable");
+        response.end(JSON.stringify({ names: options.secrets.names() }));
+        return;
+      }
+      const secretRoute = /^\/secrets\/([^/]+)$/u.exec(url.pathname);
+      if (secretRoute?.[1] && (request.method === "PUT" || request.method === "DELETE")) {
+        if (!options.secrets) throw new Error("secrets are unavailable");
+        const name = decodeURIComponent(secretRoute[1]);
+        try {
+          if (request.method === "DELETE") {
+            const removed = options.secrets.remove(name);
+            response.statusCode = removed ? 200 : 404;
+            response.end(JSON.stringify({ removed }));
+            return;
+          }
+          const body = (await jsonBody(request)) as { value?: unknown };
+          options.secrets.set(name, body.value as string);
+          response.end(JSON.stringify({ name }));
+        } catch (error) {
+          response.statusCode = 400;
+          response.end(
+            JSON.stringify({
+              error: "invalid-secret",
               message: error instanceof Error ? error.message : String(error),
             }),
           );
