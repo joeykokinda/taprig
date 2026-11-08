@@ -67,7 +67,11 @@ export async function unlockWithPin(
   });
   if (!/^\d{4,16}$/u.test(pin)) throw new Error("configured unlock secret is not a 4-16 digit PIN");
 
-  await wakeAndSwipe(options.serial, adb);
+  // MENU asks the keyguard for its PIN pad directly. A swipe is not: lock-screen overlays such as
+  // Moto's Glance swallow it, and on Android 14 it opened the shade instead of the bouncer.
+  await adb(options.serial, ["input", "keyevent", "KEYCODE_WAKEUP"]);
+  await adb(options.serial, ["input", "keyevent", "KEYCODE_MENU"]);
+  await wait(800);
   await adb(options.serial, ["input", "text", pin]);
   await adb(options.serial, ["input", "keyevent", "KEYCODE_ENTER"]);
 

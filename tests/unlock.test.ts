@@ -44,6 +44,7 @@ test("enters a scoped PIN and verifies keyguard dismissal", async () => {
   });
 
   assert.equal(result, "unlocked");
+  assert.ok(calls.some((args) => args.join(" ") === "input keyevent KEYCODE_MENU"));
   assert.ok(calls.some((args) => args.join(" ") === "input text 1234"));
   assert.equal(JSON.stringify(broker.audit()).includes("1234"), false);
 });
