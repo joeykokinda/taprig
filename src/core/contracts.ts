@@ -27,6 +27,8 @@ export interface Element {
   resourceId?: string;
   actionable: boolean;
   bounds?: { left: number; top: number; right: number; bottom: number };
+  /** A password field: its text is hidden from observations by design. */
+  password?: boolean;
 }
 
 export interface Observation {

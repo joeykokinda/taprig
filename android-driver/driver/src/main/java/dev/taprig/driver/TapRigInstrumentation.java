@@ -194,6 +194,7 @@ public final class TapRigInstrumentation extends Instrumentation {
             throw new DriverError("invalid-request", "expectedGeneration is required");
         }
         String before;
+        boolean secureText = false;
         try (TreeState state = capture()) {
             before = state.generation;
             String type = action.optString("type", "");
@@ -206,10 +207,11 @@ public final class TapRigInstrumentation extends Instrumentation {
             boolean dispatched = switch (type) {
                 case "element.tap" -> tap(resolve(state, requiredObject(action, "target")), false);
                 case "element.longTap" -> tap(resolve(state, requiredObject(action, "target")), true);
-                case "element.text" -> setText(
-                        resolve(state, requiredObject(action, "target")),
-                        requiredString(action, "value", 10_000),
-                        action.optBoolean("clear", false));
+                case "element.text" -> {
+                    AccessibilityNodeInfo field = resolve(state, requiredObject(action, "target"));
+                    secureText = field.isPassword();
+                    yield setText(field, requiredString(action, "value", 10_000), action.optBoolean("clear", false));
+                }
                 case "key.press" -> pressKey(requiredString(action, "key", 20));
                 case "gesture.tap" -> injectTap(requiredCoordinate(action, "x"), requiredCoordinate(action, "y"), false);
                 case "gesture.swipe" -> swipe(action);
@@ -226,6 +228,12 @@ public final class TapRigInstrumentation extends Instrumentation {
             return new JSONObject()
                     .put("generation", before)
                     .put("evidence", "tap dispatched; no accessibility change");
+        }
+        if (!next.getBoolean("changed") && secureText) {
+            // Password fields hide their text from the tree, so a successful set-text is the evidence.
+            return new JSONObject()
+                    .put("generation", before)
+                    .put("evidence", "text set on a password field; tree unchanged by design");
         }
         if (!next.getBoolean("changed")) {
             throw new DriverError("verification-failed", "phone state did not change after action");
@@ -306,7 +314,8 @@ public final class TapRigInstrumentation extends Instrumentation {
                 .put("id", "node-" + index)
                 .put("role", simpleName(node.getClassName()))
                 .put("actionable", node.isClickable() || node.isLongClickable() || node.isEditable());
-        if (!node.isPassword()) putText(value, "text", node.getText());
+        if (node.isPassword()) value.put("password", true);
+        else putText(value, "text", node.getText());
         putText(value, "description", node.getContentDescription());
         putText(value, "resourceId", node.getViewIdResourceName());
         Rect bounds = new Rect();

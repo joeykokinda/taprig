@@ -71,10 +71,12 @@ function parseElement(value: unknown): Element {
   const item = record(value, "element");
   exact(
     item,
-    ["id", "role", "text", "description", "resourceId", "actionable", "bounds"],
+    ["id", "role", "text", "description", "resourceId", "actionable", "bounds", "password"],
     "element",
   );
   if (typeof item.actionable !== "boolean") throw new Error("element.actionable must be boolean");
+  if (item.password !== undefined && item.password !== true)
+    throw new Error("element.password must be true when present");
   const optionalText = (name: "text" | "description" | "resourceId") => {
     const candidate = item[name];
     return candidate === undefined ? undefined : text(candidate, `element.${name}`);
@@ -100,6 +102,7 @@ function parseElement(value: unknown): Element {
     ...(resourceId ? { resourceId } : {}),
     actionable: item.actionable,
     ...(bounds ? { bounds } : {}),
+    ...(item.password ? { password: true } : {}),
   };
 }
 
