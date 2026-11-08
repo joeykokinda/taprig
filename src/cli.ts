@@ -122,9 +122,9 @@ function formatRunEvent(event: RunEvent): string {
 }
 
 async function showRun(id: string): Promise<void> {
-  const [{ run }, { events }, { questions }, { approvals }, { artifacts }, { telemetry }] =
+  const [{ run, result }, { events }, { questions }, { approvals }, { artifacts }, { telemetry }] =
     await Promise.all([
-      daemonJson<{ run: RunState }>(`/runs/${encodeURIComponent(id)}`),
+      daemonJson<{ run: RunState; result?: string }>(`/runs/${encodeURIComponent(id)}`),
       daemonJson<{ events: Array<{ sequence: number; event: RunEvent }> }>(
         `/runs/${encodeURIComponent(id)}/events`,
       ),
@@ -141,6 +141,7 @@ async function showRun(id: string): Promise<void> {
     ]);
   const target = run.affinity?.group ?? (run.affinity ? run.affinity.deviceIds.join(", ") : "all");
   process.stdout.write(`${run.id} · ${run.status} · ${run.mode} · ${target}\n${run.task}\n`);
+  if (result) process.stdout.write(`  result: ${result}\n`);
   for (const item of events)
     process.stdout.write(`  ${item.sequence}  ${formatRunEvent(item.event)}\n`);
   for (const question of questions) {
@@ -222,8 +223,8 @@ async function followRun(id: string): Promise<void> {
   let printed = 0;
   let ask: ReturnType<typeof createPrompter> | undefined;
   for (;;) {
-    const [{ run }, { events }] = await Promise.all([
-      daemonJson<{ run: RunState }>(`/runs/${encodeURIComponent(id)}`),
+    const [{ run, result }, { events }] = await Promise.all([
+      daemonJson<{ run: RunState; result?: string }>(`/runs/${encodeURIComponent(id)}`),
       daemonJson<{ events: Array<{ sequence: number; event: RunEvent }> }>(
         `/runs/${encodeURIComponent(id)}/events`,
       ),
@@ -233,6 +234,8 @@ async function followRun(id: string): Promise<void> {
       printed = item.sequence;
     }
     if (["completed", "failed", "stopped"].includes(run.status)) {
+      if (result) process.stdout.write(`\n${result}\n\n`);
+      if (run.status === "failed" && run.error) process.stdout.write(`\n${run.error.message}\n\n`);
       process.stdout.write(`${run.status}\n`);
       if (run.status !== "completed") process.exitCode = 1;
       return;

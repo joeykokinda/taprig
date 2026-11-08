@@ -139,7 +139,7 @@ $("#devices").addEventListener("keydown", async (event) => {
   }
 });
 
-function renderRuns(runs, telemetry) {
+function renderRuns(runs, telemetry, results) {
   const active = runs.filter((run) => !["completed", "failed", "stopped"].includes(run.status));
   $("#run-count").textContent = active.length;
   $("#runs").innerHTML = runs.length
@@ -163,6 +163,7 @@ function renderRuns(runs, telemetry) {
         <span>${escapeHtml(`${run.mode}${run.affinity?.group ? ` / ${run.affinity.group}` : run.affinity ? ` / ${run.affinity.deviceIds.length} DEVICES` : ""}`).toUpperCase()}</span>
         <strong>${escapeHtml(run.status).toUpperCase()}</strong>
         <p title="${escapeHtml(run.task)}">${escapeHtml(run.task)}</p>
+        ${results?.[run.id] ? `<p class="run-result">${escapeHtml(results[run.id])}</p>` : ""}
         ${
           metrics
             ? `<small>${metrics.modelCalls} MODEL / ${metrics.inputTokens + metrics.outputTokens} TOKENS${metrics.costUsd ? ` / $${metrics.costUsd.toFixed(4)}` : ""} / ${metrics.attemptedActions} ACTIONS / ${Math.round(metrics.elapsedMs)}MS</small>`
@@ -355,15 +356,21 @@ function renderSetup(setup) {
 
 async function refresh() {
   try {
-    const [{ devices }, { runs, telemetry }, { scripts }, { groups }, setup, { settings }] =
-      await Promise.all([
-        json("/devices"),
-        json("/runs"),
-        json("/scripts"),
-        json("/device-groups"),
-        json("/setup"),
-        json("/settings"),
-      ]);
+    const [
+      { devices },
+      { runs, telemetry, results },
+      { scripts },
+      { groups },
+      setup,
+      { settings },
+    ] = await Promise.all([
+      json("/devices"),
+      json("/runs"),
+      json("/scripts"),
+      json("/device-groups"),
+      json("/setup"),
+      json("/settings"),
+    ]);
     renderSetup(setup);
     if (!$("#settings-form").matches(":focus-within")) {
       $("#settings-form").elements.approvalPolicy.value = settings.approvalPolicy;
@@ -397,7 +404,7 @@ async function refresh() {
           ),
         ),
     );
-    renderRuns(runs, new Map(Object.entries(telemetry)));
+    renderRuns(runs, new Map(Object.entries(telemetry)), results ?? {});
     await refreshActivity(runs);
     renderQuestions(questionGroups.flat().filter((question) => question.status === "open"));
     renderApprovals(approvalGroups.flat().filter((approval) => approval.status === "open"));

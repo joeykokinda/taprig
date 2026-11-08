@@ -269,6 +269,16 @@ export async function startDaemon(options: TapRigDaemonOptions): Promise<Running
         response.end(
           JSON.stringify({
             runs,
+            results: Object.fromEntries(
+              runs.flatMap((run) => {
+                const completion = options.runs?.completion(run.id)?.evidence as
+                  | { summary?: unknown }
+                  | undefined;
+                return typeof completion?.summary === "string"
+                  ? [[run.id, completion.summary]]
+                  : [];
+              }),
+            ),
             telemetry: Object.fromEntries(
               runs.flatMap((run) => {
                 const telemetry = options.runs?.telemetry(run.id)?.evidence;
@@ -739,7 +749,12 @@ export async function startDaemon(options: TapRigDaemonOptions): Promise<Running
           response.end(JSON.stringify({ error: "run-not-found" }));
           return;
         }
-        response.end(JSON.stringify({ run }));
+        // The model's final evidence is the answer to a read task, so it travels with the run.
+        const completion = options.runs?.completion(run.id)?.evidence as
+          | { summary?: unknown }
+          | undefined;
+        const result = typeof completion?.summary === "string" ? completion.summary : undefined;
+        response.end(JSON.stringify({ run, ...(result !== undefined ? { result } : {}) }));
         return;
       }
       const semanticRoute =
