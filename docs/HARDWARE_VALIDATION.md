@@ -132,13 +132,41 @@ provider with no manual help.
 Still unverified on this device: a second phone in the same session, and
 reconnect across host or device reboot.
 
-## 2026-11-08 (later) — login and human-handoff attempt on `ZY22L2TQM3`
+## 2026-11-08 (later) — real login with human-supplied credentials on `ZY22L2TQM3`
 
-Deployed the login and captcha handoff build (hidden CLI prompts, `[SECRET]`
-placeholder substitution, control-room typing, `taprig_answer`) to Brach and
-started "Open Chrome, go to the-internet.herokuapp.com/login and log in; ask me
-for the username, then the password". The run failed in 2 s with
-`transport-failed: the connected phone is locked`: restarting the daemon had
-dropped the owner's in-memory `TAPRIG_UNLOCK_PIN`, and the keyguard was up.
-Nothing ran on the phone. Rerun once the phone is unlocked or the daemon is
-started with the PIN (see the systemd unit in `docs/ONBOARDING.md`).
+Task: "Open Chrome, go to the-internet.herokuapp.com/login and log in. The task does
+not include the credentials: ask me for the username, then the password." Signed-in
+Claude Code CLI, run `ea7ddbe7`.
+
+Result: completed in 31 s, 6 model calls, 1512 tokens, 5 verified actions. The agent
+asked "What username should I use to log in?", then "What password should I use to
+log in? (This is a password.)". The password was answered as sensitive: the model
+received only the `[SECRET]` placeholder, the phone showed 20 masked characters, and
+the exported run bundle and daemon log contain zero occurrences of the value. The
+final screen read "You logged into a secure area!" and "Logged in as tomsmith".
+
+Three defects found only on this hardware, each fixed and re-verified:
+
+1. **PIN unlock never reached the keypad.** The unlock swipe was swallowed by
+   Moto's Glance lock-screen overlay, and with Glance stopped the same swipe
+   opened the notification shade. The keyguard reported `bouncerShowing: false`
+   throughout. `KEYCODE_MENU` opens the PIN pad directly; unlock now sends
+   wake, MENU, PIN, ENTER.
+2. **Typing into a password field failed verification.** Password nodes hide
+   their text from the accessibility tree, so the generation did not change and
+   the driver reported `verification-failed`; the agent retyped until its budget
+   ran out. A successful set-text on a password node is now the evidence, and
+   elements carry `password: true` so the model moves on to submit.
+3. **Tapping the Login button did nothing.** Chrome's web button accepted
+   `ACTION_CLICK` and reported it handled without submitting the form, while a
+   plain coordinate tap logged in. Driver taps now inject a real touch at the
+   element's center and use the accessibility click only for nodes without
+   bounds.
+
+Operational notes: the daemon loads the driver manifest once at start, so a
+rebuilt bundle needs a daemon restart before the phone is updated. Restarting the
+daemon also drops the in-memory unlock PIN; the systemd unit in
+`docs/ONBOARDING.md` keeps it across restarts.
+
+Still unverified on this device: a captcha handoff through TAKE CONTROL, a
+second phone in the same session, and reconnect across host or device reboot.

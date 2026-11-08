@@ -66,8 +66,9 @@ Percentages describe demonstrated functionality, not lines of code.
 - [x] Logins and human handoff: hidden terminal prompts for passwords and codes, a
   `[SECRET]` placeholder so the model never sees the value, control-room typing
   during TAKE CONTROL for captchas, `taprig_answer` over MCP, installed-app hints.
-- [ ] Validate a real login (the-internet.herokuapp.com/login) and a captcha handoff
-  on the Moto; blocked on the phone being unlocked or `TAPRIG_UNLOCK_PIN` set.
+- [x] Validate a real login with human-supplied credentials on the Moto
+  (the-internet.herokuapp.com/login, 31 s, no secret in logs or export).
+- [ ] Validate a captcha or 2FA handoff through TAKE CONTROL on the Moto.
 
 ## P2 — fleet and launch
 
