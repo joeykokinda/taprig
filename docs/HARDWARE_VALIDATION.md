@@ -230,3 +230,6 @@ publish.
 Named secret (same evening): `printf ... | taprig secret set demo_password`, then "Log in
 with username tomsmith and password {{secret:demo_password}}" completed on the Moto with
 no questions asked; the daemon log and export contain no copy of the value.
+
+Emulator CI (same evening): the smoke matrix booted Pixel 6 images on API 30, 33, and 35,
+enrolled the driver, launched Settings through the daemon, and read the shade. All green.
