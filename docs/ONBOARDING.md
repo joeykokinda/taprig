@@ -46,3 +46,38 @@ Install and run TapRig on the computer physically connected to the phones, SSH
 into it, and use the interactive `taprig` shell there. For the browser control
 room, forward the daemon's loopback port over SSH and open the one-time session
 URL on the forwarded localhost origin. Do not expose the daemon port directly.
+
+### Keep the daemon running (Linux)
+
+A systemd user service survives reboots and keeps the phone PIN out of shell
+history. Put secrets in `~/.config/taprig/env` (mode 600):
+
+```ini
+# ~/.config/taprig/env
+TAPRIG_UNLOCK_PIN=1234
+```
+
+```ini
+# ~/.config/systemd/user/taprig.service
+[Unit]
+Description=TapRig phone-agent daemon
+
+[Service]
+EnvironmentFile=-%h/.config/taprig/env
+ExecStart=%h/.npm-global/bin/taprig daemon serve
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target
+```
+
+```console
+chmod 600 ~/.config/taprig/env
+systemctl --user daemon-reload
+systemctl --user enable --now taprig
+loginctl enable-linger $USER   # start at boot without a login
+```
+
+Adjust `ExecStart` to wherever `taprig` is installed (`which taprig`), or to
+`node src/cli.ts daemon serve` with `WorkingDirectory=` set for a checkout.

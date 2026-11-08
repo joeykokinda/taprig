@@ -63,6 +63,11 @@ Percentages describe demonstrated functionality, not lines of code.
 - [x] Persist owner approval and artifact defaults with CLI/control-room editing.
 - [x] Add cooperative pause/resume/stop and immutable failed-run retry controls.
 - [x] Package the daemon and UI as an Electron desktop application.
+- [x] Logins and human handoff: hidden terminal prompts for passwords and codes, a
+  `[SECRET]` placeholder so the model never sees the value, control-room typing
+  during TAKE CONTROL for captchas, `taprig_answer` over MCP, installed-app hints.
+- [ ] Validate a real login (the-internet.herokuapp.com/login) and a captcha handoff
+  on the Moto; blocked on the phone being unlocked or `TAPRIG_UNLOCK_PIN` set.
 
 ## P2 — fleet and launch
 

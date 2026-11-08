@@ -131,3 +131,14 @@ provider with no manual help.
 
 Still unverified on this device: a second phone in the same session, and
 reconnect across host or device reboot.
+
+## 2026-11-08 (later) — login and human-handoff attempt on `ZY22L2TQM3`
+
+Deployed the login and captcha handoff build (hidden CLI prompts, `[SECRET]`
+placeholder substitution, control-room typing, `taprig_answer`) to Brach and
+started "Open Chrome, go to the-internet.herokuapp.com/login and log in; ask me
+for the username, then the password". The run failed in 2 s with
+`transport-failed: the connected phone is locked`: restarting the daemon had
+dropped the owner's in-memory `TAPRIG_UNLOCK_PIN`, and the keyguard was up.
+Nothing ran on the phone. Rerun once the phone is unlocked or the daemon is
+started with the PIN (see the systemd unit in `docs/ONBOARDING.md`).
