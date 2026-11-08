@@ -371,11 +371,14 @@ public final class TapRigInstrumentation extends Instrumentation {
     }
 
     private boolean tap(AccessibilityNodeInfo node, boolean longTap) {
-        int action = longTap ? AccessibilityNodeInfo.ACTION_LONG_CLICK : AccessibilityNodeInfo.ACTION_CLICK;
-        if (node.performAction(action)) return true;
+        // A real touch first: web content in Chrome reports ACTION_CLICK as handled without submitting
+        // the form, which left a login run tapping a button that never fired. Fall back to the
+        // accessibility action only for nodes without screen bounds.
         Rect bounds = new Rect();
         node.getBoundsInScreen(bounds);
-        return !bounds.isEmpty() && injectTap(bounds.centerX(), bounds.centerY(), longTap);
+        if (!bounds.isEmpty()) return injectTap(bounds.centerX(), bounds.centerY(), longTap);
+        int action = longTap ? AccessibilityNodeInfo.ACTION_LONG_CLICK : AccessibilityNodeInfo.ACTION_CLICK;
+        return node.performAction(action);
     }
 
     private static boolean setText(AccessibilityNodeInfo node, String value, boolean clear) {
