@@ -580,7 +580,12 @@ export class RunWorker {
         : eligible.find((candidate) => !this.#leasedDevices.has(candidate.id));
       if (device) {
         this.#leasedDevices.add(device.id);
-        await this.#prepare?.(device.id).catch(() => undefined);
+        // A failed rotation lock is logged, not fatal: the run still has a phone.
+        await this.#prepare?.(device.id).catch((error: unknown) => {
+          console.error(
+            `prepare ${device.id} failed: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        });
         return device.id;
       }
       if (requestedDeviceId && !ready.some((candidate) => candidate.id === requestedDeviceId)) {

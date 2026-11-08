@@ -123,13 +123,16 @@ export async function executeRawAction(
 
   switch (action.type) {
     case "app.launch":
+      // Never monkey: its one "event" can be a random rotation that re-enables auto-rotate.
       await run(serial, [
-        "monkey",
-        "-p",
-        packageName(action.packageName),
+        "am",
+        "start",
+        "-a",
+        "android.intent.action.MAIN",
         "-c",
         "android.intent.category.LAUNCHER",
-        "1",
+        "-p",
+        packageName(action.packageName),
       ]);
       return;
     case "key.press":

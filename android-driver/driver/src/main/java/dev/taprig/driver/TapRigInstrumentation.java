@@ -436,8 +436,9 @@ public final class TapRigInstrumentation extends Instrumentation {
     }
 
     private boolean launch(String packageName) throws IOException {
+        // Never monkey: its single "event" can be a random rotation that re-enables auto-rotate.
         ParcelFileDescriptor descriptor = automation.executeShellCommand(
-                "monkey --pct-syskeys 0 -p " + packageName + " 1");
+                "am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -p " + packageName);
         try (InputStream input = new ParcelFileDescriptor.AutoCloseInputStream(descriptor)) {
             byte[] buffer = new byte[4096];
             int total = 0;

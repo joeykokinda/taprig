@@ -27,7 +27,16 @@ test("raw actions pass validated arguments without shell interpolation", async (
     { serial: "phone-1", args: ["input", "tap", "100", "200"] },
     {
       serial: "phone-1",
-      args: ["monkey", "-p", "com.android.settings", "-c", "android.intent.category.LAUNCHER", "1"],
+      args: [
+        "am",
+        "start",
+        "-a",
+        "android.intent.action.MAIN",
+        "-c",
+        "android.intent.category.LAUNCHER",
+        "-p",
+        "com.android.settings",
+      ],
     },
   ]);
 });
