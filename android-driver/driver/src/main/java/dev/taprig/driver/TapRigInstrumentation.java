@@ -42,6 +42,8 @@ import org.json.JSONObject;
 public final class TapRigInstrumentation extends Instrumentation {
     private static final int PROTOCOL_VERSION = 1;
     private static final int ACTION_WAIT_MS = 2_000;
+    // Cold starts on a budget phone take several seconds before the first window appears.
+    private static final int LAUNCH_WAIT_MS = 8_000;
     private static final int EVENT_SETTLE_MS = 50;
     private static final int SETTLE_QUIET_MS = 300;
     private static final String SOCKET_NAME = "taprig-driver";
@@ -225,12 +227,13 @@ public final class TapRigInstrumentation extends Instrumentation {
             if (!dispatched) throw new DriverError("verification-failed", "Android rejected the action");
         }
 
-        JSONObject next = waitForChange(before, ACTION_WAIT_MS);
+        String type = action.optString("type", "");
+        JSONObject next = waitForChange(before, "app.launch".equals(type) ? LAUNCH_WAIT_MS : ACTION_WAIT_MS);
         if (!next.getBoolean("changed")) {
             // Verification is per action. A touch or key that leaves the tree alone still happened
             // (focused fields, web buttons, hidden keyboards), text is checked in the field itself,
             // and a launch is checked by the foreground package. Only a swipe must move something.
-            String evidence = switch (action.optString("type", "")) {
+            String evidence = switch (type) {
                 case "element.tap", "element.longTap", "gesture.tap" -> "touch delivered; accessibility tree unchanged";
                 case "key.press" -> "key delivered; accessibility tree unchanged";
                 case "element.text" -> verifyTypedText(typedField, typedValue, secureText);
@@ -465,15 +468,28 @@ public final class TapRigInstrumentation extends Instrumentation {
     }
 
     private boolean launch(String packageName) throws IOException {
-        // Never monkey: its single "event" can be a random rotation that re-enables auto-rotate.
-        ParcelFileDescriptor descriptor = automation.executeShellCommand(
-                "am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -p " + packageName);
+        // Resolve the launcher activity first: `am start -p` cannot resolve apps whose main activity
+        // lives in another package (X ships com.x.android.main.MainActivity), and monkey is out
+        // because its one random event can re-enable auto-rotate.
+        String resolved = shell("cmd package resolve-activity --brief -a android.intent.action.MAIN"
+                + " -c android.intent.category.LAUNCHER " + packageName).trim();
+        String[] lines = resolved.split("\\r?\\n");
+        String component = lines.length == 0 ? "" : lines[lines.length - 1].trim();
+        String output = component.contains("/")
+                ? shell("am start -n " + component)
+                : shell("am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -p " + packageName);
+        return !output.contains("Error");
+    }
+
+    private String shell(String command) throws IOException {
+        ParcelFileDescriptor descriptor = automation.executeShellCommand(command);
+        ByteArrayOutputStream collected = new ByteArrayOutputStream();
         try (InputStream input = new ParcelFileDescriptor.AutoCloseInputStream(descriptor)) {
             byte[] buffer = new byte[4096];
-            int total = 0;
-            while (input.read(buffer) >= 0 && (total += buffer.length) < 65_536) {}
+            int read;
+            while ((read = input.read(buffer)) >= 0 && collected.size() < 65_536) collected.write(buffer, 0, read);
         }
-        return true;
+        return collected.toString(StandardCharsets.UTF_8.name());
     }
 
     private void changed(AccessibilityEvent event) {

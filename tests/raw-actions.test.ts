@@ -102,3 +102,19 @@ test("manual text is quoted for the phone shell and installed packages are liste
     ["com.a.app", "com.b.app"],
   );
 });
+
+test("app launches use the resolved launcher activity when the phone knows one", async () => {
+  const { executeRawAction } = await import("../src/android/raw-actions.ts");
+  const calls: string[][] = [];
+  await executeRawAction(
+    "phone-1",
+    { type: "app.launch", packageName: "com.twitter.android" },
+    async (_serial, args) => {
+      calls.push([...args]);
+    },
+    async () => "priority=0\ncom.twitter.android/com.x.android.main.MainActivity\n",
+  );
+  assert.deepEqual(calls, [
+    ["am", "start", "-n", "com.twitter.android/com.x.android.main.MainActivity"],
+  ]);
+});

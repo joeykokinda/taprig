@@ -114,27 +114,52 @@ function packageName(value: string): string {
   return value;
 }
 
+const launcherIntent = [
+  "-a",
+  "android.intent.action.MAIN",
+  "-c",
+  "android.intent.category.LAUNCHER",
+];
+
+/** The launcher activity for a package, when the phone can resolve one. */
+export async function resolveLauncherActivity(
+  serial: string,
+  name: string,
+  output: AdbOutputRunner = runAdbOutput,
+): Promise<string | undefined> {
+  const listing = await output(serial, [
+    "cmd",
+    "package",
+    "resolve-activity",
+    "--brief",
+    ...launcherIntent,
+    packageName(name),
+  ]).catch(() => "");
+  const component = listing.trim().split(/\r?\n/u).at(-1)?.trim();
+  return component && /^[\w.]+\/[\w.$]+$/u.test(component) ? component : undefined;
+}
+
 export async function executeRawAction(
   serial: string,
   action: Action,
   run: AdbCommandRunner = runAdbShell,
+  output: AdbOutputRunner = runAdbOutput,
 ): Promise<void> {
   if (!serial) throw new Error("device serial must not be empty");
 
   switch (action.type) {
-    case "app.launch":
-      // Never monkey: its one "event" can be a random rotation that re-enables auto-rotate.
-      await run(serial, [
-        "am",
-        "start",
-        "-a",
-        "android.intent.action.MAIN",
-        "-c",
-        "android.intent.category.LAUNCHER",
-        "-p",
-        packageName(action.packageName),
-      ]);
+    case "app.launch": {
+      // Resolve the activity first: `am start -p` cannot start apps whose main activity lives in
+      // another package (X), and monkey's one random event can re-enable auto-rotate.
+      const component = await resolveLauncherActivity(serial, action.packageName, output);
+      await run(
+        serial,
+        component
+          ? ["am", "start", "-n", component]
+          : ["am", "start", ...launcherIntent, "-p", packageName(action.packageName)],
+      );
       return;
+    }
     case "key.press":
       await run(serial, ["input", "keyevent", keyCodes[action.key]]);
       return;
