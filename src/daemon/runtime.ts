@@ -234,9 +234,13 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
           cleanup: (deviceId) => executeRawAction(deviceId, { type: "key.press", key: "home" }),
           secrets,
           wake: async (deviceId) => {
-            // A PIN is accepted only from the environment and held in memory, never persisted.
+            // Environment first; otherwise the 0600 secret store, so `taprig secret set unlock-pin`
+            // survives daemon restarts like every other named secret.
             const pin =
-              process.env[`TAPRIG_UNLOCK_PIN_${deviceId}`] ?? process.env.TAPRIG_UNLOCK_PIN;
+              process.env[`TAPRIG_UNLOCK_PIN_${deviceId}`] ??
+              process.env.TAPRIG_UNLOCK_PIN ??
+              secrets.get(`unlock-pin.${deviceId}`) ??
+              secrets.get("unlock-pin");
             if (pin) {
               const broker = new CredentialBroker();
               const scope = { deviceId, purpose: "device.unlock" };

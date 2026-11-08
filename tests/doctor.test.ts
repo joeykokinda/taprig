@@ -39,6 +39,6 @@ test("doctor turns the daemon setup report into one fix per failure", async () =
     findings.map(({ status, subject }) => `${status}:${subject}`),
     ["pass:daemon", "pass:phone-1", "fail:phone-2", "fail:model"],
   );
-  assert.match(findings[2]?.message ?? "", /TAPRIG_UNLOCK_PIN/u);
+  assert.match(findings[2]?.message ?? "", /secret set unlock-pin/u);
   assert.match(findings[3]?.message ?? "", /taprig model use/u);
 });

@@ -622,7 +622,7 @@ export class RunWorker {
       if (allReady.length === 0) {
         throw new Error(
           locked.length > 0
-            ? "the connected phone is locked; unlock it, or start the daemon with TAPRIG_UNLOCK_PIN set"
+            ? "the connected phone is locked; unlock it, or store its PIN with: taprig secret set unlock-pin"
             : "no ready Android device is connected",
         );
       }

@@ -60,7 +60,8 @@ export interface SetupReport {
 }
 
 const stateAdvice: Record<string, string> = {
-  locked: "Unlock the phone, or start the daemon with TAPRIG_UNLOCK_PIN set so runs unlock it.",
+  locked:
+    "Runs unlock it once you store the PIN: taprig secret set unlock-pin (or unlock-pin.<serial>).",
   unauthorized: "Unlock the phone and approve the USB debugging prompt (check Always allow).",
   offline: "ADB sees the phone but cannot talk to it: replug the cable or toggle USB debugging.",
   booting: "The phone is still booting; wait and run doctor again.",

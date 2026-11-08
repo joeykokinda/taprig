@@ -49,13 +49,10 @@ URL on the forwarded localhost origin. Do not expose the daemon port directly.
 
 ### Keep the daemon running (Linux)
 
-A systemd user service survives reboots and keeps the phone PIN out of shell
-history. Put secrets in `~/.config/taprig/env` (mode 600):
-
-```ini
-# ~/.config/taprig/env
-TAPRIG_UNLOCK_PIN=1234
-```
+A systemd user service survives reboots. The unlock PIN lives in the secret
+store (`taprig secret set unlock-pin`, or `unlock-pin.<serial>` per phone), so
+the unit needs no secrets. `TAPRIG_UNLOCK_PIN` in `~/.config/taprig/env` still
+overrides it if you prefer the environment.
 
 ```ini
 # ~/.config/systemd/user/taprig.service

@@ -28,7 +28,9 @@ npm install -g taprig          # or from source: git clone … && npm ci && npm 
 ```
 
 On the phone, enable Developer options and USB debugging, plug it in, unlock
-it, and accept the "Allow USB debugging" prompt. Then:
+it, and accept the "Allow USB debugging" prompt. If the phone has a PIN, store
+it once with `taprig secret set unlock-pin` and runs unlock the phone themselves,
+including past lock-screen overlays such as Glance. Then:
 
 ```console
 taprig setup                                          # starts the daemon, checks everything
