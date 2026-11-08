@@ -84,7 +84,7 @@ function scrollGesture(direction: string, screen: Bounds) {
         .toLowerCase()
         .replace(/^scroll\s+/u, "")
     ];
-  if (!gesture) throw new Error("model returned an invalid scroll direction");
+  if (!gesture) throw new Error(`model returned an invalid scroll direction "${direction}"`);
   return { type: "gesture.swipe" as const, from: gesture[0], to: gesture[1], durationMs: 350 };
 }
 

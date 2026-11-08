@@ -16,7 +16,7 @@ import { AndroidDriverAdapter } from "../android/driver-adapter.ts";
 import { executeNormalizedTap, executeRawAction } from "../android/raw-actions.ts";
 import { captureAdbScreenshot } from "../android/screenshot.ts";
 import { AndroidSemanticAdapter } from "../android/semantic-adapter.ts";
-import { unlockWithPin, wakeAndSwipe } from "../android/unlock.ts";
+import { lockPortrait, unlockWithPin, wakeAndSwipe } from "../android/unlock.ts";
 import { ArtifactService } from "../artifacts/service.ts";
 import { DeviceGroupService } from "../devices/groups.ts";
 import { detectProvider, loadOrCreateModelConfig, usableModelConfig } from "../models/config.ts";
@@ -193,6 +193,7 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
           runs,
           devices: registry,
           adapter: semanticAdapter,
+          prepare: (deviceId) => lockPortrait(deviceId),
           wake: async (deviceId) => {
             // A PIN is accepted only from the environment and held in memory, never persisted.
             const pin =

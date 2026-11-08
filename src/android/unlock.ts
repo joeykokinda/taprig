@@ -77,3 +77,12 @@ export async function unlockWithPin(
   }
   throw new Error("unlock verification failed");
 }
+
+/**
+ * Rig phones lie on desks, where auto-rotate flips apps sideways and portrait gestures land
+ * off screen. Every run therefore pins the phone to portrait before it starts.
+ */
+export async function lockPortrait(serial: string, adb: UnlockAdb = runUnlockAdb): Promise<void> {
+  await adb(serial, ["settings", "put", "system", "accelerometer_rotation", "0"]);
+  await adb(serial, ["settings", "put", "system", "user_rotation", "0"]);
+}

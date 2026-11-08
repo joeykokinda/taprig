@@ -127,8 +127,12 @@ test("a worker wakes a locked phone once before giving up", async () => {
   const stuck = runs.create("Open Settings");
   let state = "locked";
   const wakes: string[] = [];
+  const prepared: string[] = [];
   let unlocks = true;
   const worker = new RunWorker({
+    prepare: async (deviceId) => {
+      prepared.push(deviceId);
+    },
     runs,
     devices: { list: async () => [{ ...readyDevice("phone-1"), state }] },
     adapter: { observe: async () => observation("x"), execute: async () => ({}) as BatchResult },
@@ -147,6 +151,7 @@ test("a worker wakes a locked phone once before giving up", async () => {
   worker.start(stuck.id);
   await worker.idle();
   assert.deepEqual(wakes, ["phone-1", "phone-1"]);
+  assert.deepEqual(prepared, ["phone-1"]);
   assert.match(runs.get(stuck.id)?.error?.message ?? "", /phone is locked/);
   store.close();
 });

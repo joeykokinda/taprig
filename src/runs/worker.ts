@@ -22,6 +22,8 @@ export interface RunWorkerOptions {
   captureArtifact?(runId: string, deviceId: string): Promise<void>;
   /** Wakes a locked phone and refreshes inventory so a sleeping screen does not fail a run. */
   wake?(deviceId: string): Promise<void>;
+  /** Runs once a phone is leased, before the first observation: rotation lock and similar. */
+  prepare?(deviceId: string): Promise<void>;
 }
 
 type Decider = (context: AgentContext) => Promise<AgentDecision>;
@@ -107,6 +109,7 @@ export class RunWorker {
     | undefined;
   readonly #captureArtifact: ((runId: string, deviceId: string) => Promise<void>) | undefined;
   readonly #wake: ((deviceId: string) => Promise<void>) | undefined;
+  readonly #prepare: ((deviceId: string) => Promise<void>) | undefined;
 
   constructor(options: RunWorkerOptions) {
     this.#runs = options.runs;
@@ -116,6 +119,7 @@ export class RunWorker {
     this.#planCoordinated = options.planCoordinated;
     this.#captureArtifact = options.captureArtifact;
     this.#wake = options.wake;
+    this.#prepare = options.prepare;
   }
 
   start(runId: string, deviceId?: string): void {
@@ -576,6 +580,7 @@ export class RunWorker {
         : eligible.find((candidate) => !this.#leasedDevices.has(candidate.id));
       if (device) {
         this.#leasedDevices.add(device.id);
+        await this.#prepare?.(device.id).catch(() => undefined);
         return device.id;
       }
       if (requestedDeviceId && !ready.some((candidate) => candidate.id === requestedDeviceId)) {
@@ -605,6 +610,7 @@ export class RunWorker {
         throw new Error("broadcast requires at least two ready Android devices");
       if (ready.every((candidate) => !this.#leasedDevices.has(candidate.id))) {
         for (const device of ready) this.#leasedDevices.add(device.id);
+        await Promise.allSettled(ready.map((device) => this.#prepare?.(device.id)));
         return ready.map((device) => device.id);
       }
       await new Promise<void>((resolve) => this.#leaseWaiters.add(resolve));
@@ -624,6 +630,7 @@ export class RunWorker {
       if (missing) throw new Error(`broadcast Android device ${missing} is not ready`);
       if (requested.every((id) => !this.#leasedDevices.has(id))) {
         for (const id of requested) this.#leasedDevices.add(id);
+        await Promise.allSettled(requested.map((id) => this.#prepare?.(id)));
         return requested;
       }
       await new Promise<void>((resolve) => this.#leaseWaiters.add(resolve));
