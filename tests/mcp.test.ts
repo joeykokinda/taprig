@@ -31,6 +31,7 @@ test("MCP lists and calls the daemon-backed TapRig tools", async (context) => {
     "taprig_answer",
     "taprig_approval",
     "taprig_devices",
+    "taprig_notifications",
     "taprig_observe",
     "taprig_run",
     "taprig_run_control",

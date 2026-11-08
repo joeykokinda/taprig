@@ -216,6 +216,17 @@ export function createTapRigMcpServer(request: RequestDaemon = daemonRequest): M
       ),
   );
   server.registerTool(
+    "taprig_notifications",
+    {
+      description:
+        "Read one phone's notification shade (app, title, text, time), newest first, without touching the screen.",
+      inputSchema: z.object({ deviceId: z.string().min(1).max(300) }),
+      annotations: { readOnlyHint: true },
+    },
+    async ({ deviceId }) =>
+      text(await json(request, `/devices/${encodeURIComponent(deviceId)}/notifications`)),
+  );
+  server.registerTool(
     "taprig_screenshot",
     {
       description:

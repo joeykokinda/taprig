@@ -15,6 +15,7 @@ import {
   loadDriverBundle,
 } from "../android/driver/session.ts";
 import { AndroidDriverAdapter } from "../android/driver-adapter.ts";
+import { listNotifications } from "../android/notifications.ts";
 import {
   executeManualText,
   executeNormalizedTap,
@@ -246,6 +247,7 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
               listThirdPartyPackages,
               settings.get().vision,
               appNotes,
+              listNotifications,
             ),
           ...(coordinatorRoute && coordinatorProvider && providerReady(coordinatorProvider)
             ? {
@@ -319,6 +321,7 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
         }),
       manualTap: executeNormalizedTap,
       manualText: executeManualText,
+      notifications: listNotifications,
       modelProfile: modelConfig.selectedProfile,
       ...(route ? { modelProvider: route.target.provider } : {}),
       modelRequirement:

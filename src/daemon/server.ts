@@ -76,6 +76,7 @@ export interface TapRigDaemonOptions {
   stream?: (serial: string) => Promise<LiveMjpegStream>;
   manualTap?: (serial: string, xRatio: number, yRatio: number) => Promise<void>;
   manualText?: (serial: string, text: string) => Promise<void>;
+  notifications?: (serial: string) => Promise<unknown[]>;
   modelProfile?: string;
   modelProvider?: string;
   modelRequirement?: string;
@@ -755,6 +756,16 @@ export async function startDaemon(options: TapRigDaemonOptions): Promise<Running
           | undefined;
         const result = typeof completion?.summary === "string" ? completion.summary : undefined;
         response.end(JSON.stringify({ run, ...(result !== undefined ? { result } : {}) }));
+        return;
+      }
+      const notificationsRoute = /^\/devices\/([^/]+)\/notifications$/u.exec(url.pathname);
+      if (request.method === "GET" && notificationsRoute?.[1]) {
+        if (!options.notifications) throw new Error("notifications are unavailable");
+        response.end(
+          JSON.stringify({
+            notifications: await options.notifications(decodeURIComponent(notificationsRoute[1])),
+          }),
+        );
         return;
       }
       const semanticRoute =

@@ -452,6 +452,7 @@ async function main(): Promise<void> {
   taprig answer <run> <q> "<text>"  answer a question; approve|deny <run> <approval>
   taprig pause|resume|stop|retry <run>
   taprig devices | doctor           list phones or diagnose connection problems
+  taprig notifications [serial]     read the notification shade without touching the screen
   taprig model show | use <openai|anthropic|claude|codex> | profile <economy|balanced|best>
   taprig model use compatible --base-url <url> --model <name> [--api-key-env <VAR>]
                                     any OpenAI-compatible server: OpenRouter, Ollama, Groq, Gemini
@@ -835,6 +836,20 @@ Models: set ANTHROPIC_API_KEY or OPENAI_API_KEY, or sign in to the claude or cod
   const devices = await loadDevices();
   if (selectedCommand === "devices") {
     process.stdout.write(`${formatAdbDevices(devices)}\n`);
+    return;
+  }
+  if (selectedCommand === "notifications") {
+    const serial = process.argv[3] ?? devices[0]?.serial;
+    if (!serial) throw new Error("notifications requires a connected phone");
+    const { notifications } = await daemonJson<{
+      notifications: Array<{ package: string; title: string; text: string; postedAt?: string }>;
+    }>(`/devices/${encodeURIComponent(serial)}/notifications`);
+    for (const item of notifications) {
+      process.stdout.write(
+        `${item.postedAt ? new Date(item.postedAt).toLocaleTimeString() : "        "}  ${item.package}\n    ${item.title}${item.text ? ` — ${item.text}` : ""}\n`,
+      );
+    }
+    if (notifications.length === 0) process.stdout.write("No notifications.\n");
     return;
   }
   if (selectedCommand === "doctor") {
