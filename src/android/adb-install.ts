@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, renameSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { delimiter, dirname, join } from "node:path";
 import { promisify } from "node:util";
 
@@ -60,6 +60,8 @@ export async function ensureAdbOnPath(
       platform === "win32" ? ["-xf", zip, "-C", extracted] : ["-q", zip, "-d", extracted],
     );
     renameSync(join(extracted, "platform-tools"), dirname(managed));
+    rmSync(extracted, { recursive: true, force: true });
+    rmSync(zip, { force: true });
     if (platform !== "win32") chmodSync(managed, 0o755);
   }
   environment.PATH = `${dirname(managed)}${delimiter}${environment.PATH ?? ""}`;

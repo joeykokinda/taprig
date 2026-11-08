@@ -13,10 +13,10 @@
   "type": "module",
   "main": "dist/desktop/main.js",
   "bin": {
-    "taprig": "src/cli.ts"
+    "taprig": "dist/cli/cli.js"
   },
   "files": [
-    "src",
+    "dist/cli",
     "control-room",
     "android-driver/build/bundle",
     "docs",
@@ -28,6 +28,8 @@
   },
   "scripts": {
     "build:driver": "cd android-driver && ./gradlew --no-daemon test assembleRelease && node bundle.mjs",
+    "build:cli": "esbuild src/cli.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/cli/cli.js",
+    "prepack": "npm run build:cli",
     "build:desktop": "esbuild desktop/main.ts src/cli.ts --bundle --platform=node --format=esm --outdir=dist/desktop --entry-names=[name] --external:electron",
     "benchmark": "node src/benchmarks/runtime.ts",
     "soak": "node src/benchmarks/soak.ts",

@@ -10,7 +10,7 @@ This is the ordered product queue. The canonical architecture remains in
 - Agent loop: **88%**
 - Fleet orchestration: **72%**
 - Desktop application: **64%**
-- Public website/distribution: **45%**
+- Public website/distribution: **60%**
 - Complete launch-ready product: **78%**
 
 Percentages describe demonstrated functionality, not lines of code.
@@ -72,6 +72,10 @@ Percentages describe demonstrated functionality, not lines of code.
 - [x] MCP adapter over the same daemon API.
 - [x] Agent-facing MCP observe/act/screenshot and `taprig connect claude|codex`.
   Validated by Claude Code setting a Clock alarm on the emulator.
+- [x] Publish `taprig` to npm as a compiled CLI bundle with the prebuilt driver.
+- [x] Download Android platform-tools on first daemon start when `adb` is missing.
+- [x] Any OpenAI-compatible server as a provider (OpenRouter, Ollama, Groq, Gemini).
+- [x] Price every run at list rates and show the dollar cost in CLI and control room.
 - [ ] Signed macOS, Windows, and Linux installers.
 - [x] Build unsigned Linux, Windows, and Intel macOS previews in GitHub Actions.
 - [ ] GitHub Release download automation and checksums.
