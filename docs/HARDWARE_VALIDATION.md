@@ -226,3 +226,7 @@ publish.
 - Schedule: `schedule add "every 1m" ...` fired a run within the first poll; removed after.
 - Safety gate and app notes covered by unit tests; the X compose run earlier today was
   the kind of task the gate protects (the task named "post", so Post would be allowed).
+
+Named secret (same evening): `printf ... | taprig secret set demo_password`, then "Log in
+with username tomsmith and password {{secret:demo_password}}" completed on the Moto with
+no questions asked; the daemon log and export contain no copy of the value.

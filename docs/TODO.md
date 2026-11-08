@@ -85,9 +85,9 @@ Percentages describe demonstrated functionality, not lines of code.
 - [x] `taprig doctor` backed by the daemon setup report, one fix per failure.
 - [x] Press home after a failed or stopped run.
 - [x] Emulator smoke matrix in CI (API 30, 33, 35).
-- [ ] Named per-app secrets so "log in to X" needs no question on repeat runs.
+- [x] Named secrets as `{{secret:NAME}}` tokens, resolved only on the way to the phone.
+- [x] Notification-triggered runs ("when Mom texts, read it to me").
 - [ ] Chrome rig profile: password saving and breach warnings off once per phone.
-- [ ] Notification-triggered runs ("when Mom texts, read it to me").
 - [ ] Landing page with install buttons and a 60-second demo clip.
 
 ## P2 — fleet and launch

@@ -143,6 +143,12 @@ the local UI, and the SSH-first server workflow.
   video artifact (`taprig artifacts <run>`); `taprig settings video off` disables it.
 - **Schedules.** `taprig schedule add "every 30m" "..."` or `"daily at 08:00"` runs a
   task on its own; `schedule list` and `schedule remove <id>` manage them.
+- **Triggers.** `taprig trigger add "messaging.*Mom" "Read me the text and reply that
+  I'm driving"` starts a run when a matching notification arrives.
+- **Named secrets.** `taprig secret set x_password` (typed hidden) stores a value the
+  task references as `{{secret:x_password}}`. The model sees only the token; the value
+  is substituted on the way to the phone and redacted from traces. Stored in a
+  0600 file in the data directory, never in the database or logs.
 - **Doctor.** `taprig doctor` checks the daemon, each phone's lock, authorization and
   driver state, and the model provider, with one fix per failing line.
 - **Cleanup.** A failed or stopped run presses home so the next one starts clean.
