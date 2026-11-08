@@ -221,6 +221,7 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
           devices: registry,
           adapter: semanticAdapter,
           prepare: (deviceId) => lockPortrait(deviceId),
+          cleanup: (deviceId) => executeRawAction(deviceId, { type: "key.press", key: "home" }),
           wake: async (deviceId) => {
             // A PIN is accepted only from the environment and held in memory, never persisted.
             const pin =

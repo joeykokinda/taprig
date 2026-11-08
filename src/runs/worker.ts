@@ -32,6 +32,8 @@ export interface RunWorkerOptions {
   prepare?(deviceId: string): Promise<void>;
   /** Starts recording a leased phone; the returned function stops it and files the artifact. */
   record?(runId: string, deviceId: string): Promise<() => Promise<void>>;
+  /** Runs after a failed or stopped run so the next one starts from a known screen (home). */
+  cleanup?(deviceId: string): Promise<void>;
 }
 
 type Decider = (context: AgentContext) => Promise<AgentDecision>;
@@ -143,6 +145,7 @@ export class RunWorker {
     | undefined;
   readonly #captureArtifact: ((runId: string, deviceId: string) => Promise<void>) | undefined;
   readonly #record: RunWorkerOptions["record"];
+  readonly #cleanup: RunWorkerOptions["cleanup"];
   readonly #wake: ((deviceId: string) => Promise<void>) | undefined;
   readonly #prepare: ((deviceId: string) => Promise<void>) | undefined;
 
@@ -154,6 +157,7 @@ export class RunWorker {
     this.#planCoordinated = options.planCoordinated;
     this.#captureArtifact = options.captureArtifact;
     this.#record = options.record;
+    this.#cleanup = options.cleanup;
     this.#wake = options.wake;
     this.#prepare = options.prepare;
   }
@@ -519,6 +523,10 @@ export class RunWorker {
         ])) {
           await this.#captureArtifact(runId, deviceId).catch(() => undefined);
         }
+      }
+      if (this.#cleanup && (terminal === "failed" || terminal === "stopped")) {
+        for (const deviceId of leasedDeviceIds)
+          await this.#cleanup(deviceId).catch(() => undefined);
       }
       for (const deviceId of leasedDeviceIds) this.#releaseDevice(deviceId);
       telemetry.executions += 1;

@@ -214,3 +214,15 @@ the new APK within seconds of the rsync, no restart.
 
 Left for the owner: tapping Post on the drafted X post, which this session did not
 publish.
+
+## 2026-11-08 (late) — launch features on `ZY22L2TQM3`
+
+- `taprig doctor`: PASS daemon, PASS phone (unlocked, authorized, driver enrolled), PASS model.
+- `taprig notifications`: listed the shade newest first (Google, Moto actions, charging, ...).
+- "What is the most recent notification and which app is it from?": answered in one
+  model call with zero actions from the shade read.
+- Run video: "Open Settings and open the Battery page" produced a 1.7 MB, 17 s, 720×1600
+  H.264 artifact pulled from the phone's `screenrecord`.
+- Schedule: `schedule add "every 1m" ...` fired a run within the first poll; removed after.
+- Safety gate and app notes covered by unit tests; the X compose run earlier today was
+  the kind of task the gate protects (the task named "post", so Post would be allowed).

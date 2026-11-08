@@ -128,6 +128,25 @@ npm run taprig -- retry <run-id>
 See [first-phone onboarding](docs/ONBOARDING.md) for USB trust, model setup,
 the local UI, and the SSH-first server workflow.
 
+### What a run gets for free
+
+- **Safety gates.** A tap on Send, Post, Pay, Delete, Confirm and similar pauses for
+  your approval unless the task itself asked for that action. "Post this on X" taps
+  Post; "read my timeline" cannot.
+- **App notes.** Each run may save one short UI fact per app (where compose lives, a
+  quirk). Later runs on that app read them, so repeat tasks need fewer model calls.
+  Plain text under `app-notes/` in the data directory; delete any line you dislike.
+- **Notifications.** The shade is read once at the start of every run, so "what did
+  Mom text me" is answered without opening Messages. Also `taprig notifications`
+  and the `taprig_notifications` MCP tool.
+- **Video.** Every run is recorded with the phone's own `screenrecord` and kept as a
+  video artifact (`taprig artifacts <run>`); `taprig settings video off` disables it.
+- **Schedules.** `taprig schedule add "every 30m" "..."` or `"daily at 08:00"` runs a
+  task on its own; `schedule list` and `schedule remove <id>` manage them.
+- **Doctor.** `taprig doctor` checks the daemon, each phone's lock, authorization and
+  driver state, and the model provider, with one fix per failing line.
+- **Cleanup.** A failed or stopped run presses home so the next one starts clean.
+
 ### Ask the phone a question
 
 A read task ends with the answer printed, because the model's completion evidence

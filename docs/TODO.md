@@ -77,9 +77,18 @@ Percentages describe demonstrated functionality, not lines of code.
 - [x] Surface the run's answer in `taprig run`, `attach`, the control room, and MCP.
 - [x] Real apps validated on the Moto: X compose (draft), X timeline and
   notifications questions, Messages inbox.
+- [x] Safety gates on consequential taps (Send, Post, Pay, Delete, ...) unless the task asked.
+- [x] Per-app UI notes carried across runs.
+- [x] Notification shade: CLI, MCP tool, daemon route, and the first decision of each run.
+- [x] Scheduled runs (every N minutes, daily at HH:MM) fired from the daemon poll.
+- [x] Run video via the phone's screenrecord, stored as an artifact; setting to disable.
+- [x] `taprig doctor` backed by the daemon setup report, one fix per failure.
+- [x] Press home after a failed or stopped run.
+- [x] Emulator smoke matrix in CI (API 30, 33, 35).
 - [ ] Named per-app secrets so "log in to X" needs no question on repeat runs.
 - [ ] Chrome rig profile: password saving and breach warnings off once per phone.
-- [ ] Clean up after a failed run (home, close the app) so the next run starts fresh.
+- [ ] Notification-triggered runs ("when Mom texts, read it to me").
+- [ ] Landing page with install buttons and a 60-second demo clip.
 
 ## P2 — fleet and launch
 
