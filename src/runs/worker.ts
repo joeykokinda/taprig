@@ -610,7 +610,13 @@ export class RunWorker {
       const locked = listed.filter((candidate) => candidate.state === "locked");
       if (allReady.length === 0 && locked.length > 0 && this.#wake && !woke) {
         woke = true;
-        await Promise.allSettled(locked.map((candidate) => this.#wake?.(candidate.id)));
+        const outcomes = await Promise.allSettled(
+          locked.map((candidate) => this.#wake?.(candidate.id)),
+        );
+        for (const outcome of outcomes) {
+          if (outcome.status === "rejected")
+            console.error(`[taprig] unlock failed: ${String(outcome.reason)}`);
+        }
         continue;
       }
       if (allReady.length === 0) {

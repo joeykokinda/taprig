@@ -225,7 +225,12 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
           runs,
           devices: registry,
           adapter: semanticAdapter,
-          prepare: (deviceId) => lockPortrait(deviceId),
+          prepare: async (deviceId) => {
+            // A phone that just unlocked is still enrolling its driver; a run that starts before
+            // that finishes would silently land on the UIAutomator fallback.
+            await driverSync;
+            await lockPortrait(deviceId);
+          },
           cleanup: (deviceId) => executeRawAction(deviceId, { type: "key.press", key: "home" }),
           secrets,
           wake: async (deviceId) => {

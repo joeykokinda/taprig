@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
 import type { CredentialBroker, SecretRef } from "../security/credential-broker.ts";
-import { parseKeyguardUnlocked } from "./device-actor.ts";
+import { parseForegroundActivity, parseKeyguardUnlocked } from "./device-actor.ts";
 
 const execFileAsync = promisify(execFile);
 
@@ -70,6 +70,17 @@ export async function unlockWithPin(
   // MENU asks the keyguard for its PIN pad directly. A swipe is not: lock-screen overlays such as
   // Moto's Glance swallow it, and on Android 14 it opened the shade instead of the bouncer.
   await adb(options.serial, ["input", "keyevent", "KEYCODE_WAKEUP"]);
+  // An overlay that occludes the keyguard (Glance relaunches on every wake) also eats MENU, so
+  // stop whatever is on top first. The keyguard itself is never a resumed activity.
+  if (/^\s*occluded=true\s*$/mu.test(await keyguard())) {
+    const top = parseForegroundActivity(
+      await adb(options.serial, ["dumpsys", "activity", "activities"]),
+    );
+    if (top) {
+      await adb(options.serial, ["am", "force-stop", top.packageName]);
+      await wait(500);
+    }
+  }
   await adb(options.serial, ["input", "keyevent", "KEYCODE_MENU"]);
   await wait(800);
   await adb(options.serial, ["input", "text", pin]);

@@ -59,3 +59,33 @@ test("fails without leaking a rejected PIN or claiming success", async () => {
   );
   assert.equal(JSON.stringify(broker.audit()).includes("bad-pin"), false);
 });
+
+test("force-stops an overlay that occludes the keyguard before asking for the PIN pad", async () => {
+  const broker = new CredentialBroker();
+  const credential = broker.store("1234", { deviceId: serial, purpose: "device.unlock" });
+  const calls: string[][] = [];
+  let submitted = false;
+  let stopped = false;
+  const adb: UnlockAdb = async (_serial, args) => {
+    calls.push([...args]);
+    if (args[0] === "am") stopped = true;
+    if (args.includes("KEYCODE_ENTER")) submitted = true;
+    if (args[1] === "activity") {
+      return "topResumedActivity=ActivityRecord{1 u0 com.glance.lockscreenM/.Overlay t3}";
+    }
+    if (args[0] === "dumpsys") {
+      if (submitted) return unlocked;
+      return `${locked}\n  occluded=${stopped ? "false" : "true"}`;
+    }
+    return "";
+  };
+
+  assert.equal(
+    await unlockWithPin({ serial, credential, broker, adb, wait: async () => {} }),
+    "unlocked",
+  );
+  const joined = calls.map((args) => args.join(" "));
+  const stopIndex = joined.indexOf("am force-stop com.glance.lockscreenM");
+  assert.ok(stopIndex > joined.indexOf("input keyevent KEYCODE_WAKEUP"));
+  assert.ok(stopIndex < joined.indexOf("input keyevent KEYCODE_MENU"));
+});
