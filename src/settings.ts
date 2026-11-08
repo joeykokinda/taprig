@@ -2,15 +2,19 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSy
 import { dirname } from "node:path";
 
 export type ApprovalPolicy = "autonomous" | "explicit";
+/** always: a screenshot with every decision; auto: only on thin screens or after a miss. */
+export type VisionPolicy = "always" | "auto";
 
 export interface TapRigSettings {
   approvalPolicy: ApprovalPolicy;
   retainScreenshotsByDefault: boolean;
+  vision: VisionPolicy;
 }
 
 const defaults: TapRigSettings = {
   approvalPolicy: "explicit",
   retainScreenshotsByDefault: false,
+  vision: "always",
 };
 
 function validate(value: unknown): TapRigSettings {
@@ -27,9 +31,12 @@ function validate(value: unknown): TapRigSettings {
   if (typeof settings.retainScreenshotsByDefault !== "boolean") {
     throw new Error("retainScreenshotsByDefault must be boolean");
   }
+  const vision = settings.vision ?? defaults.vision;
+  if (vision !== "always" && vision !== "auto") throw new Error("vision must be always or auto");
   return {
     approvalPolicy: settings.approvalPolicy,
     retainScreenshotsByDefault: settings.retainScreenshotsByDefault,
+    vision,
   };
 }
 

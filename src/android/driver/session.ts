@@ -323,7 +323,7 @@ export interface AndroidDriverManagerOptions extends DriverArtifacts {
 }
 
 export class AndroidDriverManager {
-  readonly #options: AndroidDriverManagerOptions;
+  #options: AndroidDriverManagerOptions;
   readonly #sessions = new Map<string, AndroidDriverSession>();
   readonly #enrolling = new Set<string>();
   readonly #retryAt = new Map<string, number>();
@@ -335,6 +335,13 @@ export class AndroidDriverManager {
   get(serial: string): AndroidDriverSession | undefined {
     const session = this.#sessions.get(serial);
     return session?.alive ? session : undefined;
+  }
+
+  /** Swaps in a rebuilt bundle; phones re-enroll on the next sync. */
+  async reload(bundle: DriverBundle): Promise<void> {
+    this.#options = { ...this.#options, ...bundle };
+    this.#retryAt.clear();
+    await this.close();
   }
 
   async sync(serials: readonly string[]): Promise<void> {

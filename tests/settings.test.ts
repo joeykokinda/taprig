@@ -14,12 +14,14 @@ test("persists validated private owner settings atomically", async (context) => 
   assert.deepEqual(settings.get(), {
     approvalPolicy: "explicit",
     retainScreenshotsByDefault: false,
+    vision: "always",
   });
   settings.update({ approvalPolicy: "autonomous", retainScreenshotsByDefault: true });
   settings = new SettingsService(path);
   assert.deepEqual(settings.get(), {
     approvalPolicy: "autonomous",
     retainScreenshotsByDefault: true,
+    vision: "always",
   });
   assert.equal((await stat(path)).mode & 0o777, 0o600);
   assert.throws(() => settings.update({ unknown: true }), /unknown field/);

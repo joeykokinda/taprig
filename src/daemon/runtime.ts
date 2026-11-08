@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createModelCoordinator } from "../agents/model-coordinator.ts";
@@ -136,6 +137,12 @@ export function scheduleDurableRuns(
   }
 }
 
+async function bundleModified(directory: string): Promise<number> {
+  return stat(join(directory, "manifest.json"))
+    .then((info) => info.mtimeMs)
+    .catch(() => 0);
+}
+
 export async function startRuntime(options: RuntimeOptions): Promise<RunningRuntime> {
   // Every adb call in the daemon resolves through PATH, so one download covers all of them.
   if (!options.discover) await ensureAdbOnPath();
@@ -168,10 +175,19 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
     ? new AndroidDriverAdapter(drivers, new AndroidSemanticAdapter())
     : new AndroidSemanticAdapter();
   let driverSync = Promise.resolve();
+  let bundleStamp = driverBundleDirectory ? await bundleModified(driverBundleDirectory) : 0;
   const syncDrivers = (devices: readonly { serial: string; state: string }[]) => {
-    if (!drivers) return;
+    if (!drivers || !driverBundleDirectory) return;
     const ready = devices.filter((device) => device.state === "ready").map(({ serial }) => serial);
-    driverSync = driverSync.then(() => drivers.sync(ready));
+    driverSync = driverSync.then(async () => {
+      // A rebuilt bundle re-enrolls every phone without a daemon restart.
+      const stamp = await bundleModified(driverBundleDirectory);
+      if (stamp !== bundleStamp) {
+        bundleStamp = stamp;
+        await drivers.reload(await loadDriverBundle(driverBundleDirectory));
+      }
+      await drivers.sync(ready);
+    });
   };
   const scripts = new ScriptService(
     new ScriptStore(join(dirname(databasePath), "scripts")),
@@ -226,6 +242,7 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
               settings.get().approvalPolicy,
               captureAdbScreenshot,
               listThirdPartyPackages,
+              settings.get().vision,
             ),
           ...(coordinatorRoute && coordinatorProvider && providerReady(coordinatorProvider)
             ? {

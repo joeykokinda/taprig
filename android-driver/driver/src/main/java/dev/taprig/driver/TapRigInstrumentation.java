@@ -195,6 +195,8 @@ public final class TapRigInstrumentation extends Instrumentation {
         }
         String before;
         boolean secureText = false;
+        AccessibilityNodeInfo typedField = null;
+        String typedValue = null;
         try (TreeState state = capture()) {
             before = state.generation;
             String type = action.optString("type", "");
@@ -210,7 +212,9 @@ public final class TapRigInstrumentation extends Instrumentation {
                 case "element.text" -> {
                     AccessibilityNodeInfo field = resolve(state, requiredObject(action, "target"));
                     secureText = field.isPassword();
-                    yield setText(field, requiredString(action, "value", 10_000), action.optBoolean("clear", false));
+                    typedField = field;
+                    typedValue = requiredString(action, "value", 10_000);
+                    yield setText(field, typedValue, action.optBoolean("clear", false));
                 }
                 case "key.press" -> pressKey(requiredString(action, "key", 20));
                 case "gesture.tap" -> injectTap(requiredCoordinate(action, "x"), requiredCoordinate(action, "y"), false);
@@ -222,21 +226,18 @@ public final class TapRigInstrumentation extends Instrumentation {
         }
 
         JSONObject next = waitForChange(before, ACTION_WAIT_MS);
-        if (!next.getBoolean("changed") && "gesture.tap".equals(action.optString("type"))) {
-            // Coordinate taps serve vision surfaces (games, canvases) that the accessibility tree
-            // does not describe, so their evidence is the next screenshot, not a tree change.
-            return new JSONObject()
-                    .put("generation", before)
-                    .put("evidence", "tap dispatched; no accessibility change");
-        }
-        if (!next.getBoolean("changed") && secureText) {
-            // Password fields hide their text from the tree, so a successful set-text is the evidence.
-            return new JSONObject()
-                    .put("generation", before)
-                    .put("evidence", "text set on a password field; tree unchanged by design");
-        }
         if (!next.getBoolean("changed")) {
-            throw new DriverError("verification-failed", "phone state did not change after action");
+            // Verification is per action. A touch or key that leaves the tree alone still happened
+            // (focused fields, web buttons, hidden keyboards), text is checked in the field itself,
+            // and a launch is checked by the foreground package. Only a swipe must move something.
+            String evidence = switch (action.optString("type", "")) {
+                case "element.tap", "element.longTap", "gesture.tap" -> "touch delivered; accessibility tree unchanged";
+                case "key.press" -> "key delivered; accessibility tree unchanged";
+                case "element.text" -> verifyTypedText(typedField, typedValue, secureText);
+                case "app.launch" -> verifyForeground(requiredPackage(action, "packageName"));
+                default -> throw new DriverError("verification-failed", "phone state did not change after action");
+            };
+            return new JSONObject().put("generation", before).put("evidence", evidence);
         }
         // Transitions emit several generations; return a settled one so the next step is not stale.
         JSONObject snapshot = next.getJSONObject("snapshot");
@@ -249,6 +250,22 @@ public final class TapRigInstrumentation extends Instrumentation {
         return new JSONObject()
                 .put("generation", snapshot.getString("generation"))
                 .put("evidence", "ui changed; foreground " + snapshot.optString("foregroundPackage", "unknown"));
+    }
+
+    private static String verifyTypedText(AccessibilityNodeInfo field, String value, boolean secure) throws DriverError {
+        if (secure) return "text set on a password field; tree unchanged by design";
+        if (field != null && field.refresh()) {
+            CharSequence current = field.getText();
+            if (current != null && current.toString().contains(value)) return "field shows the typed text";
+        }
+        throw new DriverError("verification-failed", "field does not show the typed text");
+    }
+
+    private String verifyForeground(String packageName) throws Exception {
+        try (TreeState state = capture()) {
+            if (packageName.equals(state.foregroundPackage)) return "app already in the foreground";
+        }
+        throw new DriverError("verification-failed", "app did not come to the foreground");
     }
 
     private static boolean needsExactScreen(String type, JSONObject action) {

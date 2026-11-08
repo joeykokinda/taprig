@@ -367,6 +367,7 @@ async function refresh() {
     renderSetup(setup);
     if (!$("#settings-form").matches(":focus-within")) {
       $("#settings-form").elements.approvalPolicy.value = settings.approvalPolicy;
+      $("#settings-form").elements.vision.value = settings.vision ?? "always";
       $("#settings-form").elements.retainScreenshotsByDefault.value = String(
         settings.retainScreenshotsByDefault,
       );
@@ -526,6 +527,7 @@ $("#settings-form").addEventListener("submit", async (event) => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         approvalPolicy: form.elements.approvalPolicy.value,
+        vision: form.elements.vision.value,
         retainScreenshotsByDefault: form.elements.retainScreenshotsByDefault.value === "true",
       }),
     });

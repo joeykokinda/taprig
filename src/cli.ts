@@ -594,7 +594,7 @@ Models: set ANTHROPIC_API_KEY or OPENAI_API_KEY, or sign in to the claude or cod
     if (operation === "show") {
       const { settings } = await daemonJson<{ settings: TapRigSettings }>("/settings");
       process.stdout.write(
-        `Approval policy: ${settings.approvalPolicy}\nRetain terminal screenshots by default: ${settings.retainScreenshotsByDefault ? "yes" : "no"}\n`,
+        `Approval policy: ${settings.approvalPolicy}\nRetain terminal screenshots by default: ${settings.retainScreenshotsByDefault ? "yes" : "no"}\nVision: ${settings.vision}\n`,
       );
       return;
     }
@@ -604,10 +604,12 @@ Models: set ANTHROPIC_API_KEY or OPENAI_API_KEY, or sign in to the claude or cod
         ? { approvalPolicy: value }
         : operation === "screenshots" && (value === "on" || value === "off")
           ? { retainScreenshotsByDefault: value === "on" }
-          : undefined;
+          : operation === "vision" && (value === "always" || value === "auto")
+            ? { vision: value }
+            : undefined;
     if (!patch) {
       throw new Error(
-        "settings requires show, approval autonomous|explicit, or screenshots on|off",
+        "settings requires show, approval autonomous|explicit, screenshots on|off, or vision always|auto",
       );
     }
     const { settings } = await daemonJson<{ settings: TapRigSettings }>("/settings", {
@@ -616,7 +618,7 @@ Models: set ANTHROPIC_API_KEY or OPENAI_API_KEY, or sign in to the claude or cod
       body: JSON.stringify(patch),
     });
     process.stdout.write(
-      `Settings saved: ${settings.approvalPolicy}, screenshots ${settings.retainScreenshotsByDefault ? "on" : "off"}.\n`,
+      `Settings saved: ${settings.approvalPolicy}, screenshots ${settings.retainScreenshotsByDefault ? "on" : "off"}, vision ${settings.vision}.\n`,
     );
     return;
   }

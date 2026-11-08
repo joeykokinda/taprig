@@ -97,8 +97,15 @@ export class AndroidSemanticAdapter implements DeviceAdapter {
           await this.#raw(batch.deviceId, step.action);
         }
         const next = await this.observe(batch.deviceId);
-        if (next.generation === observation.generation) {
-          throw new Error("semantic observation did not change after tap");
+        // Taps and keys count as delivered; only text entry and swipes must visibly change the tree.
+        if (
+          next.generation === observation.generation &&
+          step.action.type !== "element.tap" &&
+          step.action.type !== "key.press" &&
+          step.action.type !== "gesture.tap" &&
+          step.action.type !== "app.launch"
+        ) {
+          throw new Error("semantic observation did not change after action");
         }
         observation = next;
         steps.push({

@@ -62,11 +62,28 @@ test("rejects stale input and fails closed when postcondition evidence is unchan
   );
   assert.equal((await live.execute(batch)).steps[0]?.status, "verified");
 
+  // A delivered tap counts even when the tree stays put (focused fields, web buttons); a swipe
+  // that moves nothing is the failure the agent needs to hear about.
   const unchanged = new AndroidSemanticAdapter(
     async () => observation("before"),
     async () => {},
   );
-  const result = await unchanged.execute(batch);
+  assert.equal((await unchanged.execute(batch)).steps[0]?.status, "verified");
+  const result = await unchanged.execute({
+    ...batch,
+    requestId: "swipe",
+    steps: [
+      {
+        id: "swipe",
+        action: {
+          type: "gesture.swipe",
+          from: { x: 1, y: 9 },
+          to: { x: 1, y: 1 },
+          durationMs: 100,
+        },
+      },
+    ],
+  });
   assert.equal(result.steps[0]?.status, "failed");
   assert.equal(result.steps[0]?.error?.code, "verification-failed");
 });

@@ -22,6 +22,8 @@ export interface AgentContext {
   observation: Observation;
   decisionNumber: number;
   previousBatch?: BatchResult;
+  /** Generation observed before the previous batch; equal to the current one means nothing moved. */
+  previousGeneration?: string;
   /** Recent batches, oldest first, so the planner can see and break its own loops. */
   history?: readonly AgentHistoryEntry[];
 }
@@ -56,6 +58,7 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
   }
 
   let previousBatch: BatchResult | undefined;
+  let previousGeneration: string | undefined;
   const history: AgentHistoryEntry[] = [];
   const executedActions: ActionStep[] = [];
   let failedBatches = 0;
@@ -71,6 +74,7 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
       observation,
       decisionNumber,
       ...(previousBatch ? { previousBatch } : {}),
+      ...(previousGeneration !== undefined ? { previousGeneration } : {}),
       ...(history.length > 0 ? { history: history.slice(-8) } : {}),
     };
     const decision = await options.decide(context);
@@ -121,6 +125,7 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
       };
     }
 
+    previousGeneration = observation.generation;
     previousBatch = await options.device.execute({
       requestId: decision.requestId,
       deviceId: options.deviceId,
