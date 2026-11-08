@@ -846,7 +846,7 @@ Models: set ANTHROPIC_API_KEY or OPENAI_API_KEY, or sign in to the claude or cod
     }>(`/devices/${encodeURIComponent(serial)}/notifications`);
     for (const item of notifications) {
       process.stdout.write(
-        `${item.postedAt ? new Date(item.postedAt).toLocaleTimeString() : "        "}  ${item.package}\n    ${item.title}${item.text ? ` — ${item.text}` : ""}\n`,
+        `${item.postedAt ? new Date(item.postedAt).toLocaleTimeString() : "        "}  ${item.package}\n    ${item.title}${item.text ? `: ${item.text}` : ""}\n`,
       );
     }
     if (notifications.length === 0) process.stdout.write("No notifications.\n");
