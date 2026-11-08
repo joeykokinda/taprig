@@ -77,7 +77,13 @@ function scrollGesture(direction: string, screen: Bounds) {
     right: [at(0.8, 0.5), at(0.2, 0.5)],
     left: [at(0.2, 0.5), at(0.8, 0.5)],
   };
-  const gesture = gestures[direction];
+  const gesture =
+    gestures[
+      direction
+        .trim()
+        .toLowerCase()
+        .replace(/^scroll\s+/u, "")
+    ];
   if (!gesture) throw new Error("model returned an invalid scroll direction");
   return { type: "gesture.swipe" as const, from: gesture[0], to: gesture[1], durationMs: 350 };
 }
@@ -279,40 +285,56 @@ export function createModelDecider(
       ...(screenshot ? { screenshotAttached: true } : {}),
     };
     let attempted = false;
+    let recorded = false;
     const provider = createStructuredProvider(providerConfig, environment, request);
-    let usage = { inputTokens: 0, outputTokens: 0, costUsd: 0 };
+    let rejected: string | undefined;
     try {
-      attempted = true;
-      const response = await provider.structured({
-        model: target.model,
-        ...(target.reasoningEffort ? { reasoningEffort: target.reasoningEffort } : {}),
-        schemaName: "taprig_phone_decision",
-        schema: decisionSchema,
-        system: `You control one Android phone with typed launch, key, scroll, semantic tap, long-tap, and text-entry actions. For tap/longTap/text choose only a visible selector in value, preferring elementId; for text put the exact text in input. For launch put the Android package name in value; for key put back, home, recents, enter, or delete; for scroll put down, up, left, or right to reveal content off screen. Only when a screenshot is attached, tapPoint may tap what the elements do not describe: put "x,y" in value on a 0-1000 grid across the image width and height. Set input null when unused. Take at most three short actions, then observe again. recentActions lists your last batches with their outcomes; never repeat a sequence that already failed or looped. Mark complete only when the current UI visibly proves the user's task. Ask one precise question when required information is missing. ${approvalPolicy === "explicit" ? "Request approval only when the user's task explicitly requires confirmation before a consequential action." : "Never request approval; the owner selected uninterrupted autonomous execution."} Never repeat sensitive input in evidence and never guess success.`,
-        input: JSON.stringify({ task, decisionNumber: context.decisionNumber, observation }),
-        ...(image && screenshot ? { image } : {}),
-      });
-      usage = {
-        inputTokens: response.inputTokens ?? 0,
-        outputTokens: response.outputTokens ?? 0,
-        costUsd: estimateCostUsd(
-          target.model,
-          response.inputTokens ?? 0,
-          response.outputTokens ?? 0,
-        ),
-      };
-      const decision = parseDecision(
-        response.value,
-        screenBounds(context),
-        context.observation.elements,
-        screenshot,
-      );
-      if (approvalPolicy === "autonomous" && decision.type === "request_approval") {
-        throw new Error("model violated the autonomous approval policy");
+      // One malformed decision goes back to the model with the reason before the run fails.
+      for (;;) {
+        attempted = true;
+        recorded = false;
+        const response = await provider.structured({
+          model: target.model,
+          ...(target.reasoningEffort ? { reasoningEffort: target.reasoningEffort } : {}),
+          schemaName: "taprig_phone_decision",
+          schema: decisionSchema,
+          system: `You control one Android phone with typed launch, key, scroll, semantic tap, long-tap, and text-entry actions. For tap/longTap/text choose only a visible selector in value, preferring elementId; for text put the exact text in input. For launch put the Android package name in value; for key put back, home, recents, enter, or delete; for scroll put down, up, left, or right to reveal content off screen. Only when a screenshot is attached, tapPoint may tap what the elements do not describe: put "x,y" in value on a 0-1000 grid across the image width and height. Set input null when unused. Take at most three short actions, then observe again. recentActions lists your last batches with their outcomes; never repeat a sequence that already failed or looped. Mark complete only when the current UI visibly proves the user's task. Ask one precise question when required information is missing. ${approvalPolicy === "explicit" ? "Request approval only when the user's task explicitly requires confirmation before a consequential action." : "Never request approval; the owner selected uninterrupted autonomous execution."} Never repeat sensitive input in evidence and never guess success. When rejectedDecision is present your previous answer was refused for that reason; return a corrected decision.`,
+          input: JSON.stringify({
+            task,
+            decisionNumber: context.decisionNumber,
+            observation,
+            ...(rejected ? { rejectedDecision: rejected } : {}),
+          }),
+          ...(image && screenshot ? { image } : {}),
+        });
+        recordUsage?.({
+          inputTokens: response.inputTokens ?? 0,
+          outputTokens: response.outputTokens ?? 0,
+          costUsd: estimateCostUsd(
+            target.model,
+            response.inputTokens ?? 0,
+            response.outputTokens ?? 0,
+          ),
+        });
+        recorded = true;
+        try {
+          const decision = parseDecision(
+            response.value,
+            screenBounds(context),
+            context.observation.elements,
+            screenshot,
+          );
+          if (approvalPolicy === "autonomous" && decision.type === "request_approval") {
+            throw new Error("model violated the autonomous approval policy");
+          }
+          return decision;
+        } catch (error) {
+          if (rejected !== undefined) throw error;
+          rejected = error instanceof Error ? error.message : String(error);
+        }
       }
-      return decision;
     } finally {
-      if (attempted) recordUsage?.(usage);
+      if (attempted && !recorded) recordUsage?.({ inputTokens: 0, outputTokens: 0, costUsd: 0 });
     }
   };
 }

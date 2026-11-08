@@ -359,3 +359,55 @@ test("attaches a screenshot on thin semantic screens and maps tapPoint to pixels
   });
   assert.match(JSON.stringify(sent.input[1]?.content), /data:image\/png;base64,/u);
 });
+
+test("feeds one malformed decision back to the model and accepts loosely spelled scroll directions", async () => {
+  const inputs: string[] = [];
+  const usage: unknown[] = [];
+  const step = (actionType: string, value: string) => ({
+    id: "s1",
+    actionType,
+    selectorType: "text",
+    value,
+    input: null,
+    role: null,
+  });
+  const answers = [step("key", "volume"), step("scroll", "Scroll Down")];
+  const decide = createModelDecider(
+    "Scroll",
+    { provider: "openai", model: "test-model" },
+    { type: "openai", apiKeyEnv: "TEST_KEY", baseUrl: "https://example.test/v1" },
+    { TEST_KEY: "secret" },
+    async (_input, init) => {
+      const body = JSON.parse(String(init?.body)) as { input: Array<{ content: string }> };
+      inputs.push(body.input[1]?.content ?? "");
+      const execute = {
+        type: "execute",
+        evidence: null,
+        question: null,
+        approval: null,
+        reason: null,
+        steps: [answers[inputs.length - 1]],
+      };
+      return new Response(JSON.stringify({ output_text: JSON.stringify(execute) }), {
+        status: 200,
+      });
+    },
+    (used) => usage.push(used),
+  );
+  const observation = {
+    deviceId: "phone-1",
+    generation: "one",
+    capturedAt: "2026-11-07T00:00:00.000Z",
+    elements: [],
+  };
+  const decision = await decide({ decisionNumber: 0, observation });
+  assert.equal(inputs.length, 2);
+  assert.match(inputs[1] ?? "", /rejectedDecision.*invalid key/u);
+  assert.equal(usage.length, 2);
+  assert.equal(decision.type === "execute" ? decision.steps[0]?.action.type : "", "gesture.swipe");
+
+  answers.splice(0, 2, step("key", "volume"), step("key", "volume"));
+  inputs.length = 0;
+  await assert.rejects(decide({ decisionNumber: 1, observation }), /invalid key/u);
+  assert.equal(inputs.length, 2);
+});
