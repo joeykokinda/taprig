@@ -146,6 +146,7 @@ export interface RunTelemetry {
   modelCalls: number;
   inputTokens: number;
   outputTokens: number;
+  costUsd: number;
   attemptedActions: number;
 }
 

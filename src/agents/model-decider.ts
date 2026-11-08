@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { Selector } from "../core/contracts.ts";
 import type { ModelTarget, ProviderConfig } from "../models/config.ts";
 import { createStructuredProvider } from "../models/providers.ts";
-import type { RecordModelUsage } from "../models/usage.ts";
+import { estimateCostUsd, type RecordModelUsage } from "../models/usage.ts";
 import type { ApprovalPolicy } from "../settings.ts";
 import type { AgentContext, AgentDecision } from "./loop.ts";
 
@@ -280,7 +280,7 @@ export function createModelDecider(
     };
     let attempted = false;
     const provider = createStructuredProvider(providerConfig, environment, request);
-    let usage = { inputTokens: 0, outputTokens: 0 };
+    let usage = { inputTokens: 0, outputTokens: 0, costUsd: 0 };
     try {
       attempted = true;
       const response = await provider.structured({
@@ -295,6 +295,11 @@ export function createModelDecider(
       usage = {
         inputTokens: response.inputTokens ?? 0,
         outputTokens: response.outputTokens ?? 0,
+        costUsd: estimateCostUsd(
+          target.model,
+          response.inputTokens ?? 0,
+          response.outputTokens ?? 0,
+        ),
       };
       const decision = parseDecision(
         response.value,

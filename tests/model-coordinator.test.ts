@@ -54,5 +54,5 @@ test("turns strict model output into a validated coordinated plan", async () => 
       },
     ],
   });
-  assert.deepEqual(usage, [{ inputTokens: 20, outputTokens: 8 }]);
+  assert.deepEqual(usage, [{ inputTokens: 20, outputTokens: 8, costUsd: 0 }]);
 });

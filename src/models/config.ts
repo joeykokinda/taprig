@@ -25,6 +25,15 @@ export interface OpenAiProviderConfig {
   baseUrl: string;
 }
 
+/** Any server speaking OpenAI chat completions: OpenRouter, Ollama, Groq, Gemini, LM Studio. */
+export interface OpenAiCompatibleProviderConfig {
+  type: "openai-compatible";
+  baseUrl: string;
+  model: string;
+  /** Unset for local servers that take no key. */
+  apiKeyEnv?: string;
+}
+
 export interface AnthropicProviderConfig {
   type: "anthropic";
   apiKeyEnv: string;
@@ -36,8 +45,12 @@ export interface CliProviderConfig {
   command: string;
 }
 
-export type ProviderConfig = OpenAiProviderConfig | AnthropicProviderConfig | CliProviderConfig;
-export type ProviderName = "openai" | "anthropic" | "claude" | "codex";
+export type ProviderConfig =
+  | OpenAiProviderConfig
+  | OpenAiCompatibleProviderConfig
+  | AnthropicProviderConfig
+  | CliProviderConfig;
+export type ProviderName = "openai" | "anthropic" | "claude" | "codex" | "compatible";
 
 export interface ModelConfig {
   selectedProfile: ModelProfileName;
@@ -50,6 +63,7 @@ export const defaultProviders: Record<ProviderName, ProviderConfig> = {
   anthropic: { type: "anthropic", apiKeyEnv: "ANTHROPIC_API_KEY" },
   claude: { type: "claude-cli", command: "claude" },
   codex: { type: "codex-cli", command: "codex" },
+  compatible: { type: "openai-compatible", baseUrl: "http://localhost:11434/v1", model: "qwen3" },
 };
 
 type Effort = NonNullable<ModelTarget["reasoningEffort"]>;
@@ -104,6 +118,16 @@ const presets: Record<ProviderName, Preset> = {
     },
     best: { fast: ["default", "high"], strong: ["default", "high"], vision: ["default", "high"] },
   },
+  // One configured model serves every role; the server decides what effort means.
+  compatible: {
+    economy: { fast: ["default", "low"], strong: ["default", "low"], vision: ["default", "low"] },
+    balanced: {
+      fast: ["default", "low"],
+      strong: ["default", "medium"],
+      vision: ["default", "medium"],
+    },
+    best: { fast: ["default", "high"], strong: ["default", "high"], vision: ["default", "high"] },
+  },
 };
 
 const budgets: Record<ModelProfileName, [number, number]> = {
@@ -112,12 +136,15 @@ const budgets: Record<ModelProfileName, [number, number]> = {
   best: [20, 20],
 };
 
-export function presetProfiles(provider: ProviderName): Record<ModelProfileName, ModelProfile> {
+export function presetProfiles(
+  provider: ProviderName,
+  model?: string,
+): Record<ModelProfileName, ModelProfile> {
   const profile = (name: ModelProfileName): ModelProfile => {
     const roles = presets[provider][name];
     const role = (selected: ModelRole): ModelTarget => ({
       provider,
-      model: roles[selected][0],
+      model: model ?? roles[selected][0],
       reasoningEffort: roles[selected][1],
     });
     return {
@@ -184,10 +211,12 @@ function validate(config: ModelConfig): ModelConfig {
     const valid =
       provider.type === "openai"
         ? Boolean(provider.apiKeyEnv && provider.baseUrl)
-        : provider.type === "anthropic"
-          ? Boolean(provider.apiKeyEnv)
-          : (provider.type === "claude-cli" || provider.type === "codex-cli") &&
-            Boolean(provider.command);
+        : provider.type === "openai-compatible"
+          ? Boolean(provider.baseUrl && provider.model)
+          : provider.type === "anthropic"
+            ? Boolean(provider.apiKeyEnv)
+            : (provider.type === "claude-cli" || provider.type === "codex-cli") &&
+              Boolean(provider.command);
     if (!name || !valid) {
       throw new Error(`invalid model provider ${name}`);
     }

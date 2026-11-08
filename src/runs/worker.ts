@@ -82,6 +82,7 @@ function readTelemetry(value: unknown): RunTelemetry {
     modelCalls: metric(stored.modelCalls),
     inputTokens: metric(stored.inputTokens),
     outputTokens: metric(stored.outputTokens),
+    costUsd: metric(stored.costUsd),
     attemptedActions: metric(stored.attemptedActions),
   };
 }
@@ -215,6 +216,7 @@ export class RunWorker {
       telemetry.modelCalls += 1;
       telemetry.inputTokens += usage.inputTokens;
       telemetry.outputTokens += usage.outputTokens;
+      telemetry.costUsd += usage.costUsd;
     };
     const device: DeviceAdapter = {
       observe: async (deviceId) => {

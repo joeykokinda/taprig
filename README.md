@@ -46,7 +46,14 @@ claude "Use TapRig to set an alarm for 7:30 AM on my phone"
 ```
 
 `taprig help` lists every command; `taprig model use anthropic|openai|claude|codex`
-switches providers. Without the driver bundle TapRig falls back to UIAutomator,
+switches providers. Any OpenAI-compatible server works too, so a cheap or local
+model is one command away:
+
+```console
+taprig model use compatible --base-url https://openrouter.ai/api/v1 --model qwen/qwen3-235b-a22b --api-key-env OPENROUTER_API_KEY
+taprig model use compatible --base-url http://localhost:11434/v1 --model qwen3   # Ollama, no key
+```
+ Without the driver bundle TapRig falls back to UIAutomator,
 which works everywhere but is slower and cannot type non-ASCII text.
 
 The project is in active pre-alpha development. See

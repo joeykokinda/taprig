@@ -148,7 +148,7 @@ function renderRuns(runs, telemetry) {
         <p title="${escapeHtml(run.task)}">${escapeHtml(run.task)}</p>
         ${
           metrics
-            ? `<small>${metrics.modelCalls} MODEL / ${metrics.inputTokens + metrics.outputTokens} TOKENS / ${metrics.attemptedActions} ACTIONS / ${Math.round(metrics.elapsedMs)}MS</small>`
+            ? `<small>${metrics.modelCalls} MODEL / ${metrics.inputTokens + metrics.outputTokens} TOKENS${metrics.costUsd ? ` / $${metrics.costUsd.toFixed(4)}` : ""} / ${metrics.attemptedActions} ACTIONS / ${Math.round(metrics.elapsedMs)}MS</small>`
             : ""
         }
         ${controls.length ? `<div class="run-controls">${controls.map((control) => `<button data-run-control="${control}">${control.toUpperCase()}</button>`).join("")}</div>` : ""}

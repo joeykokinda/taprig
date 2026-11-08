@@ -48,7 +48,7 @@ test("turns strict model output into a locally identified typed tap", async () =
   assert.deepEqual(decision.type === "execute" ? decision.steps : [], [
     { id: "open", action: { type: "element.tap", target: { text: "Settings" } } },
   ]);
-  assert.deepEqual(usage, [{ inputTokens: 12, outputTokens: 3 }]);
+  assert.deepEqual(usage, [{ inputTokens: 12, outputTokens: 3, costUsd: 0 }]);
 });
 
 test("turns model text entry into a typed clearing semantic action", async () => {
@@ -124,7 +124,7 @@ test("records a failed provider attempt without inventing token usage", async ()
     }),
     /HTTP 500/,
   );
-  assert.deepEqual(usage, [{ inputTokens: 0, outputTokens: 0 }]);
+  assert.deepEqual(usage, [{ inputTokens: 0, outputTokens: 0, costUsd: 0 }]);
 });
 
 test("parses a strict explicit approval request", async () => {

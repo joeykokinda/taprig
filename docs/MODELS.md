@@ -8,10 +8,14 @@
 | OpenAI API  | `openai`              | `OPENAI_API_KEY`         |
 | Claude Code | `claude`              | a signed-in `claude` CLI |
 | Codex       | `codex`               | a signed-in `codex` CLI  |
+| Any OpenAI-compatible server | `compatible` | `--base-url` and `--model`; `--api-key-env` when the server wants a key |
 
 A fresh install picks the first available in that order, and a daemon whose
 configured provider is unusable falls back to an available one and logs it.
-`taprig model use <name>` switches presets explicitly. The Claude API adapter uses
+`taprig model use <name>` switches presets explicitly. `compatible` speaks
+`/chat/completions` with a JSON-schema `response_format` and no effort field, so
+OpenRouter, Ollama, Groq, Gemini, DeepSeek, and LM Studio all work; the one
+configured model serves every role, and image input depends on that model. The Claude API adapter uses
 the official SDK with structured outputs, effort, and server-side refusal
 fallbacks on current Opus and Sonnet. The CLI adapters run each decision as a
 one-shot `claude -p` or `codex exec` in an empty temporary directory with no

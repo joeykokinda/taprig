@@ -55,7 +55,7 @@ test("a worker assigns a ready phone and durably completes a bounded run", async
     decide:
       (_task, recordUsage) =>
       async ({ decisionNumber }) => {
-        recordUsage?.({ inputTokens: 10, outputTokens: 2 });
+        recordUsage?.({ inputTokens: 10, outputTokens: 2, costUsd: 0 });
         return decisionNumber === 0
           ? {
               type: "execute",
@@ -324,7 +324,7 @@ test("a worker stops before exceeding its model-call budget", async () => {
       },
     },
     decide: (_task, recordUsage) => async () => {
-      recordUsage?.({ inputTokens: 3, outputTokens: 1 });
+      recordUsage?.({ inputTokens: 3, outputTokens: 1, costUsd: 0 });
       return {
         type: "execute",
         requestId: "open",
@@ -644,7 +644,7 @@ test("coordinated branches reserve model budget without oversubscribing it", asy
       },
     },
     planCoordinated: async (_task, recordUsage) => {
-      recordUsage?.({ inputTokens: 4, outputTokens: 2 });
+      recordUsage?.({ inputTokens: 4, outputTokens: 2, costUsd: 0 });
       return {
         nodes: [
           { id: "one", task: "One", dependsOn: [] },
@@ -654,7 +654,7 @@ test("coordinated branches reserve model budget without oversubscribing it", asy
     },
     decide: (_task, recordUsage) => async () => {
       decisions += 1;
-      recordUsage?.({ inputTokens: 2, outputTokens: 1 });
+      recordUsage?.({ inputTokens: 2, outputTokens: 1, costUsd: 0 });
       return { type: "complete", evidence: "done" };
     },
   });
@@ -873,7 +873,7 @@ test("a resumed run keeps the model-call budget already spent", async () => {
     },
     decide: (_task, recordUsage) => async () => {
       decisions += 1;
-      recordUsage?.({ inputTokens: 2, outputTokens: 1 });
+      recordUsage?.({ inputTokens: 2, outputTokens: 1, costUsd: 0 });
       return { type: "ask_user", question: "Which account?" };
     },
   });

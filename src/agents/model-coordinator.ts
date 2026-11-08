@@ -1,6 +1,6 @@
 import type { ModelTarget, ProviderConfig } from "../models/config.ts";
 import { createStructuredProvider } from "../models/providers.ts";
-import type { RecordModelUsage } from "../models/usage.ts";
+import { estimateCostUsd, type RecordModelUsage } from "../models/usage.ts";
 import type { CoordinatedPlan } from "../orchestration/coordinated.ts";
 import { validateCoordinatedPlan } from "../orchestration/coordinated.ts";
 
@@ -68,7 +68,7 @@ export function createModelCoordinator(
   return async (task) => {
     let attempted = false;
     const provider = createStructuredProvider(providerConfig, environment, request);
-    let usage = { inputTokens: 0, outputTokens: 0 };
+    let usage = { inputTokens: 0, outputTokens: 0, costUsd: 0 };
     try {
       attempted = true;
       const response = await provider.structured({
@@ -83,6 +83,11 @@ export function createModelCoordinator(
       usage = {
         inputTokens: response.inputTokens ?? 0,
         outputTokens: response.outputTokens ?? 0,
+        costUsd: estimateCostUsd(
+          target.model,
+          response.inputTokens ?? 0,
+          response.outputTokens ?? 0,
+        ),
       };
       const value = response.value as Partial<ModelPlan>;
       if (!Array.isArray(value.nodes)) {

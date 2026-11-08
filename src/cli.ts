@@ -23,6 +23,7 @@ import {
   loadOrCreateModelConfig,
   type ModelProfileName,
   type ModelRole,
+  type OpenAiCompatibleProviderConfig,
   type ProviderName,
   presetProfiles,
   saveModelConfig,
@@ -159,7 +160,7 @@ async function showRun(id: string): Promise<void> {
   }
   if (telemetry) {
     process.stdout.write(
-      `  telemetry  ${telemetry.modelCalls} model / ${telemetry.decisionCalls} decisions / ${telemetry.inputTokens + telemetry.outputTokens} tokens / ${telemetry.attemptedActions} actions / ${telemetry.elapsedMs}ms\n`,
+      `  telemetry  ${telemetry.modelCalls} model / ${telemetry.decisionCalls} decisions / ${telemetry.inputTokens + telemetry.outputTokens} tokens${telemetry.costUsd ? ` / $${telemetry.costUsd.toFixed(4)}` : ""} / ${telemetry.attemptedActions} actions / ${telemetry.elapsedMs}ms\n`,
     );
   }
 }
@@ -387,6 +388,8 @@ async function main(): Promise<void> {
   taprig pause|resume|stop|retry <run>
   taprig devices | doctor           list phones or diagnose connection problems
   taprig model show | use <openai|anthropic|claude|codex> | profile <economy|balanced|best>
+  taprig model use compatible --base-url <url> --model <name> [--api-key-env <VAR>]
+                                    any OpenAI-compatible server: OpenRouter, Ollama, Groq, Gemini
   taprig connect claude|codex       let Claude Code or Codex drive phones through MCP
   taprig ui                         open the control room
   taprig mcp                        serve the MCP adapter on stdio
@@ -468,10 +471,30 @@ Models: set ANTHROPIC_API_KEY or OPENAI_API_KEY, or sign in to the claude or cod
     if (operation === "use") {
       const provider = process.argv[4] as ProviderName | undefined;
       if (!provider || !(provider in defaultProviders)) {
-        throw new Error("model use requires openai, anthropic, claude, or codex");
+        throw new Error(
+          "model use requires openai, anthropic, claude, codex, or compatible --base-url <url> --model <name> [--api-key-env <VAR>]",
+        );
       }
       config.providers[provider] ??= defaultProviders[provider];
-      config.profiles = presetProfiles(provider);
+      if (provider === "compatible") {
+        const flag = (name: string) => {
+          const index = process.argv.indexOf(name, 5);
+          return index === -1 ? undefined : process.argv[index + 1];
+        };
+        const current = config.providers.compatible as OpenAiCompatibleProviderConfig;
+        const apiKeyEnv = flag("--api-key-env") ?? current.apiKeyEnv;
+        config.providers.compatible = {
+          type: "openai-compatible",
+          baseUrl: flag("--base-url") ?? current.baseUrl,
+          model: flag("--model") ?? current.model,
+          ...(apiKeyEnv ? { apiKeyEnv } : {}),
+        };
+      }
+      const compatible = config.providers.compatible as OpenAiCompatibleProviderConfig;
+      config.profiles = presetProfiles(
+        provider,
+        provider === "compatible" ? compatible.model : undefined,
+      );
       saveModelConfig(config);
       // The daemon reads model config at startup; restart it so the change applies now.
       const restarted = (await stopDaemonProcess()) && (await startDaemonProcess());

@@ -163,3 +163,67 @@ test("detects the first usable provider and switches only when the configured on
   assert.equal(usableModelConfig(openai, () => false, { PATH: "" }).switchedTo, undefined);
   assert.equal(presetProfiles("claude").economy.roles.fast.model, "haiku");
 });
+
+test("drives any OpenAI-compatible server through chat completions with an optional key", async () => {
+  let url = "";
+  let sent: Record<string, unknown> = {};
+  let headers = new Headers();
+  const respond: typeof fetch = async (input, init) => {
+    url = String(input);
+    headers = new Headers(init?.headers);
+    sent = JSON.parse(String(init?.body));
+    return new Response(
+      JSON.stringify({
+        choices: [{ message: { content: '```json\n{"id":"done"}\n```' } }],
+        usage: { prompt_tokens: 7, completion_tokens: 3 },
+      }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+  };
+  const local = createStructuredProvider(defaultProviders.compatible, {}, respond);
+  assert.deepEqual(await local.structured({ ...request, image: Buffer.from("png") }), {
+    value: { id: "done" },
+    inputTokens: 7,
+    outputTokens: 3,
+  });
+  assert.equal(url, "http://localhost:11434/v1/chat/completions");
+  assert.equal(headers.get("authorization"), null);
+  assert.equal(sent.model, "qwen3");
+  assert.equal(sent.reasoning, undefined);
+  assert.equal((sent.response_format as { type: string }).type, "json_schema");
+  const user = (sent.messages as Array<{ content: unknown }>)[1]?.content as Array<{
+    type: string;
+  }>;
+  assert.equal(user[1]?.type, "image_url");
+
+  const keyed = createStructuredProvider(
+    {
+      type: "openai-compatible",
+      baseUrl: "https://openrouter.ai/api/v1/",
+      model: "qwen/qwen3",
+      apiKeyEnv: "OPENROUTER_API_KEY",
+    },
+    { OPENROUTER_API_KEY: "or-key" },
+    respond,
+  );
+  await keyed.structured(request);
+  assert.equal(url, "https://openrouter.ai/api/v1/chat/completions");
+  assert.equal(headers.get("authorization"), "Bearer or-key");
+  await assert.rejects(
+    createStructuredProvider(
+      { type: "openai-compatible", baseUrl: "http://x", model: "m", apiKeyEnv: "MISSING" },
+      {},
+      respond,
+    ).structured(request),
+    /MISSING is not configured/u,
+  );
+  assert.equal(presetProfiles("compatible", "qwen3").best.roles.vision.model, "qwen3");
+});
+
+test("prices API models at list rates and treats CLI aliases and unknown models as free", async () => {
+  const { estimateCostUsd } = await import("../src/models/usage.ts");
+  assert.equal(estimateCostUsd("claude-haiku-4-5", 1_000_000, 1_000_000), 6);
+  assert.equal(estimateCostUsd("gpt-6-luna", 1_000_000, 0), 0.1);
+  assert.equal(estimateCostUsd("haiku", 1_000_000, 1_000_000), 0);
+  assert.equal(estimateCostUsd("qwen3", 100, 100), 0);
+});

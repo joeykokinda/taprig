@@ -8,6 +8,7 @@ import Anthropic from "@anthropic-ai/sdk";
 
 import type { ProviderConfig } from "./config.ts";
 import {
+  OpenAiCompatibleProvider,
   OpenAiResponsesProvider,
   type StructuredModelRequest,
   type StructuredModelResponse,
@@ -72,10 +73,14 @@ export function providerReady(
   if (config.type === "openai" || config.type === "anthropic") {
     return Boolean(environment[config.apiKeyEnv]);
   }
+  if (config.type === "openai-compatible") {
+    return !config.apiKeyEnv || Boolean(environment[config.apiKeyEnv]);
+  }
   return findExecutable(config.command, environment) !== undefined;
 }
 
 export function providerRequirement(config: ProviderConfig): string {
+  if (config.type === "openai-compatible") return `set ${config.apiKeyEnv ?? "the base URL"}`;
   return config.type === "openai" || config.type === "anthropic"
     ? `set ${config.apiKeyEnv}`
     : `install and sign in to ${config.command}`;
@@ -305,6 +310,9 @@ export function createStructuredProvider(
   run: RunCommand = runCommand,
 ): StructuredModelProvider {
   if (config.type === "openai") return new OpenAiResponsesProvider(config, environment, request);
+  if (config.type === "openai-compatible") {
+    return new OpenAiCompatibleProvider(config, environment, request);
+  }
   if (config.type === "anthropic") {
     return new AnthropicMessagesProvider(config.apiKeyEnv, environment, request);
   }
