@@ -24,3 +24,21 @@ test("doctor distinguishes authorization from a ready transport", () => {
     message: "Pixel_8 is authorized over ADB.",
   });
 });
+
+test("doctor turns the daemon setup report into one fix per failure", async () => {
+  const { diagnoseSetup } = await import("../src/doctor.ts");
+  const findings = diagnoseSetup({
+    status: "needs-attention",
+    modelProvider: null,
+    modelRequirement:
+      "set ANTHROPIC_API_KEY or OPENAI_API_KEY, or sign in to the claude or codex CLI",
+    agentConfigured: false,
+    devices: { total: 2, ready: 1, states: { "phone-1": "ready", "phone-2": "locked" } },
+  });
+  assert.deepEqual(
+    findings.map(({ status, subject }) => `${status}:${subject}`),
+    ["pass:daemon", "pass:phone-1", "fail:phone-2", "fail:model"],
+  );
+  assert.match(findings[2]?.message ?? "", /TAPRIG_UNLOCK_PIN/u);
+  assert.match(findings[3]?.message ?? "", /taprig model use/u);
+});

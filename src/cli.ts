@@ -15,7 +15,12 @@ import {
   startDaemonProcess,
   stopDaemonProcess,
 } from "./daemon/lifecycle.ts";
-import { diagnoseAdbDevices, formatDoctorFindings } from "./doctor.ts";
+import {
+  diagnoseAdbDevices,
+  diagnoseSetup,
+  formatDoctorFindings,
+  type SetupReport,
+} from "./doctor.ts";
 import { parseExecuteCommand } from "./execute-command.ts";
 import { serveTapRigMcp } from "./mcp/server.ts";
 import {
@@ -833,7 +838,17 @@ Models: set ANTHROPIC_API_KEY or OPENAI_API_KEY, or sign in to the claude or cod
     return;
   }
   if (selectedCommand === "doctor") {
-    const findings = diagnoseAdbDevices(devices);
+    const setup = await daemonJson<SetupReport>("/setup").catch(() => undefined);
+    const findings = setup
+      ? diagnoseSetup(setup)
+      : [
+          {
+            status: "fail" as const,
+            subject: "daemon",
+            message: "TapRig daemon is not reachable. Start it with: taprig daemon start",
+          },
+          ...diagnoseAdbDevices(devices),
+        ];
     process.stdout.write(`${formatDoctorFindings(findings)}\n`);
     if (findings.some(({ status }) => status === "fail")) process.exitCode = 1;
     return;

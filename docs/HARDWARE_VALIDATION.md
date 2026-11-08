@@ -186,12 +186,12 @@ Build: per-action verification in the driver, screenshot every decision, launche
 resolution before `am start`, run results surfaced. All runs on the signed-in Claude
 Code CLI.
 
-| Task | Result |
-|---|---|
-| Open Messages, report the latest text (phone has no SIM, empty inbox) | completed, 24 s, 4 actions, reported an empty inbox |
-| Open X, compose "I like turtles", stop before Post | completed, 39 s; draft on screen, Post untouched |
-| Open X, report the first Home timeline author | completed, 19 s, 2 actions |
-| Open X, open Notifications, report the latest one | completed, 2 actions; answer printed by `taprig run` |
+| Task                                                                  | Result                                               |
+| --------------------------------------------------------------------- | ---------------------------------------------------- |
+| Open Messages, report the latest text (phone has no SIM, empty inbox) | completed, 24 s, 4 actions, reported an empty inbox  |
+| Open X, compose "I like turtles", stop before Post                    | completed, 39 s; draft on screen, Post untouched     |
+| Open X, report the first Home timeline author                         | completed, 19 s, 2 actions                           |
+| Open X, open Notifications, report the latest one                     | completed, 2 actions; answer printed by `taprig run` |
 
 Defects found on hardware and fixed:
 
