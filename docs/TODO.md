@@ -70,6 +70,16 @@ Percentages describe demonstrated functionality, not lines of code.
   (the-internet.herokuapp.com/login, 31 s, no secret in logs or export).
 - [x] Validate a captcha-style human handoff on the Moto: agent pauses, human types
   through the manual text path, answers done, agent finishes the login (37 s).
+- [x] Per-action verification in the driver; screenshot every decision by default;
+  tell the model when the screen did not move; dismiss interruptions.
+- [x] Resolve launcher activities before `am start`; 8 s launch window; hot-reload
+  a rebuilt driver bundle without a daemon restart.
+- [x] Surface the run's answer in `taprig run`, `attach`, the control room, and MCP.
+- [x] Real apps validated on the Moto: X compose (draft), X timeline and
+  notifications questions, Messages inbox.
+- [ ] Named per-app secrets so "log in to X" needs no question on repeat runs.
+- [ ] Chrome rig profile: password saving and breach warnings off once per phone.
+- [ ] Clean up after a failed run (home, close the app) so the next run starts fresh.
 
 ## P2 — fleet and launch
 

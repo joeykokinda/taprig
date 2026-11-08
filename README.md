@@ -128,6 +128,25 @@ npm run taprig -- retry <run-id>
 See [first-phone onboarding](docs/ONBOARDING.md) for USB trust, model setup,
 the local UI, and the SSH-first server workflow.
 
+### Ask the phone a question
+
+A read task ends with the answer printed, because the model's completion evidence
+is the result:
+
+```console
+$ taprig run "Open X, open Notifications, and tell me what the latest one says"
+  ...
+The Notifications tab is open in X. The most recent notification, from codila 15m
+ago, reads: "REA (reverse engineer anything) ..."
+
+completed
+```
+
+The same text shows under the run in the control room and in `taprig_run` over MCP.
+By default every decision includes a screenshot so dialogs, toasts, and web pages
+the accessibility tree does not describe are still seen; `taprig settings vision
+auto` limits screenshots to thin screens and misses.
+
 ### Logins, captchas, and anything only you can do
 
 A run stops and asks when it needs you, and `taprig run` prompts right in the

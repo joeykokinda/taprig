@@ -179,3 +179,38 @@ the export.
 
 Still unverified on this device: a second phone in the same session, and
 reconnect across host or device reboot.
+
+## 2026-11-08 (night) — real apps on `ZY22L2TQM3`: X, Messages, questions
+
+Build: per-action verification in the driver, screenshot every decision, launcher
+resolution before `am start`, run results surfaced. All runs on the signed-in Claude
+Code CLI.
+
+| Task | Result |
+|---|---|
+| Open Messages, report the latest text (phone has no SIM, empty inbox) | completed, 24 s, 4 actions, reported an empty inbox |
+| Open X, compose "I like turtles", stop before Post | completed, 39 s; draft on screen, Post untouched |
+| Open X, report the first Home timeline author | completed, 19 s, 2 actions |
+| Open X, open Notifications, report the latest one | completed, 2 actions; answer printed by `taprig run` |
+
+Defects found on hardware and fixed:
+
+1. **`am start -p` cannot launch X.** Its launcher activity is
+   `com.x.android.main.MainActivity`, outside the `com.twitter.android` package,
+   so the intent did not resolve and two launches "failed"; the agent recovered by
+   going home and tapping the icon. Launch now resolves the activity with
+   `cmd package resolve-activity` and starts it by component, in both the driver
+   and the adb path. Launches also get 8 s instead of 2 s for cold starts.
+2. **Nothing surfaced the answer.** A read task ended with `completed` and the
+   model's evidence stayed in the checkpoint table. `taprig run`, `attach`, the
+   control room, and `taprig_run` now show it.
+3. **Verification by tree change** was replaced with per-action checks (touch
+   delivered, key delivered, field shows the typed text, app in the foreground,
+   swipe moved something), so focused fields, web buttons, and hidden keyboards no
+   longer burn the recovery budget. The decider is told whether the screen moved.
+
+Hot reload of a rebuilt driver bundle was confirmed: the running daemon installed
+the new APK within seconds of the rsync, no restart.
+
+Left for the owner: tapping Post on the drafted X post, which this session did not
+publish.
