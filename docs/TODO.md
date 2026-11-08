@@ -68,7 +68,8 @@ Percentages describe demonstrated functionality, not lines of code.
   during TAKE CONTROL for captchas, `taprig_answer` over MCP, installed-app hints.
 - [x] Validate a real login with human-supplied credentials on the Moto
   (the-internet.herokuapp.com/login, 31 s, no secret in logs or export).
-- [ ] Validate a captcha or 2FA handoff through TAKE CONTROL on the Moto.
+- [x] Validate a captcha-style human handoff on the Moto: agent pauses, human types
+  through the manual text path, answers done, agent finishes the login (37 s).
 
 ## P2 — fleet and launch
 

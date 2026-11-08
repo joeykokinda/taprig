@@ -168,5 +168,14 @@ rebuilt bundle needs a daemon restart before the phone is updated. Restarting th
 daemon also drops the in-memory unlock PIN; the systemd unit in
 `docs/ONBOARDING.md` keeps it across restarts.
 
-Still unverified on this device: a captcha handoff through TAKE CONTROL, a
-second phone in the same session, and reconnect across host or device reboot.
+Human handoff (captcha-style), run `66d23e4e`, completed in 37 s, 7 model calls:
+the task declared the username field a human-only step. The agent tapped the
+field, asked "Please type the username yourself into the focused username field
+on the phone, then reply done when you have", and waited. The username was typed
+through the control room's manual text path (`input text` with shell quoting),
+`done` was answered, the agent then asked for the password, entered it from the
+sensitive answer, tapped Login, and completed on the secure area. No secret in
+the export.
+
+Still unverified on this device: a second phone in the same session, and
+reconnect across host or device reboot.
