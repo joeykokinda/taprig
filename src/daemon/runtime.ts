@@ -32,6 +32,7 @@ import { providerReady, providerRequirement } from "../models/providers.ts";
 import { routeModel } from "../models/router.ts";
 import { dataDirectory } from "../paths.ts";
 import { TapRigStore } from "../persistence/store.ts";
+import { ScheduleService } from "../runs/schedules.ts";
 import { RunService } from "../runs/service.ts";
 import { RunWorker } from "../runs/worker.ts";
 import { ScriptService } from "../scripts/service.ts";
@@ -211,6 +212,7 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
     ? modelConfig.providers[coordinatorRoute.target.provider]
     : undefined;
   const appNotes = new FileAppNotes(join(dirname(databasePath), "app-notes"));
+  const schedules = new ScheduleService(join(dirname(databasePath), "schedules.json"));
   const worker =
     route && provider && providerReady(provider)
       ? new RunWorker({
@@ -275,7 +277,12 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
         discoveryError = undefined;
         for (const device of devices) store.saveDevice(device);
         syncDrivers(devices);
-        if (worker && schedulingEnabled) scheduleDurableRuns(runs, worker, devices);
+        if (worker && schedulingEnabled) {
+          scheduleDurableRuns(runs, worker, devices);
+          for (const schedule of schedules.due()) {
+            worker.start(runs.create(schedule.task, schedule.mode).id);
+          }
+        }
       } catch (error) {
         discoveryError = error instanceof Error ? error.message : String(error);
         const devices = await registry.refresh([]);
@@ -322,6 +329,7 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
       manualTap: executeNormalizedTap,
       manualText: executeManualText,
       notifications: listNotifications,
+      schedules,
       modelProfile: modelConfig.selectedProfile,
       ...(route ? { modelProvider: route.target.provider } : {}),
       modelRequirement:

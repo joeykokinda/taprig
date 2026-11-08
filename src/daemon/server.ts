@@ -16,6 +16,7 @@ import type {
   RunMode,
 } from "../core/contracts.ts";
 import type { DeviceGroupService } from "../devices/groups.ts";
+import type { ScheduleService } from "../runs/schedules.ts";
 import type { RunService } from "../runs/service.ts";
 import type { ScriptService } from "../scripts/service.ts";
 import { CredentialBroker } from "../security/credential-broker.ts";
@@ -77,6 +78,7 @@ export interface TapRigDaemonOptions {
   manualTap?: (serial: string, xRatio: number, yRatio: number) => Promise<void>;
   manualText?: (serial: string, text: string) => Promise<void>;
   notifications?: (serial: string) => Promise<unknown[]>;
+  schedules?: ScheduleService;
   modelProfile?: string;
   modelProvider?: string;
   modelRequirement?: string;
@@ -756,6 +758,46 @@ export async function startDaemon(options: TapRigDaemonOptions): Promise<Running
           | undefined;
         const result = typeof completion?.summary === "string" ? completion.summary : undefined;
         response.end(JSON.stringify({ run, ...(result !== undefined ? { result } : {}) }));
+        return;
+      }
+      if (
+        url.pathname === "/schedules" &&
+        (request.method === "GET" || request.method === "POST")
+      ) {
+        if (!options.schedules) throw new Error("schedules are unavailable");
+        if (request.method === "GET") {
+          response.end(JSON.stringify({ schedules: options.schedules.list() }));
+          return;
+        }
+        try {
+          const body = (await jsonBody(request)) as Record<string, unknown>;
+          const schedule = options.schedules.add({
+            task: body.task as string,
+            mode: (body.mode as "independent" | undefined) ?? "independent",
+            ...(body.everyMinutes !== undefined
+              ? { everyMinutes: body.everyMinutes as number }
+              : {}),
+            ...(body.at !== undefined ? { at: body.at as string } : {}),
+          });
+          response.statusCode = 201;
+          response.end(JSON.stringify({ schedule }));
+        } catch (error) {
+          response.statusCode = 400;
+          response.end(
+            JSON.stringify({
+              error: "invalid-schedule",
+              message: error instanceof Error ? error.message : String(error),
+            }),
+          );
+        }
+        return;
+      }
+      const scheduleRoute = /^\/schedules\/([^/]+)$/u.exec(url.pathname);
+      if (request.method === "DELETE" && scheduleRoute?.[1]) {
+        if (!options.schedules) throw new Error("schedules are unavailable");
+        const removed = options.schedules.remove(decodeURIComponent(scheduleRoute[1]));
+        response.statusCode = removed ? 200 : 404;
+        response.end(JSON.stringify({ removed }));
         return;
       }
       const notificationsRoute = /^\/devices\/([^/]+)\/notifications$/u.exec(url.pathname);

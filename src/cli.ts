@@ -35,6 +35,7 @@ import {
 } from "./models/config.ts";
 import { providerReady, providerRequirement } from "./models/providers.ts";
 import { parseRunCommand, parseRunMode } from "./run-command.ts";
+import { parseCadence, type Schedule } from "./runs/schedules.ts";
 import type { ScriptRunResult, TapRigScript } from "./scripts/contracts.ts";
 import type { TapRigSettings } from "./settings.ts";
 
@@ -453,6 +454,7 @@ async function main(): Promise<void> {
   taprig pause|resume|stop|retry <run>
   taprig devices | doctor           list phones or diagnose connection problems
   taprig notifications [serial]     read the notification shade without touching the screen
+  taprig schedule add "every 30m" "<task>"   repeat a task; also "daily at 08:00"; list | remove <id>
   taprig model show | use <openai|anthropic|claude|codex> | profile <economy|balanced|best>
   taprig model use compatible --base-url <url> --model <name> [--api-key-env <VAR>]
                                     any OpenAI-compatible server: OpenRouter, Ollama, Groq, Gemini
@@ -837,6 +839,44 @@ Models: set ANTHROPIC_API_KEY or OPENAI_API_KEY, or sign in to the claude or cod
   if (selectedCommand === "devices") {
     process.stdout.write(`${formatAdbDevices(devices)}\n`);
     return;
+  }
+  if (selectedCommand === "schedule") {
+    const operation = process.argv[3] ?? "list";
+    if (operation === "list") {
+      const { schedules } = await daemonJson<{ schedules: Schedule[] }>("/schedules");
+      for (const item of schedules) {
+        const cadence = item.everyMinutes ? `every ${item.everyMinutes}m` : `daily at ${item.at}`;
+        process.stdout.write(
+          `${item.id}\t${cadence}\t${item.lastFiredAt ? `last ${new Date(item.lastFiredAt).toLocaleString()}` : "never fired"}\t${item.task}\n`,
+        );
+      }
+      if (schedules.length === 0) process.stdout.write("No schedules.\n");
+      return;
+    }
+    if (operation === "add") {
+      const [cadence, ...taskWords] = process.argv.slice(4);
+      const task = taskWords.join(" ").trim();
+      if (!cadence || !task) {
+        throw new Error(
+          'schedule add needs a cadence and a task: schedule add "every 30m" "Open X and ..."',
+        );
+      }
+      const { schedule } = await daemonJson<{ schedule: Schedule }>("/schedules", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ task, mode: "independent", ...parseCadence([cadence]) }),
+      });
+      process.stdout.write(`Scheduled ${schedule.id}.\n`);
+      return;
+    }
+    if (operation === "remove") {
+      const id = process.argv[4];
+      if (!id) throw new Error("schedule remove needs a schedule ID");
+      await daemonJson(`/schedules/${encodeURIComponent(id)}`, { method: "DELETE" });
+      process.stdout.write(`Removed ${id}.\n`);
+      return;
+    }
+    throw new Error("schedule requires list, add <cadence> <task>, or remove <id>");
   }
   if (selectedCommand === "notifications") {
     const serial = process.argv[3] ?? devices[0]?.serial;
