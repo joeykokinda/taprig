@@ -6,12 +6,12 @@ This is the ordered product queue. The canonical architecture remains in
 ## Current estimate
 
 - Foundation/runtime: **98%**
-- Physical Android control: **60%**
+- Physical Android control: **80%**
 - Agent loop: **88%**
 - Fleet orchestration: **72%**
 - Desktop application: **64%**
 - Public website/distribution: **60%**
-- Complete launch-ready product: **78%**
+- Complete launch-ready product: **84%**
 
 Percentages describe demonstrated functionality, not lines of code.
 
@@ -31,9 +31,12 @@ Percentages describe demonstrated functionality, not lines of code.
   Physically validated on 2026-11-06 (`docs/HARDWARE_VALIDATION.md`); UIAutomator
   stays as the per-phone fallback.
 - [x] Implement the bounded observe → decide → execute → verify → recover core loop.
-- [ ] Calibrate the complete loop on physical hardware after the device reconnects.
+- [x] Calibrate the complete loop on physical hardware after the device reconnects.
   Emulator calibration done 2026-11-07 (Settings search, Dark theme, Clock), which
-  drove the live-screen stale-check and stable-selector fixes.
+  drove the live-screen stale-check and stable-selector fixes. Physical calibration
+  done 2026-11-08 on the Moto G Play 2024 with the Claude CLI, Codex CLI, and
+  Claude Code over MCP; it found and fixed the monkey auto-rotate defect and the
+  fatal malformed-decision path (`docs/HARDWARE_VALIDATION.md`).
 
 ## P1 — usable local product
 

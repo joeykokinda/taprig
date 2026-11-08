@@ -99,3 +99,35 @@ compares the on-device `sha256sum` and installs only on mismatch.
 Still open for the driver: a successful long tap, password-field redaction on a
 real password field, settle timing on continuously animating screens, a
 second simultaneous phone, and host or device reboot during a session.
+
+## 2026-11-08 — full agent loop on Moto G Play 2024 (`ZY22L2TQM3`) on Brach
+
+Android 14, platform-tools on Brach, Node 24.12.0, driver protocol v1, TapRig
+commits `e40b3b8` through `2c318a8`. Every run was created with `taprig run` and
+followed to a durable terminal state; model decisions came from the configured
+provider with no manual help.
+
+1. Signed-in Codex CLI: "Open the Clock app and start the stopwatch" completed in
+   26 s with launch, two verified taps, and a model-verified completion.
+2. Claude Code over MCP: Claude Code opened Calculator and tapped 1, 2, ×, 7, =
+   using only TapRig tools; the phone showed 84 and the history entry 12×7 (20 s).
+3. Signed-in Claude Code CLI: "Open Settings and open the Battery page" completed
+   in 14 s; "Open Settings, scroll down and open the About phone page" in 15 s;
+   "Open Settings, scroll to the bottom and open the System page" in 20 s
+   (4 model calls, 950 tokens, 3 verified actions).
+4. Two defects found only on hardware, fixed and re-verified the same day:
+   - `monkey`, used to launch apps, injects one random system event that turned
+     auto-rotate back on. Settings then rendered landscape (1600 × 720) while
+     TapRig swiped at portrait coordinates off screen; the swipe verified as
+     unchanged and the run failed. Launch now uses `am start` with the launcher
+     intent, and every leased phone is pinned to portrait before its first
+     observation. Raw and agent swipes were confirmed to scroll afterwards.
+   - A single malformed model decision (an invalid scroll direction) failed the
+     whole run as `transport-failed`. The decider now returns the rejection
+     reason to the model once before failing.
+5. With no human at the phone, the daemon woke it from doze, and the keyguard
+   path holds a PIN only in memory from the environment; the phone was unlocked
+   by its owner for this session.
+
+Still unverified on this device: a second phone in the same session, and
+reconnect across host or device reboot.
