@@ -40,21 +40,7 @@ jobs:
           target: google_apis
           profile: pixel_6
           disable-animations: true
-          script: |
-            export TAPRIG_DATA_DIR="$RUNNER_TEMP/taprig"
-            export TAPRIG_DRIVER_DIR="$PWD/android-driver/build/bundle"
-            node src/cli.ts daemon serve > "$RUNNER_TEMP/daemon.log" 2>&1 &
-            for attempt in $(seq 1 60); do
-              node src/cli.ts doctor > "$RUNNER_TEMP/doctor.txt" 2>&1 && break
-              sleep 2
-            done
-            cat "$RUNNER_TEMP/doctor.txt"
-            grep -q "PASS  emulator-5554" "$RUNNER_TEMP/doctor.txt"
-            node src/cli.ts execute emulator-5554 launch com.android.settings
-            sleep 3
-            adb shell dumpsys window | grep -q "com.android.settings" || (cat "$RUNNER_TEMP/daemon.log"; exit 1)
-            node src/cli.ts execute emulator-5554 key home
-            node src/cli.ts notifications emulator-5554
+          script: bash scripts/emulator-smoke.sh
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
