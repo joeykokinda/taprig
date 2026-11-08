@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { FileAppNotes } from "../agents/app-notes.ts";
 import { createModelCoordinator } from "../agents/model-coordinator.ts";
 import { createModelDecider } from "../agents/model-decider.ts";
 import type { AdbDevice } from "../android/adb-discovery.ts";
@@ -208,6 +209,7 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
   const coordinatorProvider = coordinatorRoute
     ? modelConfig.providers[coordinatorRoute.target.provider]
     : undefined;
+  const appNotes = new FileAppNotes(join(dirname(databasePath), "app-notes"));
   const worker =
     route && provider && providerReady(provider)
       ? new RunWorker({
@@ -243,6 +245,7 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
               captureAdbScreenshot,
               listThirdPartyPackages,
               settings.get().vision,
+              appNotes,
             ),
           ...(coordinatorRoute && coordinatorProvider && providerReady(coordinatorProvider)
             ? {

@@ -411,3 +411,79 @@ test("feeds one malformed decision back to the model and accepts loosely spelled
   await assert.rejects(decide({ decisionNumber: 1, observation }), /invalid key/u);
   assert.equal(inputs.length, 2);
 });
+
+test("pauses consequential taps the task did not ask for and keeps per-app notes", async () => {
+  const { FileAppNotes } = await import("../src/agents/app-notes.ts");
+  const { mkdtemp, rm } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const directory = await mkdtemp(join(tmpdir(), "taprig-notes-"));
+  const notes = new FileAppNotes(directory);
+  const seen: string[] = [];
+  const respond = async (_url: string | URL | Request, init?: RequestInit) => {
+    seen.push(String(init?.body));
+    return new Response(
+      JSON.stringify({
+        usage: { input_tokens: 1, output_tokens: 1 },
+        output_text: JSON.stringify({
+          type: "execute",
+          evidence: null,
+          question: null,
+          approval: null,
+          reason: null,
+          note: "Compose opens from the blue plus button",
+          steps: [
+            {
+              id: "go",
+              actionType: "tap",
+              selectorType: "elementId",
+              value: "node-2",
+              input: null,
+              role: null,
+            },
+          ],
+        }),
+      }),
+      { status: 200 },
+    );
+  };
+  const observation = {
+    deviceId: "phone-1",
+    generation: "one",
+    capturedAt: "2026-11-08T00:00:00.000Z",
+    foregroundPackage: "com.twitter.android",
+    elements: [
+      { id: "node-1", role: "EditText", text: "I like turtles", actionable: true },
+      { id: "node-2", role: "Button", text: "Post", actionable: true },
+    ],
+  };
+  const build = (task: string) =>
+    createModelDecider(
+      task,
+      { provider: "openai", model: "test-model" },
+      { type: "openai", apiKeyEnv: "TEST_KEY", baseUrl: "https://example.test/v1" },
+      { TEST_KEY: "secret" },
+      respond as typeof fetch,
+      undefined,
+      "explicit",
+      undefined,
+      undefined,
+      "auto",
+      notes,
+    );
+
+  const gated = await build("Open X and read my timeline")({ decisionNumber: 0, observation });
+  assert.equal(gated.type, "request_approval");
+  assert.match(gated.type === "request_approval" ? gated.prompt : "", /Tap "Post"/u);
+  assert.deepEqual(await notes.read("com.twitter.android"), [
+    "Compose opens from the blue plus button",
+  ]);
+
+  const allowed = await build("Open X and post: I like turtles")({
+    decisionNumber: 0,
+    observation,
+  });
+  assert.equal(allowed.type, "execute");
+  assert.match(seen.at(-1) ?? "", /appNotes/u);
+  await rm(directory, { recursive: true });
+});
