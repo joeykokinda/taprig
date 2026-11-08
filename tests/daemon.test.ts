@@ -129,7 +129,12 @@ test("the daemon updates owner settings and applies screenshot defaults to new r
     body: JSON.stringify({ approvalPolicy: "autonomous", retainScreenshotsByDefault: true }),
   });
   assert.deepEqual(await updated.json(), {
-    settings: { approvalPolicy: "autonomous", retainScreenshotsByDefault: true, vision: "always" },
+    settings: {
+      approvalPolicy: "autonomous",
+      retainScreenshotsByDefault: true,
+      vision: "always",
+      recordVideo: true,
+    },
   });
   const created = await fetch(`${daemon.url}/runs`, {
     method: "POST",

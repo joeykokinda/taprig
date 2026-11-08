@@ -55,6 +55,44 @@ export class ArtifactService {
     return artifact;
   }
 
+  /** Reserves the path a run recording should be pulled to; call `video` once it is there. */
+  async videoPath(runId: string): Promise<{ id: string; path: string }> {
+    const id = this.#id();
+    const directory = join(this.#root, runId);
+    await mkdir(directory, { recursive: true, mode: 0o700 });
+    return { id, path: join(directory, `${id}.mp4`) };
+  }
+
+  video(
+    runId: string,
+    deviceId: string,
+    reserved: { id: string; path: string },
+    bytes: number,
+    now = () => new Date().toISOString(),
+  ): StoredArtifact {
+    if (!this.#store.getRun(runId)) throw new Error(`run ${runId} not found`);
+    const artifact: StoredArtifact = {
+      id: reserved.id,
+      runId,
+      deviceId,
+      kind: "video",
+      name: `${deviceId} run recording`,
+      mimeType: "video/mp4",
+      relativePath: relative(this.#root, reserved.path),
+      bytes,
+      createdAt: now(),
+    };
+    this.#store.saveArtifact(artifact);
+    this.#store.recordRunEvent(this.#store.getRun(runId), {
+      type: "artifact.created",
+      at: artifact.createdAt,
+      artifactId: artifact.id,
+      kind: artifact.kind,
+      deviceId,
+    });
+    return artifact;
+  }
+
   list(runId: string): StoredArtifact[] {
     if (!this.#store.getRun(runId)) throw new Error(`run ${runId} not found`);
     return this.#store.listArtifacts(runId);

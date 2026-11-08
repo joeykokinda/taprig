@@ -15,6 +15,7 @@ test("persists validated private owner settings atomically", async (context) => 
     approvalPolicy: "explicit",
     retainScreenshotsByDefault: false,
     vision: "always",
+    recordVideo: true,
   });
   settings.update({ approvalPolicy: "autonomous", retainScreenshotsByDefault: true });
   settings = new SettingsService(path);
@@ -22,6 +23,7 @@ test("persists validated private owner settings atomically", async (context) => 
     approvalPolicy: "autonomous",
     retainScreenshotsByDefault: true,
     vision: "always",
+    recordVideo: true,
   });
   assert.equal((await stat(path)).mode & 0o777, 0o600);
   assert.throws(() => settings.update({ unknown: true }), /unknown field/);

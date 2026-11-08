@@ -22,6 +22,7 @@ import {
   executeRawAction,
   listThirdPartyPackages,
 } from "../android/raw-actions.ts";
+import { startScreenRecording } from "../android/screenrecord.ts";
 import { captureAdbScreenshot } from "../android/screenshot.ts";
 import { AndroidSemanticAdapter } from "../android/semantic-adapter.ts";
 import { lockPortrait, unlockWithPin, wakeAndSwipe } from "../android/unlock.ts";
@@ -265,6 +266,15 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
             : {}),
           captureArtifact: (runId, deviceId) =>
             artifacts.screenshot(runId, deviceId).then(() => undefined),
+          record: async (runId, deviceId) => {
+            if (!settings.get().recordVideo) return async () => undefined;
+            const reserved = await artifacts.videoPath(runId);
+            const recording = startScreenRecording(deviceId, process.env.TAPRIG_ADB ?? "adb");
+            return async () => {
+              const bytes = await recording.stop(reserved.path);
+              if (bytes > 0) artifacts.video(runId, deviceId, reserved, bytes);
+            };
+          },
         })
       : undefined;
   let schedulingEnabled = false;

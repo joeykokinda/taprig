@@ -9,12 +9,15 @@ export interface TapRigSettings {
   approvalPolicy: ApprovalPolicy;
   retainScreenshotsByDefault: boolean;
   vision: VisionPolicy;
+  /** Record each run with the phone's screenrecord and keep it as a video artifact. */
+  recordVideo: boolean;
 }
 
 const defaults: TapRigSettings = {
   approvalPolicy: "explicit",
   retainScreenshotsByDefault: false,
   vision: "always",
+  recordVideo: true,
 };
 
 function validate(value: unknown): TapRigSettings {
@@ -33,10 +36,13 @@ function validate(value: unknown): TapRigSettings {
   }
   const vision = settings.vision ?? defaults.vision;
   if (vision !== "always" && vision !== "auto") throw new Error("vision must be always or auto");
+  const recordVideo = settings.recordVideo ?? defaults.recordVideo;
+  if (typeof recordVideo !== "boolean") throw new Error("recordVideo must be boolean");
   return {
     approvalPolicy: settings.approvalPolicy,
     retainScreenshotsByDefault: settings.retainScreenshotsByDefault,
     vision,
+    recordVideo,
   };
 }
 

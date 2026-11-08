@@ -30,6 +30,8 @@ export interface RunWorkerOptions {
   wake?(deviceId: string): Promise<void>;
   /** Runs once a phone is leased, before the first observation: rotation lock and similar. */
   prepare?(deviceId: string): Promise<void>;
+  /** Starts recording a leased phone; the returned function stops it and files the artifact. */
+  record?(runId: string, deviceId: string): Promise<() => Promise<void>>;
 }
 
 type Decider = (context: AgentContext) => Promise<AgentDecision>;
@@ -140,6 +142,7 @@ export class RunWorker {
     | ((task: string, recordUsage?: RecordModelUsage) => Promise<CoordinatedPlan>)
     | undefined;
   readonly #captureArtifact: ((runId: string, deviceId: string) => Promise<void>) | undefined;
+  readonly #record: RunWorkerOptions["record"];
   readonly #wake: ((deviceId: string) => Promise<void>) | undefined;
   readonly #prepare: ((deviceId: string) => Promise<void>) | undefined;
 
@@ -150,6 +153,7 @@ export class RunWorker {
     this.#decide = options.decide;
     this.#planCoordinated = options.planCoordinated;
     this.#captureArtifact = options.captureArtifact;
+    this.#record = options.record;
     this.#wake = options.wake;
     this.#prepare = options.prepare;
   }
@@ -318,6 +322,7 @@ export class RunWorker {
       };
     };
     let leasedDeviceIds: string[] = [];
+    const recordings: Array<() => Promise<void>> = [];
     try {
       requireRunning();
       if (run.mode === "coordinated") {
@@ -430,6 +435,12 @@ export class RunWorker {
             ];
       recovery.deviceIds = [...leasedDeviceIds];
       saveRecovery();
+      if (this.#record) {
+        for (const deviceId of leasedDeviceIds) {
+          const stop = await this.#record(runId, deviceId).catch(() => undefined);
+          if (stop) recordings.push(stop);
+        }
+      }
       const result = redact(
         run.mode === "broadcast"
           ? await runBroadcast({
@@ -491,6 +502,7 @@ export class RunWorker {
         },
       });
     } finally {
+      for (const stop of recordings) await stop().catch(() => undefined);
       const terminal = this.#runs.get(runId)?.status;
       if (
         run.retainScreenshots &&

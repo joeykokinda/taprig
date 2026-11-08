@@ -605,7 +605,7 @@ Models: set ANTHROPIC_API_KEY or OPENAI_API_KEY, or sign in to the claude or cod
     if (operation === "show") {
       const { settings } = await daemonJson<{ settings: TapRigSettings }>("/settings");
       process.stdout.write(
-        `Approval policy: ${settings.approvalPolicy}\nRetain terminal screenshots by default: ${settings.retainScreenshotsByDefault ? "yes" : "no"}\nVision: ${settings.vision}\n`,
+        `Approval policy: ${settings.approvalPolicy}\nRetain terminal screenshots by default: ${settings.retainScreenshotsByDefault ? "yes" : "no"}\nVision: ${settings.vision}\nRecord run video: ${settings.recordVideo ? "yes" : "no"}\n`,
       );
       return;
     }
@@ -617,10 +617,12 @@ Models: set ANTHROPIC_API_KEY or OPENAI_API_KEY, or sign in to the claude or cod
           ? { retainScreenshotsByDefault: value === "on" }
           : operation === "vision" && (value === "always" || value === "auto")
             ? { vision: value }
-            : undefined;
+            : operation === "video" && (value === "on" || value === "off")
+              ? { recordVideo: value === "on" }
+              : undefined;
     if (!patch) {
       throw new Error(
-        "settings requires show, approval autonomous|explicit, screenshots on|off, or vision always|auto",
+        "settings requires show, approval autonomous|explicit, screenshots on|off, vision always|auto, or video on|off",
       );
     }
     const { settings } = await daemonJson<{ settings: TapRigSettings }>("/settings", {

@@ -375,6 +375,7 @@ async function refresh() {
     if (!$("#settings-form").matches(":focus-within")) {
       $("#settings-form").elements.approvalPolicy.value = settings.approvalPolicy;
       $("#settings-form").elements.vision.value = settings.vision ?? "always";
+      $("#settings-form").elements.recordVideo.value = String(settings.recordVideo ?? true);
       $("#settings-form").elements.retainScreenshotsByDefault.value = String(
         settings.retainScreenshotsByDefault,
       );
@@ -535,6 +536,7 @@ $("#settings-form").addEventListener("submit", async (event) => {
       body: JSON.stringify({
         approvalPolicy: form.elements.approvalPolicy.value,
         vision: form.elements.vision.value,
+        recordVideo: form.elements.recordVideo.value === "true",
         retainScreenshotsByDefault: form.elements.retainScreenshotsByDefault.value === "true",
       }),
     });
