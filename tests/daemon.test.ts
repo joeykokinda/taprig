@@ -231,6 +231,9 @@ test("the daemon streams phones and gates manual input with takeover leases", as
     manualTap: async (serial, xRatio, yRatio) => {
       taps.push({ serial, xRatio, yRatio });
     },
+    manualText: async (serial, text) => {
+      taps.push({ serial, text });
+    },
   });
   context.after(() => daemon.stop());
 
@@ -262,7 +265,16 @@ test("the daemon streams phones and gates manual input with takeover leases", as
     body: JSON.stringify({ leaseId: lease.id, type: "tap", xRatio: 0.5, yRatio: 0.25 }),
   });
   assert.equal(tapped.status, 200);
-  assert.deepEqual(taps, [{ serial: "phone-1", xRatio: 0.5, yRatio: 0.25 }]);
+  const typed = await fetch(`${daemon.url}/devices/phone-1/manual-actions`, {
+    method: "POST",
+    headers: { ...authorization, "content-type": "application/json" },
+    body: JSON.stringify({ leaseId: lease.id, type: "text", text: "hello" }),
+  });
+  assert.equal(typed.status, 200);
+  assert.deepEqual(taps, [
+    { serial: "phone-1", xRatio: 0.5, yRatio: 0.25 },
+    { serial: "phone-1", text: "hello" },
+  ]);
 });
 
 test("the daemon creates, lists, and attaches to durable runs", async (context) => {

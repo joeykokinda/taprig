@@ -106,7 +106,8 @@ export function createTapRigMcpServer(request: RequestDaemon = daemonRequest): M
   server.registerTool(
     "taprig_run",
     {
-      description: "Read durable state and ordered events for a TapRig run.",
+      description:
+        "Read durable state, ordered events, open questions, and approvals for a TapRig run. A waiting-for-user run needs taprig_answer or taprig_approval.",
       inputSchema: z.object({ runId: z.string().min(1).max(200) }),
       annotations: { readOnlyHint: true },
     },
@@ -114,6 +115,7 @@ export function createTapRigMcpServer(request: RequestDaemon = daemonRequest): M
       text({
         ...((await json(request, `/runs/${encodeURIComponent(runId)}`)) as object),
         ...((await json(request, `/runs/${encodeURIComponent(runId)}/events`)) as object),
+        ...((await json(request, `/runs/${encodeURIComponent(runId)}/questions`)) as object),
         ...((await json(request, `/runs/${encodeURIComponent(runId)}/approvals`)) as object),
         ...((await json(request, `/runs/${encodeURIComponent(runId)}/artifacts`)) as object),
       }),
@@ -137,6 +139,31 @@ export function createTapRigMcpServer(request: RequestDaemon = daemonRequest): M
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify({ decision }),
+          },
+        ),
+      ),
+  );
+  server.registerTool(
+    "taprig_answer",
+    {
+      description:
+        "Answer one open question from a waiting TapRig run (taprig_run shows them). Set sensitive for passwords and codes: the value then never reaches the model or logs, only the phone.",
+      inputSchema: z.object({
+        runId: z.string().min(1).max(200),
+        questionId: z.string().min(1).max(200),
+        answer: z.string().min(1).max(10_000),
+        sensitive: z.boolean().default(false),
+      }),
+    },
+    async ({ runId, questionId, answer, sensitive }) =>
+      text(
+        await json(
+          request,
+          `/runs/${encodeURIComponent(runId)}/questions/${encodeURIComponent(questionId)}/answer`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ answer, sensitive }),
           },
         ),
       ),

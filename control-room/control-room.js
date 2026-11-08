@@ -58,6 +58,8 @@ function renderDevices(devices) {
           <button data-action="takeover">TAKE CONTROL</button>
           <button data-action="back">BACK</button>
           <button data-action="home">HOME</button>
+          <button data-action="enter">ENTER</button>
+          <input data-manual-text type="text" maxlength="10000" autocomplete="off" placeholder="type here, Enter sends" aria-label="Type on the phone" />
         </div>
       </article>`,
         )
@@ -102,7 +104,7 @@ $("#devices").addEventListener("click", async (event) => {
     }
     const lease = leases.get(deviceId);
     if (!lease) throw new Error("take control first");
-    if (action === "back" || action === "home") {
+    if (action === "back" || action === "home" || action === "enter") {
       await manualRequest(deviceId, { leaseId: lease.id, type: "key", key: action });
       return;
     }
@@ -119,6 +121,21 @@ $("#devices").addEventListener("click", async (event) => {
     $("#task-result").textContent = `CONTROL: ${error.message}`;
     leases.delete(deviceId);
     if (button && action === "takeover") button.textContent = "TAKE CONTROL";
+  }
+});
+
+$("#devices").addEventListener("keydown", async (event) => {
+  if (event.key !== "Enter" || !event.target.matches("[data-manual-text]")) return;
+  const deviceId = event.target.closest("[data-device]").dataset.device;
+  const lease = leases.get(deviceId);
+  const text = event.target.value;
+  try {
+    if (!lease) throw new Error("take control first");
+    if (text) await manualRequest(deviceId, { leaseId: lease.id, type: "text", text });
+    else await manualRequest(deviceId, { leaseId: lease.id, type: "key", key: "enter" });
+    event.target.value = "";
+  } catch (error) {
+    $("#task-result").textContent = `CONTROL: ${error.message}`;
   }
 });
 

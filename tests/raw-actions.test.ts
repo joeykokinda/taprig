@@ -83,3 +83,22 @@ test("maps a normalized manual tap to the current Android display", async () => 
   assert.deepEqual(args, ["input", "tap", "360", "400"]);
   await assert.rejects(executeNormalizedTap("phone-1", 2, 0.5), /0 to 1/);
 });
+
+test("manual text is quoted for the phone shell and installed packages are listed", async () => {
+  const { executeManualText, listThirdPartyPackages } = await import(
+    "../src/android/raw-actions.ts"
+  );
+  const commands: string[][] = [];
+  await executeManualText("phone-1", "it's a test 1", async (_serial, args) => {
+    commands.push([...args]);
+  });
+  assert.deepEqual(commands, [["input", "text", "'it'\\''s%sa%stest%s1'"]]);
+  await assert.rejects(
+    executeManualText("phone-1", "héllo", async () => {}),
+    /ASCII/u,
+  );
+  assert.deepEqual(
+    await listThirdPartyPackages("phone-1", async () => "package:com.b.app\npackage:com.a.app\n"),
+    ["com.a.app", "com.b.app"],
+  );
+});

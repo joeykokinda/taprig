@@ -46,7 +46,7 @@ export interface AgentLoopOptions {
 }
 
 export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoopResult> {
-  const maxDecisions = options.maxDecisions ?? 20;
+  const maxDecisions = options.maxDecisions ?? 40;
   const maxFailedBatches = options.maxFailedBatches ?? 3;
   if (!Number.isSafeInteger(maxDecisions) || maxDecisions < 1 || maxDecisions > 100) {
     throw new Error("maxDecisions must be an integer from 1 to 100");

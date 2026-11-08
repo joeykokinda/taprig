@@ -199,3 +199,34 @@ export async function executeNormalizedTap(
     String(Math.min(height - 1, Math.floor(yRatio * height))),
   ]);
 }
+
+/** Third-party packages on the phone, so the model can launch any installed app by name. */
+export async function listThirdPartyPackages(
+  serial: string,
+  output: AdbOutputRunner = runAdbOutput,
+): Promise<string[]> {
+  const listing = await output(serial, ["pm", "list", "packages", "-3"]);
+  return listing
+    .split(/\r?\n/u)
+    .map((line) => line.replace(/^package:/u, "").trim())
+    .filter((name) => name.length > 0)
+    .sort();
+}
+
+/**
+ * Types into whatever field has focus, for a human driving the phone from the control room.
+ * ponytail: `input text` is ASCII only; the driver's element.text covers unicode for the agent.
+ */
+export async function executeManualText(
+  serial: string,
+  text: string,
+  run: AdbCommandRunner = runAdbShell,
+): Promise<void> {
+  if (!serial) throw new Error("device serial must not be empty");
+  if (text.length === 0 || text.length > 10_000 || /[^\x20-\x7e]/u.test(text)) {
+    throw new Error("manual text must be 1 to 10000 printable ASCII characters");
+  }
+  // adb shell re-parses its arguments remotely, so quote for the phone's shell.
+  const quoted = `'${text.replaceAll(" ", "%s").replaceAll("'", "'\\''")}'`;
+  await run(serial, ["input", "text", quoted]);
+}

@@ -128,6 +128,31 @@ npm run taprig -- retry <run-id>
 See [first-phone onboarding](docs/ONBOARDING.md) for USB trust, model setup,
 the local UI, and the SSH-first server workflow.
 
+### Logins, captchas, and anything only you can do
+
+A run stops and asks when it needs you, and `taprig run` prompts right in the
+terminal. Questions that look like a password or code are typed hidden and sent
+as sensitive: the model never sees the value, it types a `[SECRET]` placeholder
+and TapRig swaps in the real text on the phone. Nothing sensitive reaches logs,
+evidence, or the model's context.
+
+```console
+$ taprig run "Open Chrome, log in to example.com, then open my profile"
+  ...
+What is the username for example.com?
+› me@example.com
+What is the password for example.com?
+(hidden) ›
+  ...
+completed
+```
+
+For a captcha, a 2FA prompt, or a fingerprint the agent asks you to do it. Open
+the control room, press TAKE CONTROL on the phone, tap and type on the live
+screen (the text box next to the buttons types into the focused field), then
+answer `done` and the run continues. The same works from the CLI with
+`taprig answer <run> <question> done` and from the MCP tools.
+
 Set the provider key in the daemon environment, restart it, and new runs execute
 through the bounded semantic workers. Without a configured key,
 runs remain `created`; TapRig never reports execution before verified device

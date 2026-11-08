@@ -75,6 +75,7 @@ export interface TapRigDaemonOptions {
   scripts?: ScriptService;
   stream?: (serial: string) => Promise<LiveMjpegStream>;
   manualTap?: (serial: string, xRatio: number, yRatio: number) => Promise<void>;
+  manualText?: (serial: string, text: string) => Promise<void>;
   modelProfile?: string;
   modelProvider?: string;
   modelRequirement?: string;
@@ -247,6 +248,9 @@ export async function startDaemon(options: TapRigDaemonOptions): Promise<Running
           ) {
             if (!options.manualTap) throw new Error("manual taps are unavailable");
             await options.manualTap(serial, body.xRatio, body.yRatio);
+          } else if (body.type === "text" && typeof body.text === "string") {
+            if (!options.manualText) throw new Error("manual text is unavailable");
+            await options.manualText(serial, body.text);
           } else if (body.type === "key" && typeof body.key === "string") {
             if (!options.execute) throw new Error("manual keys are unavailable");
             await options.execute(serial, parseRawAction({ type: "key.press", key: body.key }));

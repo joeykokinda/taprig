@@ -13,7 +13,12 @@ import {
   loadDriverBundle,
 } from "../android/driver/session.ts";
 import { AndroidDriverAdapter } from "../android/driver-adapter.ts";
-import { executeNormalizedTap, executeRawAction } from "../android/raw-actions.ts";
+import {
+  executeManualText,
+  executeNormalizedTap,
+  executeRawAction,
+  listThirdPartyPackages,
+} from "../android/raw-actions.ts";
 import { captureAdbScreenshot } from "../android/screenshot.ts";
 import { AndroidSemanticAdapter } from "../android/semantic-adapter.ts";
 import { lockPortrait, unlockWithPin, wakeAndSwipe } from "../android/unlock.ts";
@@ -220,6 +225,7 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
               recordUsage,
               settings.get().approvalPolicy,
               captureAdbScreenshot,
+              listThirdPartyPackages,
             ),
           ...(coordinatorRoute && coordinatorProvider && providerReady(coordinatorProvider)
             ? {
@@ -292,6 +298,7 @@ export async function startRuntime(options: RuntimeOptions): Promise<RunningRunt
           adbExecutable: process.env.TAPRIG_ADB ?? "adb",
         }),
       manualTap: executeNormalizedTap,
+      manualText: executeManualText,
       modelProfile: modelConfig.selectedProfile,
       ...(route ? { modelProvider: route.target.provider } : {}),
       modelRequirement:

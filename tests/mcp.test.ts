@@ -28,6 +28,7 @@ test("MCP lists and calls the daemon-backed TapRig tools", async (context) => {
   assert.deepEqual(tools.tools.map(({ name }) => name).sort(), [
     "taprig_act",
     "taprig_action",
+    "taprig_answer",
     "taprig_approval",
     "taprig_devices",
     "taprig_observe",
@@ -61,16 +62,22 @@ test("MCP lists and calls the daemon-backed TapRig tools", async (context) => {
     name: "taprig_approval",
     arguments: { runId: "run-1", approvalId: "approval-1", decision: "approved" },
   });
+  await client.callTool({
+    name: "taprig_answer",
+    arguments: { runId: "run-1", questionId: "q-1", answer: "done" },
+  });
   assert.deepEqual(calls, [
     "GET /devices",
     "POST /devices/phone-1/actions",
     "POST /runs",
     "POST /runs/run-1/pause",
     "POST /runs/run-1/approvals/approval-1/resolve",
+    "POST /runs/run-1/questions/q-1/answer",
   ]);
-  assert.deepEqual(bodies.at(-1), { decision: "approved" });
+  assert.deepEqual(bodies.at(-1), { answer: "done", sensitive: false });
+  assert.deepEqual(bodies.at(-2), { decision: "approved" });
 
-  assert.deepEqual(bodies.at(-2), {
+  assert.deepEqual(bodies.at(-3), {
     task: "Open Settings",
     mode: "coordinated",
     budget: { maxModelCalls: 4, maxActions: 10 },

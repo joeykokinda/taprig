@@ -247,8 +247,19 @@ export function createModelDecider(
   recordUsage?: RecordModelUsage,
   approvalPolicy: ApprovalPolicy = "explicit",
   captureScreenshot?: (deviceId: string) => Promise<Buffer>,
+  listPackages?: (deviceId: string) => Promise<readonly string[]>,
 ): (context: AgentContext) => Promise<AgentDecision> {
   return async (context) => {
+    // Installed packages let the model launch any app by its real name instead of guessing.
+    const launchMissed = context.previousBatch?.steps.some(
+      (step, index) =>
+        step.status === "failed" &&
+        context.history?.at(-1)?.steps[index]?.action.type === "app.launch",
+    );
+    const installedPackages =
+      listPackages && (context.decisionNumber === 0 || launchMissed)
+        ? await listPackages(context.observation.deviceId).catch(() => undefined)
+        : undefined;
     // Vision is the fallback: only screens with little semantic text, or after a missed target.
     const labeled = context.observation.elements.filter(
       (element) => element.text || element.description,
@@ -283,6 +294,7 @@ export function createModelDecider(
       previousBatch: context.previousBatch,
       recentActions: context.history,
       ...(screenshot ? { screenshotAttached: true } : {}),
+      ...(installedPackages ? { installedPackages } : {}),
     };
     let attempted = false;
     let recorded = false;
@@ -298,7 +310,7 @@ export function createModelDecider(
           ...(target.reasoningEffort ? { reasoningEffort: target.reasoningEffort } : {}),
           schemaName: "taprig_phone_decision",
           schema: decisionSchema,
-          system: `You control one Android phone with typed launch, key, scroll, semantic tap, long-tap, and text-entry actions. For tap/longTap/text choose only a visible selector in value, preferring elementId; for text put the exact text in input. For launch put the Android package name in value; for key put back, home, recents, enter, or delete; for scroll put down, up, left, or right to reveal content off screen. Only when a screenshot is attached, tapPoint may tap what the elements do not describe: put "x,y" in value on a 0-1000 grid across the image width and height. Set input null when unused. Take at most three short actions, then observe again. recentActions lists your last batches with their outcomes; never repeat a sequence that already failed or looped. Mark complete only when the current UI visibly proves the user's task. Ask one precise question when required information is missing. ${approvalPolicy === "explicit" ? "Request approval only when the user's task explicitly requires confirmation before a consequential action." : "Never request approval; the owner selected uninterrupted autonomous execution."} Never repeat sensitive input in evidence and never guess success. When rejectedDecision is present your previous answer was refused for that reason; return a corrected decision.`,
+          system: `You control one Android phone with typed launch, key, scroll, semantic tap, long-tap, and text-entry actions. For tap/longTap/text choose only a visible selector in value, preferring elementId; for text put the exact text in input. For launch put the Android package name in value; for key put back, home, recents, enter, or delete; for scroll put down, up, left, or right to reveal content off screen. Only when a screenshot is attached, tapPoint may tap what the elements do not describe: put "x,y" in value on a 0-1000 grid across the image width and height. Set input null when unused. Take at most three short actions, then observe again. recentActions lists your last batches with their outcomes; never repeat a sequence that already failed or looped. Mark complete only when the current UI visibly proves the user's task. Ask one precise question when required information is missing: for a login that needs credentials the task did not give, ask for the username first and the password in a separate question that says it is a password. When the task says the user answered with a secret, type the literal placeholder it names in input. When the screen shows a captcha, a code sent to another device, a biometric or hardware prompt, or anything only the phone's owner can do, do not attempt it: ask_user with exact instructions, for example "Solve the captcha on the phone screen (use TAKE CONTROL in the control room), then answer done", and continue after the answer. ${approvalPolicy === "explicit" ? "Request approval only when the user's task explicitly requires confirmation before a consequential action." : "Never request approval; the owner selected uninterrupted autonomous execution."} Never repeat sensitive input in evidence and never guess success. When rejectedDecision is present your previous answer was refused for that reason; return a corrected decision.`,
           input: JSON.stringify({
             task,
             decisionNumber: context.decisionNumber,

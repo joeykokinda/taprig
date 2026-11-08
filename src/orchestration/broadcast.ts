@@ -26,7 +26,7 @@ export interface BroadcastOptions {
 
 export async function runBroadcast(options: BroadcastOptions): Promise<BroadcastResult> {
   if (options.deviceIds.length < 2) throw new Error("broadcast requires at least two devices");
-  const maxDecisions = options.maxDecisions ?? 20;
+  const maxDecisions = options.maxDecisions ?? 40;
   const actions: ActionStep[] = [];
   let previousBatch: BatchResult | undefined;
 

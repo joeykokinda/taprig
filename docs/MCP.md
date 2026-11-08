@@ -16,7 +16,8 @@ The compact tool surface is:
 - `taprig_devices`: current phone inventory and readiness;
 - `taprig_task`: create a durable natural-language run, optionally constrained
   to a named group or explicit device IDs;
-- `taprig_run`: inspect run state, ordered events, approvals, and artifact metadata;
+- `taprig_run`: inspect run state, ordered events, open questions, approvals, and artifact metadata;
+- `taprig_answer`: answer one open question; `sensitive: true` keeps passwords and codes off the model and logs;
 - `taprig_approval`: approve or deny one open typed approval;
 - `taprig_run_control`: pause, resume, stop, or retry a durable run;
 - `taprig_action`: send one schema-validated raw action to one phone.

@@ -1,6 +1,12 @@
 import type { AgentContext, AgentDecision } from "../agents/loop.ts";
 import { runAgentLoop } from "../agents/loop.ts";
-import type { DeviceAdapter, DeviceCapability, RunTelemetry, RunTrace } from "../core/contracts.ts";
+import type {
+  ActionStep,
+  DeviceAdapter,
+  DeviceCapability,
+  RunTelemetry,
+  RunTrace,
+} from "../core/contracts.ts";
 import { BudgetExceededError } from "../core/errors.ts";
 import type { DeviceInventory } from "../daemon/server.ts";
 import type { RecordModelUsage } from "../models/usage.ts";
@@ -47,6 +53,32 @@ interface RunRecovery {
   >;
   plan?: CoordinatedPlan;
   nodes?: CoordinatedNodeResult[];
+}
+
+/** What the model types to use a sensitive answer it is never shown. */
+export const secretPlaceholder = "[SECRET]";
+
+function answerNote(answer: RunAnswer): string {
+  const verb = answer.kind === "approval" ? "resolved the approval" : "answered";
+  if (!answer.sensitive) return `\n\nThe user ${verb} "${answer.prompt}": ${answer.value}`;
+  return `\n\nThe user ${verb} "${answer.prompt}" with a secret you cannot see. To enter it, use a text action with input exactly ${secretPlaceholder}; never guess it and never mention it in evidence.`;
+}
+
+function revealSecret<T extends { steps: readonly ActionStep[] }>(batch: T, secret: string): T {
+  return {
+    ...batch,
+    steps: batch.steps.map((step) =>
+      step.action.type === "element.text" && step.action.value.includes(secretPlaceholder)
+        ? {
+            ...step,
+            action: {
+              ...step.action,
+              value: step.action.value.replaceAll(secretPlaceholder, secret),
+            },
+          }
+        : step,
+    ),
+  };
 }
 
 function readRecovery(value: unknown): RunRecovery {
@@ -179,13 +211,7 @@ export class RunWorker {
       return;
     }
     const recovery = readRecovery(this.#runs.recovery(runId)?.evidence);
-    let task = answer
-      ? `${run.task}\n\nThe user ${answer.kind === "approval" ? "resolved the approval" : "answered"} "${answer.prompt}": ${answer.value}${
-          answer.sensitive
-            ? "\nTreat this answer as sensitive and never repeat it in evidence."
-            : ""
-        }`
-      : run.task;
+    let task = answer ? `${run.task}${answerNote(answer)}` : run.task;
     if (recovering || continuing) {
       task +=
         `\n\nTapRig ${recovering ? "restarted" : "resumed after a user pause"} during this run. Inspect current phone state before acting. ` +
@@ -246,7 +272,7 @@ export class RunWorker {
           throw new BudgetExceededError(`action budget of ${run.budget.maxActions} exhausted`);
         }
         telemetry.attemptedActions += batch.steps.length;
-        const result = await this.#adapter.execute(batch);
+        const result = await this.#adapter.execute(secret ? revealSecret(batch, secret) : batch);
         recovery.batches ??= {};
         recovery.batches[batch.deviceId] = {
           requestId: batch.requestId,
@@ -321,7 +347,7 @@ export class RunWorker {
                   ? node
                   : {
                       ...node,
-                      task: `${node.task}\n\nThe user answered "${answer.prompt}": ${answer.value}`,
+                      task: `${node.task}${answerNote(answer)}`,
                       ...(waiting?.id === node.id && "deviceId" in waiting
                         ? { deviceId: waiting.deviceId }
                         : {}),

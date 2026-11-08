@@ -906,6 +906,7 @@ test("a resumed sensitive answer reaches the phone but is redacted from evidence
   const runs = new RunService(store);
   const run = runs.create("Enter the one-time code");
   const typed: string[] = [];
+  const seenTasks: string[] = [];
   const worker = new RunWorker({
     runs,
     devices: { list: async () => [readyDevice("phone-1")] },
@@ -922,9 +923,9 @@ test("a resumed sensitive answer reaches the phone but is redacted from evidence
         };
       },
     },
-    decide:
-      (task) =>
-      async ({ decisionNumber }) => {
+    decide: (task) => {
+      seenTasks.push(task);
+      return async ({ decisionNumber }) => {
         if (!task.includes("The user answered")) {
           return { type: "ask_user", question: "What is the one-time code?" };
         }
@@ -938,14 +939,15 @@ test("a resumed sensitive answer reaches the phone but is redacted from evidence
                   action: {
                     type: "element.text",
                     target: { resourceId: "code" },
-                    value: " 123456 ",
+                    value: "[SECRET]",
                     clear: true,
                   },
                 },
               ],
             }
           : { type: "complete", evidence: "Code 123456 accepted" };
-      },
+      };
+    },
   });
   worker.start(run.id);
   await worker.idle();
@@ -953,6 +955,11 @@ test("a resumed sensitive answer reaches the phone but is redacted from evidence
   assert.ok(question);
   assert.equal(question.deviceId, "phone-1");
   runs.answer(run.id, question.id, " 123456 ", true);
+  assert.equal(
+    seenTasks.some((task) => task.includes("123456")),
+    false,
+    "model saw the secret",
+  );
   worker.resume(run.id, {
     prompt: question.prompt,
     value: " 123456 ",

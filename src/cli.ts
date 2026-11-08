@@ -166,8 +166,61 @@ async function showRun(id: string): Promise<void> {
 }
 
 // Streams a run's events until it finishes or needs the user, so `taprig run` reads like a session.
+const hiddenAnswerPattern =
+  /password|passcode|passphrase|\bpin\b|secret|\botp\b|one-time|verification code|2fa/iu;
+
+/** Prompts on the terminal; hidden answers are not echoed and are sent as sensitive. */
+function createPrompter(): (prompt: string, hidden: boolean) => Promise<string> {
+  const terminal = createInterface({ input: process.stdin, output: process.stdout });
+  const writer = terminal as unknown as { _writeToOutput(text: string): void };
+  const original = writer._writeToOutput.bind(terminal);
+  let muted = false;
+  writer._writeToOutput = (text) => {
+    if (!muted) original(text);
+  };
+  return async (prompt, hidden) => {
+    process.stdout.write(prompt);
+    muted = hidden;
+    try {
+      return (await terminal.question("")).trim();
+    } finally {
+      muted = false;
+      if (hidden) process.stdout.write("\n");
+    }
+  };
+}
+
+async function answerOpenQuestions(
+  id: string,
+  ask: (prompt: string, hidden: boolean) => Promise<string>,
+): Promise<boolean> {
+  const [{ questions }, { approvals }] = await Promise.all([
+    daemonJson<{ questions: Array<{ id: string; prompt: string; status: string }> }>(
+      `/runs/${encodeURIComponent(id)}/questions`,
+    ),
+    daemonJson<{ approvals: Array<{ id: string; prompt: string; status: string }> }>(
+      `/runs/${encodeURIComponent(id)}/approvals`,
+    ),
+  ]);
+  let answered = false;
+  for (const question of questions.filter((item) => item.status === "open")) {
+    const hidden = hiddenAnswerPattern.test(question.prompt);
+    const answer = await ask(`\n${question.prompt}\n${hidden ? "(hidden) " : ""}› `, hidden);
+    if (!answer) continue;
+    await answerQuestion([id, question.id, ...(hidden ? ["--sensitive"] : []), answer]);
+    answered = true;
+  }
+  for (const approval of approvals.filter((item) => item.status === "open")) {
+    const reply = await ask(`\nApprove? ${approval.prompt} [y/N] › `, false);
+    await resolveApproval(/^y(es)?$/iu.test(reply) ? "approved" : "denied", [id, approval.id]);
+    answered = true;
+  }
+  return answered;
+}
+
 async function followRun(id: string): Promise<void> {
   let printed = 0;
+  let ask: ReturnType<typeof createPrompter> | undefined;
   for (;;) {
     const [{ run }, { events }] = await Promise.all([
       daemonJson<{ run: RunState }>(`/runs/${encodeURIComponent(id)}`),
@@ -183,6 +236,10 @@ async function followRun(id: string): Promise<void> {
       process.stdout.write(`${run.status}\n`);
       if (run.status !== "completed") process.exitCode = 1;
       return;
+    }
+    if (run.status === "waiting-for-user" && process.stdin.isTTY) {
+      ask ??= createPrompter();
+      if (await answerOpenQuestions(id, ask)) continue;
     }
     if (run.status === "waiting-for-user" || run.status === "paused") {
       await showRun(id);
