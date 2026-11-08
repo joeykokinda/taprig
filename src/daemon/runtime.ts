@@ -5,6 +5,7 @@ import { createModelCoordinator } from "../agents/model-coordinator.ts";
 import { createModelDecider } from "../agents/model-decider.ts";
 import type { AdbDevice } from "../android/adb-discovery.ts";
 import { discoverAdbDevices } from "../android/adb-discovery.ts";
+import { ensureAdbOnPath } from "../android/adb-install.ts";
 import { DeviceRegistry } from "../android/device-actor.ts";
 import {
   AndroidDriverManager,
@@ -131,6 +132,8 @@ export function scheduleDurableRuns(
 }
 
 export async function startRuntime(options: RuntimeOptions): Promise<RunningRuntime> {
+  // Every adb call in the daemon resolves through PATH, so one download covers all of them.
+  if (!options.discover) await ensureAdbOnPath();
   const discover = options.discover ?? discoverAdbDevices;
   const registry = options.registry ?? new DeviceRegistry();
   const databasePath = options.databasePath ?? defaultDatabasePath();

@@ -10,12 +10,19 @@
   "homepage": "https://github.com/joeykokinda/taprig",
   "repository": "github:joeykokinda/taprig",
   "desktopName": "dev.taprig.desktop",
-  "private": true,
   "type": "module",
   "main": "dist/desktop/main.js",
   "bin": {
     "taprig": "src/cli.ts"
   },
+  "files": [
+    "src",
+    "control-room",
+    "android-driver/build/bundle",
+    "docs",
+    "README.md",
+    "LICENSE"
+  ],
   "engines": {
     "node": ">=24.12.0"
   },

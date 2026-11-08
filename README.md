@@ -18,15 +18,13 @@ TapRig is being built around four promises:
 
 ## Quickstart
 
-You need Node 24.12+, Android
-[platform-tools](https://developer.android.com/tools/releases/platform-tools)
-(`adb`), and one model: a signed-in **Claude Code** or **Codex** CLI, or
-`ANTHROPIC_API_KEY`, or `OPENAI_API_KEY`. TapRig picks whichever it finds.
+You need Node 24.12+ and one model: a signed-in **Claude Code** or **Codex**
+CLI, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or any OpenAI-compatible server.
+TapRig picks whichever it finds, downloads Android platform-tools (`adb`) when
+the machine has none, and ships the phone driver prebuilt.
 
 ```console
-git clone https://github.com/joeykokinda/taprig && cd taprig
-npm ci && npm link             # puts `taprig` on your PATH
-npm run build:driver           # optional: fast event driver (JDK 17-21, ANDROID_HOME set to an SDK)
+npm install -g taprig          # or from source: git clone … && npm ci && npm link
 ```
 
 On the phone, enable Developer options and USB debugging, plug it in, unlock
@@ -53,7 +51,7 @@ model is one command away:
 taprig model use compatible --base-url https://openrouter.ai/api/v1 --model qwen/qwen3-235b-a22b --api-key-env OPENROUTER_API_KEY
 taprig model use compatible --base-url http://localhost:11434/v1 --model qwen3   # Ollama, no key
 ```
- Without the driver bundle TapRig falls back to UIAutomator,
+Without the driver bundle TapRig falls back to UIAutomator,
 which works everywhere but is slower and cannot type non-ASCII text.
 
 The project is in active pre-alpha development. See
