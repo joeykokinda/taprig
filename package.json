@@ -1,6 +1,6 @@
 {
   "name": "taprig",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Local-first control plane and runtime for Android phone agents",
   "author": {
     "name": "Joey Kokinda",
