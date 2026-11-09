@@ -1,0 +1,319 @@
+{
+  "environment": {
+    "capturedAt": "2026-11-09T22:15:37.099Z",
+    "commit": "3e1d408",
+    "device": {
+      "serial": "emulator-5554",
+      "model": "sdk_gphone64_x86_64",
+      "android": "14"
+    },
+    "modelConfig": "Profile: balanced\nfast: claude/sonnet\nstrong: claude/opus\nvision: claude/sonnet\nopenai: set OPENAI_API_KEY\nanthropic: set ANTHROPIC_API_KEY\nclaude: ready\ncodex: ready\ncompatible: ready"
+  },
+  "summary": [
+    {
+      "task": "settings-android-version",
+      "trials": 5,
+      "successRate": 1,
+      "medianMs": 31949,
+      "p95Ms": 42194,
+      "meanModelCalls": 4.6,
+      "meanTokens": 1073.6,
+      "meanCostUsd": 0,
+      "meanActions": 3.8
+    },
+    {
+      "task": "settings-dark-theme",
+      "trials": 5,
+      "successRate": 1,
+      "medianMs": 28369,
+      "p95Ms": 29863,
+      "meanModelCalls": 4,
+      "meanTokens": 946.4,
+      "meanCostUsd": 0,
+      "meanActions": 3
+    },
+    {
+      "task": "chrome-read-heading",
+      "trials": 5,
+      "successRate": 1,
+      "medianMs": 15792,
+      "p95Ms": 24256,
+      "meanModelCalls": 2.4,
+      "meanTokens": 652.6,
+      "meanCostUsd": 0,
+      "meanActions": 1.4
+    }
+  ],
+  "trials": [
+    {
+      "task": "settings-android-version",
+      "runId": "b7f8f95f-9c28-4c37-b083-3114fce40475",
+      "status": "completed",
+      "success": true,
+      "wallMs": 42194,
+      "result": "The Android version is shown under Device details in About emulated device: 14. Answer: 14",
+      "telemetry": {
+        "executions": 1,
+        "elapsedMs": 41466.613,
+        "decisionCalls": 5,
+        "modelCalls": 5,
+        "inputTokens": 10,
+        "outputTokens": 1141,
+        "costUsd": 0,
+        "attemptedActions": 4
+      }
+    },
+    {
+      "task": "settings-dark-theme",
+      "runId": "8595f540-b78a-4fdd-a42b-1d472213cf63",
+      "status": "completed",
+      "success": true,
+      "wallMs": 26739,
+      "result": "In Settings > Display, the Dark theme switch is checked (on), and the summary reads \"Will never turn off automatically\". Answer: on",
+      "telemetry": {
+        "executions": 1,
+        "elapsedMs": 26075.147,
+        "decisionCalls": 4,
+        "modelCalls": 4,
+        "inputTokens": 8,
+        "outputTokens": 962,
+        "costUsd": 0,
+        "attemptedActions": 3
+      }
+    },
+    {
+      "task": "chrome-read-heading",
+      "runId": "11fe7c69-ed48-42f7-8ea3-16e4737a4cf6",
+      "status": "completed",
+      "success": true,
+      "wallMs": 24256,
+      "result": "Chrome is open on example.com. The page's main heading is \"Example Domain\". That text comes from the page's WebView element. The heading itself is scrolled off screen. Answer: Example Domain",
+      "telemetry": {
+        "executions": 1,
+        "elapsedMs": 23950.224,
+        "decisionCalls": 3,
+        "modelCalls": 3,
+        "inputTokens": 6,
+        "outputTokens": 909,
+        "costUsd": 0,
+        "attemptedActions": 2
+      }
+    },
+    {
+      "task": "settings-android-version",
+      "runId": "b3b0d91d-8b6f-4844-a938-861616eb7375",
+      "status": "completed",
+      "success": true,
+      "wallMs": 25876,
+      "result": "The Android version shown under Device details in Settings > About emulated device is 14. Answer: 14",
+      "telemetry": {
+        "executions": 1,
+        "elapsedMs": 25436.448,
+        "decisionCalls": 4,
+        "modelCalls": 4,
+        "inputTokens": 8,
+        "outputTokens": 910,
+        "costUsd": 0,
+        "attemptedActions": 3
+      }
+    },
+    {
+      "task": "settings-dark-theme",
+      "runId": "a81510e2-02f2-4511-a17b-19acf9e1d732",
+      "status": "completed",
+      "success": true,
+      "wallMs": 29813,
+      "result": "On the Display screen, under Appearance, the Dark theme switch is checked and its summary reads \"Will never turn off automatically\". Answer: on",
+      "telemetry": {
+        "executions": 1,
+        "elapsedMs": 29499.566,
+        "decisionCalls": 4,
+        "modelCalls": 4,
+        "inputTokens": 8,
+        "outputTokens": 935,
+        "costUsd": 0,
+        "attemptedActions": 3
+      }
+    },
+    {
+      "task": "chrome-read-heading",
+      "runId": "8370fe16-2f8c-4bb2-997f-0c147e68b129",
+      "status": "completed",
+      "success": true,
+      "wallMs": 15792,
+      "result": "Chrome is open on example.com. The page is the \"Example Domain\" page, which says the domain is for use in documentation examples. Answer: Example Domain",
+      "telemetry": {
+        "executions": 1,
+        "elapsedMs": 15723.913,
+        "decisionCalls": 2,
+        "modelCalls": 2,
+        "inputTokens": 4,
+        "outputTokens": 459,
+        "costUsd": 0,
+        "attemptedActions": 1
+      }
+    },
+    {
+      "task": "settings-android-version",
+      "runId": "30e705a2-2455-42ef-8cd2-f170dd8bfa39",
+      "status": "completed",
+      "success": true,
+      "wallMs": 26019,
+      "result": "Settings > About emulated device > Device details shows Android version 14. Answer: 14",
+      "telemetry": {
+        "executions": 1,
+        "elapsedMs": 25722.868,
+        "decisionCalls": 4,
+        "modelCalls": 4,
+        "inputTokens": 8,
+        "outputTokens": 914,
+        "costUsd": 0,
+        "attemptedActions": 3
+      }
+    },
+    {
+      "task": "settings-dark-theme",
+      "runId": "7a08e518-3ab4-4a81-b486-a56e22880249",
+      "status": "completed",
+      "success": true,
+      "wallMs": 28369,
+      "result": "In Settings > Display, the Dark theme switch under Appearance is checked (on), with the summary \"Will never turn off automatically\". Answer: on",
+      "telemetry": {
+        "executions": 1,
+        "elapsedMs": 28198.252,
+        "decisionCalls": 4,
+        "modelCalls": 4,
+        "inputTokens": 8,
+        "outputTokens": 924,
+        "costUsd": 0,
+        "attemptedActions": 3
+      }
+    },
+    {
+      "task": "chrome-read-heading",
+      "runId": "0e8536f2-0c15-4e12-b947-e7950fa6bb89",
+      "status": "completed",
+      "success": true,
+      "wallMs": 23787,
+      "result": "Chrome is open on example.com. The page's main heading is \"Example Domain\". Answer: Example Domain",
+      "telemetry": {
+        "executions": 1,
+        "elapsedMs": 23598.1,
+        "decisionCalls": 3,
+        "modelCalls": 3,
+        "inputTokens": 6,
+        "outputTokens": 973,
+        "costUsd": 0,
+        "attemptedActions": 2
+      }
+    },
+    {
+      "task": "settings-android-version",
+      "runId": "4b4937da-42a0-4418-b705-6e974debd087",
+      "status": "completed",
+      "success": true,
+      "wallMs": 39437,
+      "result": "The Android version is shown under Device details in About emulated device as 14. Answer: 14",
+      "telemetry": {
+        "executions": 1,
+        "elapsedMs": 39132.001,
+        "decisionCalls": 5,
+        "modelCalls": 5,
+        "inputTokens": 10,
+        "outputTokens": 1176,
+        "costUsd": 0,
+        "attemptedActions": 5
+      }
+    },
+    {
+      "task": "settings-dark-theme",
+      "runId": "2cfe3c9c-02c2-497f-9095-19c133af704d",
+      "status": "completed",
+      "success": true,
+      "wallMs": 26516,
+      "result": "I opened Settings and went to Display. In the Appearance section, the Dark theme switch is checked, and its summary reads \"Will never turn off automatically\". Answer: on",
+      "telemetry": {
+        "executions": 1,
+        "elapsedMs": 26181.486,
+        "decisionCalls": 4,
+        "modelCalls": 4,
+        "inputTokens": 8,
+        "outputTokens": 941,
+        "costUsd": 0,
+        "attemptedActions": 3
+      }
+    },
+    {
+      "task": "chrome-read-heading",
+      "runId": "64df439c-74c7-4f62-94f9-19a11228644a",
+      "status": "completed",
+      "success": true,
+      "wallMs": 13761,
+      "result": "Chrome is open on example.com. The page shows the documentation-domain notice, and the WebView title is \"Example Domain\". Answer: Example Domain",
+      "telemetry": {
+        "executions": 1,
+        "elapsedMs": 13621.47,
+        "decisionCalls": 2,
+        "modelCalls": 2,
+        "inputTokens": 4,
+        "outputTokens": 456,
+        "costUsd": 0,
+        "attemptedActions": 1
+      }
+    },
+    {
+      "task": "settings-android-version",
+      "runId": "10d3d062-6f20-44d1-8dcf-d7951aa3d65c",
+      "status": "completed",
+      "success": true,
+      "wallMs": 31949,
+      "result": "The Android version is shown under Device details in About emulated device. Answer: 14",
+      "telemetry": {
+        "executions": 1,
+        "elapsedMs": 31412.188,
+        "decisionCalls": 5,
+        "modelCalls": 5,
+        "inputTokens": 10,
+        "outputTokens": 1181,
+        "costUsd": 0,
+        "attemptedActions": 4
+      }
+    },
+    {
+      "task": "settings-dark-theme",
+      "runId": "c92eb3e1-c303-42bf-b910-7ffb9bf750a6",
+      "status": "completed",
+      "success": true,
+      "wallMs": 29863,
+      "result": "The Display screen is open. In the Appearance section, the Dark theme switch is checked, and its summary reads \"Will never turn off automatically\". Answer: on",
+      "telemetry": {
+        "executions": 1,
+        "elapsedMs": 29412.873,
+        "decisionCalls": 4,
+        "modelCalls": 4,
+        "inputTokens": 8,
+        "outputTokens": 930,
+        "costUsd": 0,
+        "attemptedActions": 3
+      }
+    },
+    {
+      "task": "chrome-read-heading",
+      "runId": "20fa5fad-e25f-4540-abf6-aa50eef77524",
+      "status": "completed",
+      "success": true,
+      "wallMs": 13239,
+      "result": "Chrome is open on example.com. The page's main heading is \"Example Domain\". Answer: Example Domain",
+      "telemetry": {
+        "executions": 1,
+        "elapsedMs": 13116.992,
+        "decisionCalls": 2,
+        "modelCalls": 2,
+        "inputTokens": 4,
+        "outputTokens": 442,
+        "costUsd": 0,
+        "attemptedActions": 1
+      }
+    }
+  ]
+}

@@ -26,3 +26,22 @@ test("the synthetic soak exercises fleet waves and durable restart recovery", as
   assert.equal(result.recoveredAfterRestart, 2);
   assert.equal(result.actions, 10);
 });
+
+test("task benchmark summary judges success per task and averages telemetry", async () => {
+  const { summarize } = await import("../src/benchmarks/tasks.ts");
+  const trial = (success: boolean, wallMs: number, costUsd: number) => ({
+    task: "t",
+    runId: "r",
+    status: success ? "completed" : "failed",
+    success,
+    wallMs,
+    result: "",
+    telemetry: { costUsd, inputTokens: 10, outputTokens: 5 },
+  });
+  const [row] = summarize([trial(true, 100, 0.01), trial(false, 300, 0.03)]);
+  assert.equal(row?.successRate, 0.5);
+  assert.equal(row?.medianMs, 100);
+  assert.equal(row?.p95Ms, 300);
+  assert.equal(row?.meanTokens, 15);
+  assert.ok(Math.abs((row?.meanCostUsd ?? 0) - 0.02) < 1e-9);
+});

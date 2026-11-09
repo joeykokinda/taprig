@@ -108,6 +108,7 @@ Percentages describe demonstrated functionality, not lines of code.
 - [x] Any OpenAI-compatible server as a provider (OpenRouter, Ollama, Groq, Gemini).
 - [x] Price every run at list rates and show the dollar cost in CLI and control room.
 - [ ] Signed macOS, Windows, and Linux installers.
+  Workflow signs and notarizes per platform once secrets exist (`docs/DESKTOP.md`); needs certificates.
 - [x] Build unsigned Linux, Windows, and Intel macOS previews in GitHub Actions.
 - [x] GitHub Release download automation and checksums (tag push drafts all six
   installers plus SHA256SUMS; proven by the v0.1.1 draft).
@@ -117,4 +118,6 @@ Percentages describe demonstrated functionality, not lines of code.
 - [x] Add a repeatable fleet/SQLite/restart soak harness.
 - [x] Publish a repeatable synthetic runtime/soak baseline with raw results.
 - [ ] Publish physical/provider cost, latency, and task-success benchmarks.
+  Harness done (`npm run benchmark:tasks`, adb-verified answers); emulator baseline 15/15 in
+  `benchmarks/results/emulator-sdk_gphone64/`. Still needs a run on the Moto and one on an API provider for cost.
 - [ ] Record the hero demo and launch the public repository.

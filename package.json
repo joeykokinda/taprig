@@ -33,6 +33,7 @@
     "build:desktop": "esbuild desktop/main.ts src/cli.ts --bundle --platform=node --format=esm --outdir=dist/desktop --entry-names=[name] --external:electron",
     "benchmark": "node src/benchmarks/runtime.ts",
     "soak": "node src/benchmarks/soak.ts",
+    "benchmark:tasks": "node src/benchmarks/tasks.ts",
     "check": "npm run lint && npm run typecheck && npm test",
     "desktop": "npm run build:desktop && electron .",
     "desktop:dist": "npm run build:desktop && electron-builder --linux AppImage deb",

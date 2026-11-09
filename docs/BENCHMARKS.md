@@ -40,3 +40,24 @@ accumulated runtime. Inspect them with `taprig attach <run-id>` or
 `GET /runs/<run-id>/telemetry`. TapRig intentionally stores token counts rather
 than a dollar estimate because model prices change; benchmark publication will
 join those counts to a dated, cited price snapshot.
+
+## Task benchmark on a real phone
+
+`npm run benchmark:tasks -- --device <serial> --trials 5` repeats a pinned task
+matrix through the running daemon and writes
+`benchmarks/results/<commit>-<phone model>/tasks.json` with the environment,
+every raw trial, and a per-task summary: success rate, median and p95 wall time,
+model calls, tokens, list-price cost, and actions.
+
+A trial passes only when the run completed and its report ends with an answer
+that matches the phone's real state, read over adb before the run (Android
+version from `getprop`, dark theme from `cmd uimode night`) or a fixed fact
+(example.com's heading). The model's own claim of completion is never enough.
+
+Cost is reported at list price for API providers. A signed-in `claude` or
+`codex` CLI bills the subscription, so its runs report zero dollars and its
+token counts cover only what the CLI exposes; publish cost numbers from an API
+provider run.
+
+Set `ADB` when adb is not on `PATH`. The phone must be unlocked or have its PIN
+stored with `taprig secret set unlock-pin`.
