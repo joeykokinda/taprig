@@ -76,6 +76,13 @@ async function loadDevices(): Promise<AdbDevice[]> {
   }));
 }
 
+const chromePrepTask =
+  "Prepare Chrome (com.android.chrome) for automation. Open Chrome and skip any first-run, sign-in, or notification prompts without signing in. Then open Chrome's Settings and make two changes. " +
+  "1) Password saving off: Settings, Password Manager (or Google Password Manager, then its Settings), turn off 'Save passwords' or 'Offer to save passwords'. " +
+  "2) Breach warnings off: Settings, Privacy and security, Safe Browsing, then open the details of 'Standard protection' (tap the arrow or gear beside it, not the radio button), turn off 'Warn you if passwords are exposed in a data breach'. " +
+  "If that switch is not there, look for a password breach or compromised-password warning switch in the Password Manager settings. " +
+  "Leave a switch that is already off as it is, change nothing else, and finish as soon as both are off, reporting the final state of both.";
+
 async function createRun(
   task: string,
   mode: RunMode = "independent",
@@ -456,6 +463,8 @@ async function main(): Promise<void> {
   taprig notifications [serial]     read the notification shade without touching the screen
   taprig schedule add "every 30m" "<task>"   repeat a task; also "daily at 08:00"; list | remove <id>
   taprig trigger add "<regex>" "<task>"      run a task when a matching notification arrives
+  taprig prep chrome [--device <serial>]   once per phone: stop Chrome offering to save passwords
+                                    and warning about breached ones, so pop-ups do not block runs
   taprig secret set <name>          store a value tasks can use as {{secret:name}}; list | remove
   taprig model show | use <openai|anthropic|claude|codex> | profile <economy|balanced|best>
   taprig model use compatible --base-url <url> --model <name> [--api-key-env <VAR>]
@@ -782,6 +791,18 @@ Models: set ANTHROPIC_API_KEY or OPENAI_API_KEY, or sign in to the claude or cod
     );
     process.stdout.write(`${run.id}\t${run.status}\n`);
     if (!command.detach) await followRun(run.id);
+    return;
+  }
+  if (selectedCommand === "prep") {
+    const [target, ...rest] = process.argv.slice(3);
+    if (target !== "chrome") throw new Error("usage: taprig prep chrome [--device <serial>]");
+    const command = parseRunCommand([...rest, chromePrepTask]);
+    const run = await createRun(command.task, "independent", command.budget, {
+      ...(command.group ? { group: command.group } : {}),
+      ...(command.deviceIds ? { deviceIds: command.deviceIds } : {}),
+    });
+    process.stdout.write(`${run.id}\t${run.status}\n`);
+    await followRun(run.id);
     return;
   }
   if (selectedCommand === "runs") {

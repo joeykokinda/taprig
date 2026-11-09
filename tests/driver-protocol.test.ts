@@ -100,6 +100,7 @@ test("parses bounded typed snapshot and wait results", () => {
         actionable: true,
         bounds: { left: 0, top: 10, right: 100, bottom: 50 },
       },
+      { id: "session:2/1", role: "Switch", actionable: true, checked: false },
     ],
   };
   assert.deepEqual(

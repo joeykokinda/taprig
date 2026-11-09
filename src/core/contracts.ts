@@ -29,6 +29,8 @@ export interface Element {
   bounds?: { left: number; top: number; right: number; bottom: number };
   /** A password field: its text is hidden from observations by design. */
   password?: boolean;
+  /** Present only on checkable nodes (switches, checkboxes, radios): whether it is on. */
+  checked?: boolean;
 }
 
 export interface Observation {

@@ -334,6 +334,7 @@ public final class TapRigInstrumentation extends Instrumentation {
                 .put("id", "node-" + index)
                 .put("role", simpleName(node.getClassName()))
                 .put("actionable", node.isClickable() || node.isLongClickable() || node.isEditable());
+        if (node.isCheckable()) value.put("checked", node.isChecked());
         if (node.isPassword()) value.put("password", true);
         else putText(value, "text", node.getText());
         putText(value, "description", node.getContentDescription());

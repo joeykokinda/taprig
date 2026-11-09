@@ -71,12 +71,24 @@ function parseElement(value: unknown): Element {
   const item = record(value, "element");
   exact(
     item,
-    ["id", "role", "text", "description", "resourceId", "actionable", "bounds", "password"],
+    [
+      "id",
+      "role",
+      "text",
+      "description",
+      "resourceId",
+      "actionable",
+      "bounds",
+      "password",
+      "checked",
+    ],
     "element",
   );
   if (typeof item.actionable !== "boolean") throw new Error("element.actionable must be boolean");
   if (item.password !== undefined && item.password !== true)
     throw new Error("element.password must be true when present");
+  if (item.checked !== undefined && typeof item.checked !== "boolean")
+    throw new Error("element.checked must be boolean when present");
   const optionalText = (name: "text" | "description" | "resourceId") => {
     const candidate = item[name];
     return candidate === undefined ? undefined : text(candidate, `element.${name}`);
@@ -103,6 +115,7 @@ function parseElement(value: unknown): Element {
     actionable: item.actionable,
     ...(bounds ? { bounds } : {}),
     ...(item.password ? { password: true } : {}),
+    ...(typeof item.checked === "boolean" ? { checked: item.checked } : {}),
   };
 }
 

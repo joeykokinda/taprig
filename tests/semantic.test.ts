@@ -133,3 +133,17 @@ test("rejects missing, ambiguous, and untappable semantic targets", async () => 
     /not tappable/,
   );
 });
+
+test("reports checked state only on checkable nodes", () => {
+  const observation = parseUiHierarchy(
+    "phone-1",
+    `<?xml version="1.0" encoding="UTF-8"?>
+<hierarchy rotation="0">
+  <node text="" class="android.widget.Switch" package="com.android.chrome" checkable="true" checked="false" clickable="true" bounds="[600,200][700,260]" />
+  <node text="Wi-Fi" class="android.widget.TextView" package="com.android.chrome" checkable="false" checked="false" clickable="false" bounds="[24,200][500,260]" />
+</hierarchy>`,
+    "2026-11-09T00:00:00.000Z",
+  );
+  assert.equal(observation.elements[0]?.checked, false);
+  assert.equal("checked" in (observation.elements[1] ?? {}), false);
+});

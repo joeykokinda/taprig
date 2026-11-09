@@ -87,7 +87,9 @@ Percentages describe demonstrated functionality, not lines of code.
 - [x] Emulator smoke matrix in CI (API 30, 33, 35).
 - [x] Named secrets as `{{secret:NAME}}` tokens, resolved only on the way to the phone.
 - [x] Notification-triggered runs ("when Mom texts, read it to me").
-- [ ] Chrome rig profile: password saving and breach warnings off once per phone.
+- [x] Chrome rig profile: password saving and breach warnings off once per phone (`taprig prep chrome`).
+  Validated from a cleared Chrome 113 on the emulator: 17 decisions, both switches off.
+  Observations now carry `checked` on switches; without it the agent toggled in circles.
 - [x] Landing page install buttons (npm + MCP). 60-second demo clip still open.
 
 ## P2 — fleet and launch
@@ -107,7 +109,8 @@ Percentages describe demonstrated functionality, not lines of code.
 - [x] Price every run at list rates and show the dollar cost in CLI and control room.
 - [ ] Signed macOS, Windows, and Linux installers.
 - [x] Build unsigned Linux, Windows, and Intel macOS previews in GitHub Actions.
-- [ ] GitHub Release download automation and checksums.
+- [x] GitHub Release download automation and checksums (tag push drafts all six
+  installers plus SHA256SUMS; proven by the v0.1.1 draft).
 - [x] First public website design and interactive product preview.
 - [ ] Connect website download buttons to signed releases.
 - [x] Add a repeatable synthetic orchestration regression harness.

@@ -90,6 +90,7 @@ export function parseUiHierarchy(
       ...(resourceId ? { resourceId } : {}),
       actionable: values.get("clickable") === "true" || values.get("long-clickable") === "true",
       ...(elementBounds ? { bounds: elementBounds } : {}),
+      ...(values.get("checkable") === "true" ? { checked: values.get("checked") === "true" } : {}),
     };
     elements.push(element);
 
