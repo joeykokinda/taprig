@@ -34,7 +34,7 @@
 
     <main id="main">
       <section class="hero" id="top">
-        <div class="eyebrow"><span>OPEN SOURCE</span><span>LOCAL FIRST</span><span>PRE-ALPHA / 0.1.0</span></div>
+        <div class="eyebrow"><span>OPEN SOURCE</span><span>LOCAL FIRST</span><span>ALPHA / 0.1.1</span></div>
         <h1>GIVE AGENTS<br /><em>A PHONE.</em></h1>
         <div class="hero-bottom">
           <p class="lede">
@@ -43,7 +43,7 @@
           </p>
           <div class="hero-actions">
             <a class="button button-solid" href="https://github.com/joeykokinda/taprig">VIEW SOURCE <span>↗</span></a>
-            <a class="button" href="#download">DOWNLOAD STATUS <span>↓</span></a>
+            <a class="button" href="#download">INSTALL <span>↓</span></a>
           </div>
         </div>
       </section>
@@ -167,31 +167,33 @@
       <section class="exhibit" id="status">
         <header class="section-head">
           <div><span>EXHIBIT C</span><span>BUILD STATUS</span></div>
-          <p>HONEST PRE-ALPHA INVENTORY</p>
+          <p>HONEST ALPHA INVENTORY</p>
         </header>
         <div class="status-grid">
           <article>
-            <span>SHIPPED FOUNDATION</span>
-            <h3>THE CHASSIS IS ALIVE.</h3>
+            <span>VALIDATED ON A REAL PHONE</span>
+            <h3>IT DRIVES THE PHONE.</h3>
             <ul>
-              <li>USB ADB discovery + doctor</li>
-              <li>Serialized per-device actors</li>
-              <li>Authenticated loopback daemon</li>
-              <li>Typed raw actions</li>
-              <li>Verified scoped PIN unlock</li>
-              <li>Readiness + device scheduling</li>
+              <li>Accessibility driver, per-action verification</li>
+              <li>PIN unlock past lock-screen overlays</li>
+              <li>Logins asked at run time, typed hidden, never logged</li>
+              <li>Captcha and 2FA handoff on the live screen</li>
+              <li>X, Chrome, Messages, Settings, Clock</li>
+              <li>Notifications, schedules, triggers, run video</li>
+              <li>Claude Code and Codex over MCP</li>
+              <li>Emulator CI at API 30, 33, 35</li>
             </ul>
           </article>
           <article class="inverse">
-            <span>NEXT CRITICAL PATH</span>
-            <h3>FROM HANDS TO AUTONOMY.</h3>
+            <span>NEXT</span>
+            <h3>FROM ONE PHONE TO MANY.</h3>
             <ol>
-              <li><b>01</b> Semantic Android driver</li>
-              <li><b>02</b> scrcpy live video + takeover</li>
-              <li><b>03</b> Observe / act / verify loop</li>
-              <li><b>04</b> Durable run database</li>
-              <li><b>05</b> Desktop control room</li>
-              <li><b>06</b> Fleet orchestration</li>
+              <li><b>01</b> Signed desktop installers</li>
+              <li><b>02</b> Two-phone live view and takeover</li>
+              <li><b>03</b> Reconnect after phone reboot</li>
+              <li><b>04</b> Chrome rig profile per phone</li>
+              <li><b>05</b> Cost and success benchmarks</li>
+              <li><b>06</b> Hero demo clip</li>
             </ol>
           </article>
         </div>
@@ -215,9 +217,10 @@
         <div class="download-grid">
           <article class="download-card">
             <span class="download-label">AVAILABLE NOW</span>
-            <h3>OPEN SOURCE</h3>
-            <p>Clone the repository, run the checks, connect Android over ADB, and build with us.</p>
-            <a class="button button-solid" href="https://github.com/joeykokinda/taprig">GITHUB REPOSITORY ↗</a>
+            <h3>CLI</h3>
+            <p>Node 24 and a phone with USB debugging. One install, one setup, then plain-language runs.</p>
+            <code>npm install -g taprig<br />taprig setup<br />taprig run "Open Settings and turn on Dark theme"</code>
+            <a class="button button-solid" href="https://www.npmjs.com/package/taprig">NPM PACKAGE ↗</a>
           </article>
           <article class="download-card">
             <span class="download-label">IN DEVELOPMENT</span>
@@ -226,10 +229,11 @@
             <button class="button" type="button" disabled>DOWNLOADS COMING SOON</button>
           </article>
           <article class="download-card">
-            <span class="download-label">AVAILABLE IN SOURCE</span>
-            <h3>HEADLESS CLI</h3>
-            <p>Run the daemon beside a phone farm and control it through SSH, API, or eventually MCP.</p>
-            <code>npm run taprig -- doctor</code>
+            <span class="download-label">AVAILABLE NOW</span>
+            <h3>YOUR AGENT, ON THE PHONE</h3>
+            <p>Register TapRig as an MCP server and let Claude Code or Codex drive the phone in plain language.</p>
+            <code>taprig connect claude<br />claude "Use TapRig to text Sam I'm late"</code>
+            <a class="button" href="https://github.com/joeykokinda/taprig">GITHUB REPOSITORY ↗</a>
           </article>
         </div>
       </section>
