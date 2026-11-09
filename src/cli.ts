@@ -4,6 +4,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
+import { Writable } from "node:stream";
 
 import { type AdbDevice, formatAdbDevices } from "./android/adb-discovery.ts";
 import { parseAnswerCommand } from "./answer-command.ts";
@@ -184,15 +185,23 @@ const hiddenAnswerPattern =
   /password|passcode|passphrase|\bpin\b|secret|\botp\b|one-time|verification code|2fa/iu;
 
 /** Prompts on the terminal; hidden answers are not echoed and are sent as sensitive. */
-function createPrompter(): (prompt: string, hidden: boolean) => Promise<string> {
-  const terminal = createInterface({ input: process.stdin, output: process.stdout });
-  const writer = terminal as unknown as { _writeToOutput(text: string): void };
-  const original = writer._writeToOutput.bind(terminal);
+function createPrompter(): ((prompt: string, hidden: boolean) => Promise<string>) & {
+  close(): void;
+} {
   let muted = false;
-  writer._writeToOutput = (text) => {
-    if (!muted) original(text);
-  };
-  return async (prompt, hidden) => {
+  // Echo goes through this stream, so a hidden answer is never written to the terminal.
+  const output = new Writable({
+    write(chunk, encoding, callback) {
+      if (!muted) process.stdout.write(chunk, encoding);
+      callback();
+    },
+  });
+  const terminal = createInterface({
+    input: process.stdin,
+    output,
+    terminal: Boolean(process.stdin.isTTY),
+  });
+  const ask = async (prompt: string, hidden: boolean) => {
     process.stdout.write(prompt);
     muted = hidden;
     try {
@@ -202,6 +211,7 @@ function createPrompter(): (prompt: string, hidden: boolean) => Promise<string> 
       if (hidden) process.stdout.write("\n");
     }
   };
+  return Object.assign(ask, { close: () => terminal.close() });
 }
 
 async function answerOpenQuestions(
@@ -235,38 +245,43 @@ async function answerOpenQuestions(
 async function followRun(id: string): Promise<void> {
   let printed = 0;
   let ask: ReturnType<typeof createPrompter> | undefined;
-  for (;;) {
-    const [{ run, result }, { events }] = await Promise.all([
-      daemonJson<{ run: RunState; result?: string }>(`/runs/${encodeURIComponent(id)}`),
-      daemonJson<{ events: Array<{ sequence: number; event: RunEvent }> }>(
-        `/runs/${encodeURIComponent(id)}/events`,
-      ),
-    ]);
-    for (const item of events.filter(({ sequence }) => sequence > printed)) {
-      process.stdout.write(`  ${formatRunEvent(item.event)}\n`);
-      printed = item.sequence;
+  try {
+    for (;;) {
+      const [{ run, result }, { events }] = await Promise.all([
+        daemonJson<{ run: RunState; result?: string }>(`/runs/${encodeURIComponent(id)}`),
+        daemonJson<{ events: Array<{ sequence: number; event: RunEvent }> }>(
+          `/runs/${encodeURIComponent(id)}/events`,
+        ),
+      ]);
+      for (const item of events.filter(({ sequence }) => sequence > printed)) {
+        process.stdout.write(`  ${formatRunEvent(item.event)}\n`);
+        printed = item.sequence;
+      }
+      if (["completed", "failed", "stopped"].includes(run.status)) {
+        if (result) process.stdout.write(`\n${result}\n\n`);
+        if (run.status === "failed" && run.error)
+          process.stdout.write(`\n${run.error.message}\n\n`);
+        process.stdout.write(`${run.status}\n`);
+        if (run.status !== "completed") process.exitCode = 1;
+        return;
+      }
+      if (run.status === "waiting-for-user" && process.stdin.isTTY) {
+        ask ??= createPrompter();
+        if (await answerOpenQuestions(id, ask)) continue;
+      }
+      if (run.status === "waiting-for-user" || run.status === "paused") {
+        await showRun(id);
+        process.stdout.write(
+          run.status === "paused"
+            ? `Paused. Continue with: taprig resume ${id}\n`
+            : `Waiting for you. Answer with: taprig answer ${id} <question-id> "<answer>"  (or taprig approve/deny)\n`,
+        );
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1000));
     }
-    if (["completed", "failed", "stopped"].includes(run.status)) {
-      if (result) process.stdout.write(`\n${result}\n\n`);
-      if (run.status === "failed" && run.error) process.stdout.write(`\n${run.error.message}\n\n`);
-      process.stdout.write(`${run.status}\n`);
-      if (run.status !== "completed") process.exitCode = 1;
-      return;
-    }
-    if (run.status === "waiting-for-user" && process.stdin.isTTY) {
-      ask ??= createPrompter();
-      if (await answerOpenQuestions(id, ask)) continue;
-    }
-    if (run.status === "waiting-for-user" || run.status === "paused") {
-      await showRun(id);
-      process.stdout.write(
-        run.status === "paused"
-          ? `Paused. Continue with: taprig resume ${id}\n`
-          : `Waiting for you. Answer with: taprig answer ${id} <question-id> "<answer>"  (or taprig approve/deny)\n`,
-      );
-      return;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+  } finally {
+    ask?.close();
   }
 }
 
@@ -914,7 +929,14 @@ Models: set ANTHROPIC_API_KEY or OPENAI_API_KEY, or sign in to the claude or cod
     if (!name) throw new Error("secret requires list, set <name>, or remove <name>");
     if (operation === "set") {
       const value = process.stdin.isTTY
-        ? await createPrompter()(`Value for ${name} (hidden) › `, true)
+        ? await (async () => {
+            const ask = createPrompter();
+            try {
+              return await ask(`Value for ${name} (hidden) › `, true);
+            } finally {
+              ask.close();
+            }
+          })()
         : (
             await new Promise<string>((resolve) => {
               let data = "";
