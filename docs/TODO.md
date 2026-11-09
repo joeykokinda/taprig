@@ -88,7 +88,7 @@ Percentages describe demonstrated functionality, not lines of code.
 - [x] Named secrets as `{{secret:NAME}}` tokens, resolved only on the way to the phone.
 - [x] Notification-triggered runs ("when Mom texts, read it to me").
 - [ ] Chrome rig profile: password saving and breach warnings off once per phone.
-- [ ] Landing page with install buttons and a 60-second demo clip.
+- [x] Landing page install buttons (npm + MCP). 60-second demo clip still open.
 
 ## P2 — fleet and launch
 
