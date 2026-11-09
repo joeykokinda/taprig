@@ -36,6 +36,10 @@ contract used by the control room. It never prints or stores provider secrets.
    task with `taprig run "Open Settings"` or open the authenticated control room
    with `taprig ui`.
 
+6. If tasks will use Chrome, run `taprig prep chrome` once per phone. It turns off
+   Chrome's offer to save passwords and its breach warnings, whose pop-ups
+   otherwise interrupt logins mid-run.
+
 The desktop application and CLI use the same loopback daemon, database, model
 configuration, and readiness endpoint. A provider key stays in the daemon
 process environment and is never returned to either client.

@@ -47,3 +47,22 @@ quality, so the normal-user website download remains disabled.
 
 The first manual matrix run passed on 2026-11-04 and retained all three preview
 artifact sets: [GitHub Actions run 41918799082](https://github.com/joeykokinda/taprig/actions/runs/41918799082).
+
+## Turning on signing
+
+Signing is wired and switches on per platform as soon as its repository secrets
+exist. A platform without them keeps building, and its files keep the
+`-unsigned` suffix. The release title drops "unsigned preview" only when no
+file carries that suffix.
+
+| Platform | Secrets                                                      | What it does                          |
+| -------- | ------------------------------------------------------------ | ------------------------------------- |
+| macOS    | `MAC_CSC_LINK`, `MAC_CSC_KEY_PASSWORD`                       | Developer ID Application signing      |
+| macOS    | `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`   | notarization of the signed app        |
+| Windows  | `WIN_CSC_LINK`, `WIN_CSC_KEY_PASSWORD`                       | Authenticode signing of the installer |
+| Linux    | `RELEASE_GPG_KEY` (ASCII-armored private key, no passphrase) | `SHA256SUMS.asc` detached signature   |
+
+`*_CSC_LINK` is a base64-encoded `.p12`/`.pfx`. New Windows OV and EV
+certificates are issued only on hardware tokens or cloud HSMs, so a `.pfx`
+works only for an older exportable certificate; a cloud signer such as Azure
+Artifact Signing needs `win.azureSignOptions` in the build config instead.

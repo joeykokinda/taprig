@@ -97,6 +97,10 @@ jobs:
           APPLE_TEAM_ID: ${{ matrix.platform == 'macos' && secrets.APPLE_TEAM_ID || '' }}
           HAS_RELEASE_GPG_KEY: ${{ secrets.RELEASE_GPG_KEY != '' }}
         run: |
+          # electron-builder treats an empty CSC_LINK as a path, so drop unset secrets entirely.
+          for name in CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
+            [ -n "${!name}" ] || unset "$name"
+          done
           suffix=""
           if [ "${{ matrix.platform }}" != linux ] && [ -z "$CSC_LINK" ]; then
             suffix="-unsigned"
